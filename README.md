@@ -30,22 +30,69 @@ This is the 2026 prototype for Memory Mate, a mobile and web-app to help people 
 
 # Architecture
 
-The Memory Mate architecture is currently under development. For reference architectural patterns and structure, see [example.01.tmdb-movie-app-architecture.md](example.01.tmdb-movie-app-architecture.md).
+## Design Principles
 
-## Tech Stack
+The MVP architecture prioritizes:
 
-| Layer | Technology |
-|-------|------------|
-| **Language** | TypeScript |
-| **Framework** | React 18 |
-| **Build Tool** | Vite |
-| **Styling** | Tailwind CSS |
-| **State** | React Context + Redux Toolkit Query |
-| **Routing** | React Router v6 |
-| **Animations** | Framer Motion |
-| **Deployment** | Vercel |
+1. **Rapid Implementation** - Choose proven, well-documented technologies that enable fast development
+2. **Ease of Iteration** - Favor simplicity over sophistication to allow quick pivots and changes
+3. **Cross-Platform Deployment** - Support both mobile and web from a single codebase
+4. **Minimal Complexity** - Avoid over-engineering for future capabilities that may change
+
+The future capabilities (multi-user, AI features, etc.) are intentionally given minimal weight in MVP architecture decisions, as those requirements are subject to change. The MVP should ship quickly and validate core functionality first.
+
+## Prototype → MVP Relationship
+
+The Python prototype class serves as:
+- A **functionality specification** defining the core operations and data model
+- A **reference implementation** that the MVP backend will mirror
+- A **test harness** for validating business logic before frontend integration
+
+This approach separates concern: Python for rapid prototyping and specification, TypeScript/React for the production app.
+
+## MVP Tech Stack
+
+| Layer | Technology | Rationale |
+|-------|------------|-----------|
+| **Frontend Framework** | React Native + Expo | Single codebase for iOS, Android, and Web |
+| **Language** | TypeScript | Type safety, excellent tooling |
+| **Build/Dev Tool** | Expo | Simplified build pipeline, OTA updates |
+| **Styling** | NativeWind (Tailwind for RN) | Familiar utility-first CSS, cross-platform |
+| **Navigation** | Expo Router | File-based routing, works on all platforms |
+| **State Management** | Zustand | Lightweight, simple API, no boilerplate |
+| **Local Storage** | expo-sqlite | Structured data, offline-first capability |
+| **Backend (MVP)** | None (local-only) | Simplify MVP, add backend when needed |
+
+### Why React Native + Expo?
+
+- **Single codebase** deploys to iOS, Android, and Web
+- **Expo Go** enables rapid development and testing on physical devices
+- **EAS Build** handles app store deployment without native toolchain setup
+- **Large ecosystem** with extensive documentation and community support
+
+### Why Local-Only Storage for MVP?
+
+- Eliminates backend complexity and hosting costs
+- Faster iteration without API development
+- Users own their data (privacy-friendly)
+- Backend/sync can be added later without major refactoring
 
 ## Project Structure
 
-*(To be defined after backend and data model decisions are finalized)*
+```
+src/
+├── app/                # Expo Router pages
+│   ├── (tabs)/         # Tab navigation screens
+│   ├── verse/[id].tsx  # Verse detail/practice screen
+│   └── _layout.tsx     # Root layout
+├── components/         # Reusable UI components
+├── store/              # Zustand state management
+├── services/           # Data access layer (mirrors Python prototype)
+├── types/              # TypeScript type definitions
+└── utils/              # Helper functions
+```
+
+## Reference Architecture
+
+For additional architectural patterns and structure examples, see [example.01.tmdb-movie-app-architecture.md](example.01.tmdb-movie-app-architecture.md).
 
