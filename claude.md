@@ -21,13 +21,13 @@ The project uses a **phased approach**:
 - ✅ Data model specification (Verse, VerseProgress, TestResult)
 - ✅ Python `MemoryMateStore` class with verse management implemented
 - ✅ JSON-based persistence layer
-
-### In Progress
-- 🔄 Prototype implementation (verse methods done, progress/test methods pending)
+- ✅ Unit tests for verse management (49 tests, 96% coverage)
+- ✅ Demo script showcasing verse management capabilities
+- ✅ Code review of verse management implementation
 
 ### Not Started
 - ⏳ VerseProgress and TestResult implementation
-- ⏳ MVP backend implementation
+- ⏳ Statistics methods (`get_stats`, `get_verse_stats`)
 - ⏳ MVP frontend (React Native + Expo app)
 
 ---
@@ -37,9 +37,9 @@ The project uses a **phased approach**:
 ### Prototype (Current)
 | Layer | Technology |
 |-------|------------|
-| Language | Python 3 |
+| Language | Python 3.12 |
 | Storage | JSON file |
-| Testing | (to be added) |
+| Testing | pytest (49 tests, 96% coverage) |
 
 ### MVP (Planned)
 | Layer | Technology | Rationale |
@@ -116,9 +116,14 @@ Data persists as JSON in `memory_mate_data.json`:
 ```
 /home/alfred/lw/w509-MemoryMate2026/
 ├── README.md                                    # Main project doc (architecture, design principles)
+├── claude.md                                    # This file - project context for Claude
 ├── memory_mate.py                               # Prototype implementation (Verse class, verse methods)
-├── ccc.01.initial-review.md                     # Review of initial README (formatting issues, concerns)
+├── test_memory_mate.py                          # Unit tests (49 tests, 96% coverage)
+├── demo_memory_mate.py                          # Demo script showcasing capabilities
+├── ccc.00.active-context.md                     # Session-specific context and next steps
+├── ccc.01.initial-review.md                     # Review of initial README
 ├── ccc.02.design-prototype-data-and-class.md    # Data model & class design spec
+├── ccc.03.review-of-verse-management.md         # Review of verse management implementation
 ├── example.01.tmdb-movie-app-architecture.md    # Reference architecture (TMDB app example)
 └── .git/                                        # Git repository
 ```
@@ -129,7 +134,11 @@ Data persists as JSON in `memory_mate_data.json`:
 |------|---------|
 | [README.md](README.md) | **START HERE** - Project overview, design principles, tech stack, architecture |
 | [memory_mate.py](memory_mate.py) | Prototype implementation with Verse model and verse management |
+| [test_memory_mate.py](test_memory_mate.py) | Unit tests for all implemented methods |
+| [demo_memory_mate.py](demo_memory_mate.py) | Interactive demo showing all verse management features |
+| [ccc.00.active-context.md](ccc.00.active-context.md) | **READ FOR NEXT SESSION** - Current context and next steps |
 | [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and-class.md) | Data model specification and full class API design |
+| [ccc.03.review-of-verse-management.md](ccc.03.review-of-verse-management.md) | Code review with issues and recommendations |
 | [ccc.01.initial-review.md](ccc.01.initial-review.md) | Early review with formatting fixes and architectural concerns |
 | [example.01.tmdb-movie-app-architecture.md](example.01.tmdb-movie-app-architecture.md) | Reference: architecture patterns from TMDB app |
 
@@ -140,10 +149,13 @@ Data persists as JSON in `memory_mate_data.json`:
 ### Phase 1: Prototype (Current)
 - [x] Define data model (Verse, VerseProgress, TestResult)
 - [x] Implement Verse entity and verse management
+- [x] Add unit tests for verse management (49 tests, 96% coverage)
+- [x] Create demo script for manual testing
+- [x] Code review of verse management
 - [ ] Implement VerseProgress entity and methods
 - [ ] Implement TestResult entity and methods
-- [ ] Add unit tests for all methods
-- [ ] Create simple CLI for manual testing
+- [ ] Implement statistics methods (`get_stats`, `get_verse_stats`)
+- [ ] Add unit tests for progress/test methods
 - [ ] Validate data model with real-world verse data
 
 ### Phase 2: MVP Backend & Frontend
@@ -273,9 +285,15 @@ store.remove_verse(verse.id)
 ## Quick Reference Commands
 
 ```bash
-# Run prototype (to be created)
-python -m pytest memory_mate_test.py        # Run tests
-python -c "from memory_mate import *; ..."   # Interactive
+# Run tests (use python3 on this system)
+python3 -m pytest test_memory_mate.py -v              # Run all tests
+python3 -m pytest test_memory_mate.py --cov=memory_mate  # With coverage
+
+# Run demo
+python3 demo_memory_mate.py
+
+# Interactive Python
+python3 -c "from memory_mate import *; store = MemoryMateStore(); ..."
 
 # Future MVP
 npx create-expo-app memory-mate
@@ -292,5 +310,5 @@ See [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and
 
 ---
 
-**Last Updated**: 2026-12-30
-**Project Status**: Early Prototype Phase
+**Last Updated**: 2026-01-02
+**Project Status**: Prototype Phase - Verse Management Complete
