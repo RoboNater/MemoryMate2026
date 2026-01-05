@@ -332,6 +332,39 @@ Data is persisted as JSON for simplicity and human readability:
 - 4: Almost memorized, occasional mistakes
 - 5: Fully memorized, confident
 
+### VerseProgress Initialization: Lazy Creation (2026-01-04)
+
+**Decision**: VerseProgress records are created lazily on first practice/test, not eagerly when a verse is added.
+
+**Rationale**:
+- Simpler implementation - avoids creating unused records
+- No orphaned progress entries if verse is never practiced
+- User can add verses without immediately creating progress overhead
+- Progress can be explicitly initialized when needed via methods like `record_practice()`
+
+**Implementation**:
+- `add_verse()` does NOT create a VerseProgress record
+- `get_progress()` returns `None` if progress doesn't exist
+- `record_practice()`, `set_comfort_level()`, and similar methods create progress lazily if needed
+- `reset_progress()` creates fresh progress if not yet initialized
+
+### Cascade Delete for remove_verse
+
+**Decision**: `remove_verse()` performs cascade delete - removes associated VerseProgress and TestResult records.
+
+**Rationale**:
+- Maintains data integrity per specification
+- Prevents orphaned progress/test records
+- User expectation: deleting a verse should remove all its data
+- Simplifies the data model - no references to non-existent verses
+
+**Implementation**:
+- `remove_verse(verse_id)` deletes:
+  1. The Verse record
+  2. Associated VerseProgress (if exists)
+  3. All TestResults for that verse_id
+- Single operation ensures consistency
+
 ## Next Steps
 
 1. Implement the `MemoryMateStore` class with all methods

@@ -44,6 +44,8 @@ class MemoryMateStore:
         """Initialize the store with optional custom storage path."""
         self._storage_path = storage_path
         self._verses: dict[str, Verse] = {}
+        self._progress: dict[str, 'VerseProgress'] = {}  # Lazily initialized
+        self._test_results: list['TestResult'] = []  # Lazily initialized
         self._load()
 
     # ========== Verse Management ==========
@@ -89,11 +91,27 @@ class MemoryMateStore:
         return verse
 
     def remove_verse(self, verse_id: str) -> bool:
-        """Permanently delete a verse and its associated data."""
+        """
+        Permanently delete a verse and its associated data.
+
+        Cascade deletes:
+        - The Verse record
+        - Associated VerseProgress (if exists)
+        - All TestResults for this verse
+        """
         if verse_id not in self._verses:
             return False
 
+        # Delete the verse
         del self._verses[verse_id]
+
+        # Cascade delete: remove associated progress
+        if verse_id in self._progress:
+            del self._progress[verse_id]
+
+        # Cascade delete: remove associated test results
+        self._test_results = [tr for tr in self._test_results if tr.verse_id != verse_id]
+
         self._save()
         return True
 

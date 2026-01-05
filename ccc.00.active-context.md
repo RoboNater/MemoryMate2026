@@ -20,14 +20,16 @@
 
 ## Next Steps (Priority Order)
 
-### 1. Design Decisions Needed Before VerseProgress
+### 1. Design Decisions (✅ Decided 2026-01-04)
 
-Before implementing VerseProgress, decide on these issues from [ccc.03.review-of-verse-management.md](ccc.03.review-of-verse-management.md):
+Decisions from [ccc.03.review-of-verse-management.md](ccc.03.review-of-verse-management.md):
 
-| Decision | Options | Recommendation |
-|----------|---------|----------------|
-| VerseProgress creation | Eager (in `add_verse`) vs Lazy (on first practice) | **Lazy** - simpler, no orphaned records |
-| Cascade delete | Update `remove_verse` to delete progress/results | **Yes** - required per spec |
+| Decision | Outcome |
+|----------|---------|
+| VerseProgress creation | **Lazy** - created on first practice/test, not in `add_verse` |
+| Cascade delete | **Yes** - `remove_verse()` deletes progress and test results |
+
+See [ccc.02.design-prototype-data-and-class.md#design-decisions](ccc.02.design-prototype-data-and-class.md#design-decisions) for rationale.
 
 ### 2. Implement VerseProgress
 
