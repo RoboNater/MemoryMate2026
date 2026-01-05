@@ -24,9 +24,13 @@ The project uses a **phased approach**:
 - ✅ Unit tests for verse management (49 tests, 96% coverage)
 - ✅ Demo script showcasing verse management capabilities
 - ✅ Code review of verse management implementation
+- ✅ VerseProgress dataclass and all methods implemented
+- ✅ Unit tests for VerseProgress (37 tests, 97% overall coverage)
+- ✅ Demo script updated with progress tracking features
+- ✅ Design overview and implementation summary documented
 
 ### Not Started
-- ⏳ VerseProgress and TestResult implementation
+- ⏳ TestResult implementation
 - ⏳ Statistics methods (`get_stats`, `get_verse_stats`)
 - ⏳ MVP frontend (React Native + Expo app)
 
@@ -39,7 +43,7 @@ The project uses a **phased approach**:
 |-------|------------|
 | Language | Python 3.12 |
 | Storage | JSON file |
-| Testing | pytest (49 tests, 96% coverage) |
+| Testing | pytest (86 tests, 97% coverage) |
 
 ### MVP (Planned)
 | Layer | Technology | Rationale |
@@ -149,13 +153,14 @@ Data persists as JSON in `memory_mate_data.json`:
 ### Phase 1: Prototype (Current)
 - [x] Define data model (Verse, VerseProgress, TestResult)
 - [x] Implement Verse entity and verse management
-- [x] Add unit tests for verse management (49 tests, 96% coverage)
+- [x] Add unit tests for verse management (49 tests)
 - [x] Create demo script for manual testing
 - [x] Code review of verse management
-- [ ] Implement VerseProgress entity and methods
+- [x] Implement VerseProgress entity and methods
+- [x] Add unit tests for VerseProgress (37 tests, 97% coverage)
+- [x] Update demo script with progress tracking
 - [ ] Implement TestResult entity and methods
 - [ ] Implement statistics methods (`get_stats`, `get_verse_stats`)
-- [ ] Add unit tests for progress/test methods
 - [ ] Validate data model with real-world verse data
 
 ### Phase 2: MVP Backend & Frontend
@@ -310,5 +315,5 @@ See [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and
 
 ---
 
-**Last Updated**: 2026-01-02
-**Project Status**: Prototype Phase - Verse Management Complete
+**Last Updated**: 2026-01-04
+**Project Status**: Prototype Phase - VerseProgress Complete

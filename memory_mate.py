@@ -32,6 +32,43 @@ class Verse:
         return Verse(**data)
 
 
+@dataclass
+class VerseProgress:
+    """Tracks memorization progress for a verse."""
+    verse_id: str
+    times_practiced: int = 0
+    times_tested: int = 0
+    times_correct: int = 0
+    last_practiced: Optional[datetime] = None
+    last_tested: Optional[datetime] = None
+    comfort_level: int = 1  # 1-5 scale
+
+    def to_dict(self) -> dict:
+        """Convert progress to dictionary for JSON serialization."""
+        return {
+            'verse_id': self.verse_id,
+            'times_practiced': self.times_practiced,
+            'times_tested': self.times_tested,
+            'times_correct': self.times_correct,
+            'last_practiced': self.last_practiced.isoformat() if self.last_practiced else None,
+            'last_tested': self.last_tested.isoformat() if self.last_tested else None,
+            'comfort_level': self.comfort_level
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'VerseProgress':
+        """Create VerseProgress from dictionary (JSON deserialization)."""
+        return VerseProgress(
+            verse_id=data['verse_id'],
+            times_practiced=data.get('times_practiced', 0),
+            times_tested=data.get('times_tested', 0),
+            times_correct=data.get('times_correct', 0),
+            last_practiced=datetime.fromisoformat(data['last_practiced']) if data.get('last_practiced') else None,
+            last_tested=datetime.fromisoformat(data['last_tested']) if data.get('last_tested') else None,
+            comfort_level=data.get('comfort_level', 1)
+        )
+
+
 class MemoryMateStore:
     """
     Main data store for Memory Mate prototype.
@@ -135,6 +172,64 @@ class MemoryMateStore:
         self._save()
         return True
 
+    # ========== Progress Tracking ==========
+
+    def _ensure_progress(self, verse_id: str) -> Optional[VerseProgress]:
+        """
+        Ensure progress record exists for a verse (lazy creation).
+
+        Returns the existing or newly created VerseProgress, or None if verse doesn't exist.
+        """
+        if verse_id not in self._verses:
+            return None
+
+        if verse_id not in self._progress:
+            self._progress[verse_id] = VerseProgress(verse_id=verse_id)
+
+        return self._progress[verse_id]
+
+    def get_progress(self, verse_id: str) -> Optional[VerseProgress]:
+        """Get progress data for a specific verse."""
+        return self._progress.get(verse_id)
+
+    def record_practice(self, verse_id: str) -> bool:
+        """Record that a verse was practiced."""
+        progress = self._ensure_progress(verse_id)
+        if not progress:
+            return False
+
+        progress.times_practiced += 1
+        progress.last_practiced = datetime.now()
+        self._save()
+        return True
+
+    def set_comfort_level(self, verse_id: str, level: int) -> bool:
+        """Set the user's self-assessed comfort level (1-5)."""
+        if not isinstance(level, int) or level < 1 or level > 5:
+            return False
+
+        progress = self._ensure_progress(verse_id)
+        if not progress:
+            return False
+
+        progress.comfort_level = level
+        self._save()
+        return True
+
+    def reset_progress(self, verse_id: str) -> bool:
+        """Reset all progress for a verse to initial state."""
+        if verse_id not in self._verses:
+            return False
+
+        # Create fresh progress record
+        self._progress[verse_id] = VerseProgress(verse_id=verse_id)
+
+        # Cascade delete: remove all test results for this verse
+        self._test_results = [tr for tr in self._test_results if tr.verse_id != verse_id]
+
+        self._save()
+        return True
+
     # ========== Persistence ==========
 
     def _load(self) -> None:
@@ -150,13 +245,19 @@ class MemoryMateStore:
             verses_data = data.get('verses', {})
             for verse_id, verse_dict in verses_data.items():
                 self._verses[verse_id] = Verse.from_dict(verse_dict)
+
+            # Load progress
+            progress_data = data.get('progress', {})
+            for verse_id, progress_dict in progress_data.items():
+                self._progress[verse_id] = VerseProgress.from_dict(progress_dict)
         except (json.JSONDecodeError, IOError) as e:
             raise RuntimeError(f"Failed to load data from {self._storage_path}: {e}")
 
     def _save(self) -> None:
         """Save data to storage file."""
         data = {
-            'verses': {verse_id: verse.to_dict() for verse_id, verse in self._verses.items()}
+            'verses': {verse_id: verse.to_dict() for verse_id, verse in self._verses.items()},
+            'progress': {verse_id: prog.to_dict() for verse_id, prog in self._progress.items()}
         }
 
         try:

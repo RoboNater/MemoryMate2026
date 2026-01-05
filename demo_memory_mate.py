@@ -7,6 +7,7 @@ and MemoryMateStore class, including verse management and persistence.
 
 from memory_mate import MemoryMateStore
 import json
+import time
 
 
 def print_section(title):
@@ -25,6 +26,23 @@ def print_verse(verse, include_id=True):
     print(f"  Text: {verse.text}")
     if verse.archived:
         print(f"  Status: ARCHIVED")
+    print()
+
+
+def print_progress(progress, show_all=True):
+    """Print formatted progress information"""
+    if progress is None:
+        print("  No progress recorded yet (not yet practiced)")
+        return
+
+    print(f"  Times Practiced: {progress.times_practiced}")
+    print(f"  Times Tested: {progress.times_tested}")
+    print(f"  Times Correct: {progress.times_correct}")
+    print(f"  Comfort Level: {progress.comfort_level}/5")
+    if progress.last_practiced:
+        print(f"  Last Practiced: {progress.last_practiced.strftime('%Y-%m-%d %H:%M:%S')}")
+    if progress.last_tested and show_all:
+        print(f"  Last Tested: {progress.last_tested.strftime('%Y-%m-%d %H:%M:%S')}")
     print()
 
 
@@ -312,6 +330,59 @@ def demo_data_model():
     print(f"  ✓ Successfully restored from JSON representation\n")
 
 
+def demo_progress_tracking():
+    """Demonstrate progress tracking functionality"""
+    print_section("5. PROGRESS TRACKING - Recording Practice and Comfort Levels")
+
+    # Create a fresh store for this demo
+    store = MemoryMateStore(storage_path="demo_memory_mate_data.json")
+
+    # Add a verse
+    verse = store.add_verse(
+        reference="Psalm 23:1",
+        text="The Lord is my shepherd, I lack nothing. He makes me lie down in green pastures...",
+        translation="NIV"
+    )
+    print(f"→ Added verse: {verse.reference}\n")
+
+    # Check initial progress (should be None)
+    print("→ Checking initial progress (before any practice):\n")
+    progress = store.get_progress(verse.id)
+    print_progress(progress, show_all=False)
+
+    # Record some practice sessions
+    print("→ Recording 3 practice sessions:\n")
+    for i in range(1, 4):
+        store.record_practice(verse.id)
+        progress = store.get_progress(verse.id)
+        print(f"  Session {i}:")
+        print_progress(progress, show_all=False)
+        time.sleep(0.1)  # Small delay to show progression
+
+    # Set comfort level
+    print("→ After practicing, setting comfort level to 3/5:\n")
+    store.set_comfort_level(verse.id, 3)
+    progress = store.get_progress(verse.id)
+    print_progress(progress, show_all=False)
+
+    # Practice more and increase comfort
+    print("→ More practice and increasing comfort level to 4/5:\n")
+    store.record_practice(verse.id)
+    store.record_practice(verse.id)
+    store.set_comfort_level(verse.id, 4)
+    progress = store.get_progress(verse.id)
+    print_progress(progress, show_all=False)
+
+    # Demonstrate resetting progress
+    print("→ Resetting progress to start over:\n")
+    print(f"  Before reset - Times Practiced: {progress.times_practiced}, Comfort: {progress.comfort_level}")
+    store.reset_progress(verse.id)
+    progress = store.get_progress(verse.id)
+    print(f"  After reset - Times Practiced: {progress.times_practiced}, Comfort: {progress.comfort_level}\n")
+
+    return store
+
+
 def main():
     """Run all demonstrations"""
     print("\n")
@@ -332,6 +403,7 @@ def main():
         demo_verse_lookup()
         demo_error_handling()
         demo_data_model()
+        demo_progress_tracking()
 
         print_section("DEMO COMPLETE")
         print("✓ All demonstrations completed successfully!\n")
@@ -340,10 +412,14 @@ def main():
         print("  • Updating verse information")
         print("  • Archiving and unarchiving verses")
         print("  • Removing verses")
+        print("  • Recording practice sessions")
+        print("  • Setting comfort levels (1-5 scale)")
+        print("  • Viewing progress metrics")
+        print("  • Resetting progress")
         print("  • Persisting data to JSON storage")
         print("  • Loading data from storage (simulating app restart)")
         print("  • Error handling for edge cases")
-        print("  • Verse data model serialization/deserialization\n")
+        print("  • Verse and progress data model serialization/deserialization\n")
 
     except Exception as e:
         print(f"\n❌ Error during demo: {e}")

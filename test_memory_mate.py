@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from memory_mate import MemoryMateStore, Verse
+from memory_mate import MemoryMateStore, Verse, VerseProgress
 
 
 @pytest.fixture
@@ -505,3 +505,454 @@ class TestEdgeCases:
         retrieved = store.get_verse(verse.id)
         assert retrieved.reference == "John 3:17"
         assert retrieved.archived is True
+
+
+class TestVerseProgressDataclass:
+    """Tests for the VerseProgress dataclass"""
+
+    def test_progress_creation(self):
+        """Test creating a VerseProgress with default values"""
+        progress = VerseProgress(verse_id="test-verse-id")
+        assert progress.verse_id == "test-verse-id"
+        assert progress.times_practiced == 0
+        assert progress.times_tested == 0
+        assert progress.times_correct == 0
+        assert progress.last_practiced is None
+        assert progress.last_tested is None
+        assert progress.comfort_level == 1
+
+    def test_progress_creation_with_values(self):
+        """Test creating a VerseProgress with custom values"""
+        progress = VerseProgress(
+            verse_id="test-verse-id",
+            times_practiced=5,
+            times_tested=3,
+            times_correct=2,
+            comfort_level=3
+        )
+        assert progress.times_practiced == 5
+        assert progress.times_tested == 3
+        assert progress.times_correct == 2
+        assert progress.comfort_level == 3
+
+    def test_progress_to_dict(self):
+        """Test progress serialization to dict"""
+        progress = VerseProgress(
+            verse_id="test-verse-id",
+            times_practiced=5,
+            comfort_level=3
+        )
+        progress_dict = progress.to_dict()
+        assert progress_dict['verse_id'] == "test-verse-id"
+        assert progress_dict['times_practiced'] == 5
+        assert progress_dict['times_tested'] == 0
+        assert progress_dict['times_correct'] == 0
+        assert progress_dict['comfort_level'] == 3
+        assert progress_dict['last_practiced'] is None
+        assert progress_dict['last_tested'] is None
+
+    def test_progress_to_dict_with_timestamps(self):
+        """Test progress serialization with timestamps"""
+        now = datetime.now()
+        progress = VerseProgress(
+            verse_id="test-verse-id",
+            last_practiced=now,
+            last_tested=now
+        )
+        progress_dict = progress.to_dict()
+        assert isinstance(progress_dict['last_practiced'], str)
+        assert isinstance(progress_dict['last_tested'], str)
+
+    def test_progress_from_dict(self):
+        """Test progress deserialization from dict"""
+        progress_dict = {
+            'verse_id': "test-verse-id",
+            'times_practiced': 5,
+            'times_tested': 3,
+            'times_correct': 2,
+            'last_practiced': "2026-01-20T14:30:00",
+            'last_tested': "2026-01-19T09:15:00",
+            'comfort_level': 3
+        }
+        progress = VerseProgress.from_dict(progress_dict)
+        assert progress.verse_id == "test-verse-id"
+        assert progress.times_practiced == 5
+        assert progress.times_tested == 3
+        assert progress.times_correct == 2
+        assert progress.comfort_level == 3
+        assert isinstance(progress.last_practiced, datetime)
+        assert isinstance(progress.last_tested, datetime)
+
+    def test_progress_from_dict_null_timestamps(self):
+        """Test progress deserialization with null timestamps"""
+        progress_dict = {
+            'verse_id': "test-verse-id",
+            'times_practiced': 0,
+            'times_tested': 0,
+            'times_correct': 0,
+            'last_practiced': None,
+            'last_tested': None,
+            'comfort_level': 1
+        }
+        progress = VerseProgress.from_dict(progress_dict)
+        assert progress.last_practiced is None
+        assert progress.last_tested is None
+
+    def test_progress_roundtrip(self):
+        """Test serialization and deserialization roundtrip"""
+        original = VerseProgress(
+            verse_id="test-verse-id",
+            times_practiced=5,
+            times_tested=3,
+            times_correct=2,
+            comfort_level=4
+        )
+        progress_dict = original.to_dict()
+        restored = VerseProgress.from_dict(progress_dict)
+        assert restored.verse_id == original.verse_id
+        assert restored.times_practiced == original.times_practiced
+        assert restored.times_tested == original.times_tested
+        assert restored.times_correct == original.times_correct
+        assert restored.comfort_level == original.comfort_level
+
+
+class TestGetProgress:
+    """Tests for get_progress method"""
+
+    def test_get_progress_nonexistent_verse(self, store):
+        """Test getting progress for a verse that doesn't exist"""
+        result = store.get_progress("nonexistent-verse-id")
+        assert result is None
+
+    def test_get_progress_unpracticed_verse(self, store):
+        """Test getting progress for a verse that hasn't been practiced"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.get_progress(verse.id)
+        assert result is None
+
+    def test_get_progress_practiced_verse(self, store):
+        """Test getting progress for a practiced verse"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        result = store.get_progress(verse.id)
+        assert result is not None
+        assert result.verse_id == verse.id
+        assert result.times_practiced == 1
+
+
+class TestRecordPractice:
+    """Tests for record_practice method"""
+
+    def test_record_practice_nonexistent_verse(self, store):
+        """Test recording practice for non-existent verse returns False"""
+        result = store.record_practice("nonexistent-verse-id")
+        assert result is False
+
+    def test_record_practice_creates_progress(self, store):
+        """Test that recording practice creates progress lazily"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        assert store.get_progress(verse.id) is None
+
+        result = store.record_practice(verse.id)
+        assert result is True
+        assert store.get_progress(verse.id) is not None
+
+    def test_record_practice_increments_counter(self, store):
+        """Test that record_practice increments the counter"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        assert store.get_progress(verse.id).times_practiced == 1
+
+        store.record_practice(verse.id)
+        assert store.get_progress(verse.id).times_practiced == 2
+
+    def test_record_practice_updates_timestamp(self, store):
+        """Test that record_practice updates last_practiced timestamp"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        assert store.get_progress(verse.id) is None
+
+        store.record_practice(verse.id)
+        progress = store.get_progress(verse.id)
+        assert progress.last_practiced is not None
+        assert isinstance(progress.last_practiced, datetime)
+
+    def test_record_practice_multiple_times(self, store):
+        """Test recording multiple practices"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        for i in range(1, 6):
+            store.record_practice(verse.id)
+            assert store.get_progress(verse.id).times_practiced == i
+
+    def test_record_practice_persists(self, store, temp_storage):
+        """Test that practice recording persists to storage"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+
+        # Load from storage
+        new_store = MemoryMateStore(storage_path=temp_storage)
+        progress = new_store.get_progress(verse.id)
+        assert progress is not None
+        assert progress.times_practiced == 1
+
+
+class TestSetComfortLevel:
+    """Tests for set_comfort_level method"""
+
+    def test_set_comfort_level_nonexistent_verse(self, store):
+        """Test setting comfort for non-existent verse returns False"""
+        result = store.set_comfort_level("nonexistent-verse-id", 3)
+        assert result is False
+
+    def test_set_comfort_level_invalid_too_low(self, store):
+        """Test that comfort level < 1 is rejected"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.set_comfort_level(verse.id, 0)
+        assert result is False
+
+    def test_set_comfort_level_invalid_too_high(self, store):
+        """Test that comfort level > 5 is rejected"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.set_comfort_level(verse.id, 6)
+        assert result is False
+
+    def test_set_comfort_level_invalid_negative(self, store):
+        """Test that negative comfort level is rejected"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.set_comfort_level(verse.id, -1)
+        assert result is False
+
+    def test_set_comfort_level_invalid_float(self, store):
+        """Test that float comfort level is rejected"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.set_comfort_level(verse.id, 3.5)
+        assert result is False
+
+    def test_set_comfort_level_valid_range(self, store):
+        """Test setting valid comfort levels 1-5"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        for level in range(1, 6):
+            result = store.set_comfort_level(verse.id, level)
+            assert result is True
+            assert store.get_progress(verse.id).comfort_level == level
+
+    def test_set_comfort_level_creates_progress(self, store):
+        """Test that setting comfort creates progress lazily"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        assert store.get_progress(verse.id) is None
+
+        store.set_comfort_level(verse.id, 3)
+        assert store.get_progress(verse.id) is not None
+
+    def test_set_comfort_level_persists(self, store, temp_storage):
+        """Test that comfort level persists to storage"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.set_comfort_level(verse.id, 4)
+
+        # Load from storage
+        new_store = MemoryMateStore(storage_path=temp_storage)
+        progress = new_store.get_progress(verse.id)
+        assert progress is not None
+        assert progress.comfort_level == 4
+
+
+class TestResetProgress:
+    """Tests for reset_progress method"""
+
+    def test_reset_progress_nonexistent_verse(self, store):
+        """Test resetting progress for non-existent verse returns False"""
+        result = store.reset_progress("nonexistent-verse-id")
+        assert result is False
+
+    def test_reset_progress_unpracticed_verse(self, store):
+        """Test resetting progress on unpracticed verse creates fresh record"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        assert store.get_progress(verse.id) is None
+
+        result = store.reset_progress(verse.id)
+        assert result is True
+
+        progress = store.get_progress(verse.id)
+        assert progress is not None
+        assert progress.times_practiced == 0
+        assert progress.times_tested == 0
+        assert progress.times_correct == 0
+        assert progress.last_practiced is None
+        assert progress.last_tested is None
+        assert progress.comfort_level == 1
+
+    def test_reset_progress_practiced_verse(self, store):
+        """Test resetting progress on practiced verse"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 4)
+
+        assert store.get_progress(verse.id).times_practiced == 2
+        assert store.get_progress(verse.id).comfort_level == 4
+
+        result = store.reset_progress(verse.id)
+        assert result is True
+
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 0
+        assert progress.comfort_level == 1
+
+    def test_reset_progress_persists(self, store, temp_storage):
+        """Test that progress reset persists to storage"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.reset_progress(verse.id)
+
+        # Load from storage
+        new_store = MemoryMateStore(storage_path=temp_storage)
+        progress = new_store.get_progress(verse.id)
+        assert progress is not None
+        assert progress.times_practiced == 0
+
+
+class TestProgressPersistence:
+    """Tests for progress persistence (saving and loading)"""
+
+    def test_save_progress_to_json(self, store, temp_storage):
+        """Test that progress is saved to JSON"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 3)
+
+        with open(temp_storage, 'r') as f:
+            data = json.load(f)
+
+        assert 'progress' in data
+        assert verse.id in data['progress']
+        assert data['progress'][verse.id]['times_practiced'] == 1
+        assert data['progress'][verse.id]['comfort_level'] == 3
+
+    def test_load_progress_from_json(self, temp_storage):
+        """Test that progress loads from JSON correctly"""
+        # Manually create a storage file with progress
+        data = {
+            'verses': {
+                'verse-1': {
+                    'id': 'verse-1',
+                    'reference': 'John 3:16',
+                    'text': 'For God so loved the world...',
+                    'translation': 'NIV',
+                    'created_at': '2026-01-15T10:30:00',
+                    'archived': False
+                }
+            },
+            'progress': {
+                'verse-1': {
+                    'verse_id': 'verse-1',
+                    'times_practiced': 5,
+                    'times_tested': 3,
+                    'times_correct': 2,
+                    'last_practiced': '2026-01-20T14:30:00',
+                    'last_tested': '2026-01-19T09:15:00',
+                    'comfort_level': 3
+                }
+            }
+        }
+        with open(temp_storage, 'w') as f:
+            json.dump(data, f)
+
+        store = MemoryMateStore(storage_path=temp_storage)
+        progress = store.get_progress('verse-1')
+
+        assert progress is not None
+        assert progress.times_practiced == 5
+        assert progress.times_tested == 3
+        assert progress.times_correct == 2
+        assert progress.comfort_level == 3
+
+    def test_progress_empty_on_new_store(self, temp_storage):
+        """Test that new store has no progress"""
+        store = MemoryMateStore(storage_path=temp_storage)
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        assert store.get_progress(verse.id) is None
+
+
+class TestProgressIntegration:
+    """Integration tests for progress tracking"""
+
+    def test_practice_then_check_progress(self, store):
+        """Test full workflow: add verse, practice, check progress"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        # No progress initially
+        assert store.get_progress(verse.id) is None
+
+        # Practice
+        store.record_practice(verse.id)
+
+        # Progress exists
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 1
+        assert progress.last_practiced is not None
+
+    def test_practice_then_set_comfort(self, store):
+        """Test practice followed by setting comfort"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 3)
+
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 1
+        assert progress.comfort_level == 3
+
+    def test_comfort_on_unpracticed_verse(self, store):
+        """Test setting comfort on unpracticed verse"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.set_comfort_level(verse.id, 3)
+
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 0
+        assert progress.comfort_level == 3
+
+    def test_multiple_practices_and_comfort_changes(self, store):
+        """Test multiple practices with comfort level changes"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 2)
+        assert store.get_progress(verse.id).comfort_level == 2
+
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 3)
+        assert store.get_progress(verse.id).times_practiced == 2
+        assert store.get_progress(verse.id).comfort_level == 3
+
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 4)
+        assert store.get_progress(verse.id).times_practiced == 3
+        assert store.get_progress(verse.id).comfort_level == 4
+
+    def test_reset_clears_progress_completely(self, store):
+        """Test that reset clears all progress data"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 4)
+
+        store.reset_progress(verse.id)
+
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 0
+        assert progress.times_tested == 0
+        assert progress.times_correct == 0
+        assert progress.last_practiced is None
+        assert progress.last_tested is None
+        assert progress.comfort_level == 1
+
+    def test_remove_verse_cascades_to_progress(self, store):
+        """Test that removing a verse also removes its progress"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        assert store.get_progress(verse.id) is not None
+
+        store.remove_verse(verse.id)
+
+        assert store.get_verse(verse.id) is None
+        assert store.get_progress(verse.id) is None
