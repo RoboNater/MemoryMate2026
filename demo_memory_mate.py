@@ -40,7 +40,9 @@ def demo_basic_operations():
 
     john = store.add_verse(
         reference="John 3:16",
-        text="For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.",
+        text= (
+              "For God so loved the world that he gave his one and only [begotten] Son, "
+            + "that whoever believes in him shall not perish but have eternal life."),
         translation="NIV"
     )
     print("Added verse:")
