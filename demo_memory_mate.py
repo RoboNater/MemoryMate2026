@@ -296,7 +296,7 @@ def demo_error_handling():
 
 def demo_data_model():
     """Demonstrate the Verse data model"""
-    print_section("8. DATA MODEL - Verse Structure")
+    print_section("7. DATA MODEL - Verse Structure")
 
     from memory_mate import Verse
     from datetime import datetime
@@ -330,9 +330,101 @@ def demo_data_model():
     print(f"  ✓ Successfully restored from JSON representation\n")
 
 
+def demo_test_results():
+    """Demonstrate test result recording and history"""
+    print_section("9. TEST RESULTS - Recording Tests and Viewing History")
+
+    # Create a fresh store for this demo
+    store = MemoryMateStore(storage_path="demo_memory_mate_data.json")
+
+    # Add a verse
+    verse = store.add_verse(
+        reference="John 3:16",
+        text="For God so loved the world that he gave his one and only Son, that whoever believes in him shall not perish but have eternal life.",
+        translation="NIV"
+    )
+    print(f"→ Added verse for testing: {verse.reference}\n")
+
+    # Record some test attempts
+    print("→ Recording test attempts with various outcomes:\n")
+
+    result1 = store.record_test_result(verse.id, passed=True, score=0.85)
+    print(f"  Test 1: Passed with 85% accuracy")
+    print(f"    - Timestamp: {result1.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"    - ID: {result1.id}\n")
+
+    result2 = store.record_test_result(verse.id, passed=True, score=0.92)
+    print(f"  Test 2: Passed with 92% accuracy\n")
+
+    result3 = store.record_test_result(verse.id, passed=False, score=0.65)
+    print(f"  Test 3: Failed with 65% accuracy\n")
+
+    result4 = store.record_test_result(verse.id, passed=True, score=0.88)
+    print(f"  Test 4: Passed with 88% accuracy\n")
+
+    # Check progress updates
+    print("→ Progress after tests:\n")
+    progress = store.get_progress(verse.id)
+    print(f"  Times Tested: {progress.times_tested}")
+    print(f"  Times Correct: {progress.times_correct}")
+    print(f"  Pass Rate: {progress.times_correct}/{progress.times_tested} ({int(progress.times_correct/progress.times_tested*100)}%)")
+    print(f"  Last Tested: {progress.last_tested.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    # Get test history
+    print("→ Test history (newest first):\n")
+    history = store.get_test_history(verse_id=verse.id)
+    for i, result in enumerate(history, 1):
+        status = "✓ PASS" if result.passed else "✗ FAIL"
+        score_str = f"{int(result.score*100)}%" if result.score is not None else "No score"
+        print(f"  {i}. {status} - {score_str}")
+        print(f"     Timestamp: {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+    print()
+
+    # Test with limit
+    print("→ Getting last 2 test results:\n")
+    recent = store.get_test_history(verse_id=verse.id, limit=2)
+    print(f"  Returned {len(recent)} results")
+    for result in recent:
+        status = "Pass" if result.passed else "Fail"
+        print(f"    • {status}: {int(result.score*100) if result.score else 'N/A'}%\n")
+
+    # Test recording without score
+    print("→ Recording a pass/fail-only test (no score):\n")
+    result_simple = store.record_test_result(verse.id, passed=True)
+    print(f"  Simple test recorded: Passed")
+    print(f"  Score: {result_simple.score}\n")
+
+    # Add another verse and demonstrate cross-verse history
+    print("→ Adding another verse and recording tests:\n")
+    psalm = store.add_verse(
+        reference="Psalm 23:1",
+        text="The Lord is my shepherd, I lack nothing.",
+        translation="NIV"
+    )
+
+    store.record_test_result(psalm.id, passed=True, score=0.90)
+    store.record_test_result(psalm.id, passed=True, score=0.95)
+    print(f"  Recorded 2 tests for {psalm.reference}\n")
+
+    # Get all test history across verses
+    print("→ All test history (across all verses, newest first):\n")
+    all_history = store.get_test_history()
+    print(f"  Total tests recorded: {len(all_history)}\n")
+    for i, result in enumerate(all_history[:5], 1):  # Show first 5
+        verse_ref = store.get_verse(result.verse_id).reference
+        status = "✓" if result.passed else "✗"
+        score_str = f"{int(result.score*100)}%" if result.score else "Pass/Fail"
+        print(f"    {i}. {status} {verse_ref}: {score_str}")
+    if len(all_history) > 5:
+        print(f"    ... and {len(all_history) - 5} more")
+    print()
+
+    return store
+
+
 def demo_progress_tracking():
     """Demonstrate progress tracking functionality"""
-    print_section("5. PROGRESS TRACKING - Recording Practice and Comfort Levels")
+    print_section("8. PROGRESS TRACKING - Recording Practice and Comfort Levels")
 
     # Create a fresh store for this demo
     store = MemoryMateStore(storage_path="demo_memory_mate_data.json")
@@ -404,6 +496,7 @@ def main():
         demo_error_handling()
         demo_data_model()
         demo_progress_tracking()
+        demo_test_results()
 
         print_section("DEMO COMPLETE")
         print("✓ All demonstrations completed successfully!\n")
@@ -415,11 +508,13 @@ def main():
         print("  • Recording practice sessions")
         print("  • Setting comfort levels (1-5 scale)")
         print("  • Viewing progress metrics")
-        print("  • Resetting progress")
+        print("  • Recording test attempts with scores")
+        print("  • Retrieving test history with filtering and limits")
+        print("  • Resetting progress (cascade deletes test results)")
         print("  • Persisting data to JSON storage")
         print("  • Loading data from storage (simulating app restart)")
         print("  • Error handling for edge cases")
-        print("  • Verse and progress data model serialization/deserialization\n")
+        print("  • Verse, progress, and test data model serialization/deserialization\n")
 
     except Exception as e:
         print(f"\n❌ Error during demo: {e}")

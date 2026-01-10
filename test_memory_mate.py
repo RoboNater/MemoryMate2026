@@ -5,7 +5,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from memory_mate import MemoryMateStore, Verse, VerseProgress
+from memory_mate import MemoryMateStore, Verse, VerseProgress, TestResult
 
 
 @pytest.fixture
@@ -956,3 +956,451 @@ class TestProgressIntegration:
 
         assert store.get_verse(verse.id) is None
         assert store.get_progress(verse.id) is None
+
+
+class TestTestResultDataclass:
+    """Tests for the TestResult dataclass"""
+
+    def test_test_result_creation_with_score(self):
+        """Test creating a test result with a score"""
+        result = TestResult(
+            id="result-id",
+            verse_id="verse-id",
+            timestamp=datetime(2026, 1, 5, 14, 30),
+            passed=True,
+            score=0.95
+        )
+        assert result.id == "result-id"
+        assert result.verse_id == "verse-id"
+        assert result.passed is True
+        assert result.score == 0.95
+
+    def test_test_result_creation_without_score(self):
+        """Test creating a test result without a score"""
+        result = TestResult(
+            id="result-id",
+            verse_id="verse-id",
+            timestamp=datetime(2026, 1, 5, 14, 30),
+            passed=False,
+            score=None
+        )
+        assert result.id == "result-id"
+        assert result.verse_id == "verse-id"
+        assert result.passed is False
+        assert result.score is None
+
+    def test_test_result_to_dict_with_score(self):
+        """Test test result serialization to dict with score"""
+        result = TestResult(
+            id="result-id",
+            verse_id="verse-id",
+            timestamp=datetime(2026, 1, 5, 14, 30),
+            passed=True,
+            score=0.95
+        )
+        result_dict = result.to_dict()
+        assert result_dict["id"] == "result-id"
+        assert result_dict["verse_id"] == "verse-id"
+        assert result_dict["passed"] is True
+        assert result_dict["score"] == 0.95
+        assert isinstance(result_dict["timestamp"], str)
+
+    def test_test_result_to_dict_without_score(self):
+        """Test test result serialization to dict without score"""
+        result = TestResult(
+            id="result-id",
+            verse_id="verse-id",
+            timestamp=datetime(2026, 1, 5, 14, 30),
+            passed=False,
+            score=None
+        )
+        result_dict = result.to_dict()
+        assert result_dict["score"] is None
+
+    def test_test_result_from_dict_with_score(self):
+        """Test test result deserialization from dict with score"""
+        result_dict = {
+            "id": "result-id",
+            "verse_id": "verse-id",
+            "timestamp": "2026-01-05T14:30:00",
+            "passed": True,
+            "score": 0.95
+        }
+        result = TestResult.from_dict(result_dict)
+        assert result.id == "result-id"
+        assert result.verse_id == "verse-id"
+        assert result.passed is True
+        assert result.score == 0.95
+        assert isinstance(result.timestamp, datetime)
+
+    def test_test_result_from_dict_without_score(self):
+        """Test test result deserialization from dict without score"""
+        result_dict = {
+            "id": "result-id",
+            "verse_id": "verse-id",
+            "timestamp": "2026-01-05T14:30:00",
+            "passed": False,
+            "score": None
+        }
+        result = TestResult.from_dict(result_dict)
+        assert result.score is None
+
+    def test_test_result_roundtrip_with_score(self):
+        """Test serialization and deserialization roundtrip with score"""
+        original = TestResult(
+            id="result-id",
+            verse_id="verse-id",
+            timestamp=datetime(2026, 1, 5, 14, 30),
+            passed=True,
+            score=0.95
+        )
+        result_dict = original.to_dict()
+        restored = TestResult.from_dict(result_dict)
+        assert restored.id == original.id
+        assert restored.verse_id == original.verse_id
+        assert restored.passed == original.passed
+        assert restored.score == original.score
+
+    def test_test_result_roundtrip_without_score(self):
+        """Test serialization and deserialization roundtrip without score"""
+        original = TestResult(
+            id="result-id",
+            verse_id="verse-id",
+            timestamp=datetime(2026, 1, 5, 14, 30),
+            passed=False,
+            score=None
+        )
+        result_dict = original.to_dict()
+        restored = TestResult.from_dict(result_dict)
+        assert restored.score is None
+
+
+class TestRecordTestResult:
+    """Tests for record_test_result method"""
+
+    def test_record_test_result_with_score(self, store):
+        """Test recording a test result with a score"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=True, score=0.95)
+
+        assert result is not None
+        assert result.verse_id == verse.id
+        assert result.passed is True
+        assert result.score == 0.95
+        assert result.id is not None
+        assert result.timestamp is not None
+
+    def test_record_test_result_without_score(self, store):
+        """Test recording a test result without a score"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=False)
+
+        assert result is not None
+        assert result.passed is False
+        assert result.score is None
+
+    def test_record_test_result_invalid_verse(self, store):
+        """Test recording a test result for non-existent verse returns None"""
+        result = store.record_test_result("nonexistent-id", passed=True)
+        assert result is None
+
+    def test_record_test_result_invalid_score_too_high(self, store):
+        """Test that score > 1.0 is rejected"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=True, score=1.5)
+        assert result is None
+
+    def test_record_test_result_invalid_score_negative(self, store):
+        """Test that negative score is rejected"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=True, score=-0.2)
+        assert result is None
+
+    def test_record_test_result_boundary_score_zero(self, store):
+        """Test that score = 0.0 is valid"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=False, score=0.0)
+        assert result is not None
+        assert result.score == 0.0
+
+    def test_record_test_result_boundary_score_one(self, store):
+        """Test that score = 1.0 is valid"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=True, score=1.0)
+        assert result is not None
+        assert result.score == 1.0
+
+    def test_record_test_result_generates_unique_ids(self, store):
+        """Test that recorded test results have unique IDs"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result1 = store.record_test_result(verse.id, passed=True)
+        result2 = store.record_test_result(verse.id, passed=False)
+
+        assert result1.id != result2.id
+
+    def test_record_test_result_updates_progress(self, store):
+        """Test that recording a test result updates progress"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True, score=0.95)
+
+        progress = store.get_progress(verse.id)
+        assert progress.times_tested == 1
+        assert progress.times_correct == 1
+
+    def test_record_test_result_failed_updates_progress(self, store):
+        """Test that failed test increments times_tested but not times_correct"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=False, score=0.45)
+
+        progress = store.get_progress(verse.id)
+        assert progress.times_tested == 1
+        assert progress.times_correct == 0
+
+    def test_record_test_result_multiple_updates_progress(self, store):
+        """Test that multiple test results update progress correctly"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        store.record_test_result(verse.id, passed=True, score=0.85)
+        store.record_test_result(verse.id, passed=True, score=0.92)
+        store.record_test_result(verse.id, passed=False, score=0.60)
+
+        progress = store.get_progress(verse.id)
+        assert progress.times_tested == 3
+        assert progress.times_correct == 2
+
+    def test_record_test_result_updates_last_tested(self, store):
+        """Test that recording a test result updates last_tested timestamp"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=True)
+
+        progress = store.get_progress(verse.id)
+        assert progress.last_tested is not None
+        # Timestamps should be close
+        assert abs((progress.last_tested - result.timestamp).total_seconds()) < 1
+
+    def test_record_test_result_persists(self, store, temp_storage):
+        """Test that test result is persisted to storage"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=True, score=0.95)
+
+        with open(temp_storage, 'r') as f:
+            data = json.load(f)
+
+        assert 'test_results' in data
+        assert len(data['test_results']) == 1
+        assert data['test_results'][0]['id'] == result.id
+        assert data['test_results'][0]['passed'] is True
+        assert data['test_results'][0]['score'] == 0.95
+
+    def test_record_test_result_creates_progress_lazily(self, store):
+        """Test that recording a test result creates progress if it doesn't exist"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        # No progress initially
+        assert store.get_progress(verse.id) is None
+
+        # Record test
+        store.record_test_result(verse.id, passed=True)
+
+        # Progress now exists
+        progress = store.get_progress(verse.id)
+        assert progress is not None
+
+
+class TestGetTestHistory:
+    """Tests for get_test_history method"""
+
+    def test_get_test_history_empty(self, store):
+        """Test getting history when no test results exist"""
+        history = store.get_test_history()
+        assert history == []
+
+    def test_get_test_history_single_result(self, store):
+        """Test getting history with one result"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result = store.record_test_result(verse.id, passed=True, score=0.95)
+
+        history = store.get_test_history()
+        assert len(history) == 1
+        assert history[0].id == result.id
+
+    def test_get_test_history_multiple_results(self, store):
+        """Test getting history with multiple results"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result1 = store.record_test_result(verse.id, passed=True, score=0.85)
+        result2 = store.record_test_result(verse.id, passed=False, score=0.60)
+        result3 = store.record_test_result(verse.id, passed=True, score=0.92)
+
+        history = store.get_test_history()
+        assert len(history) == 3
+
+    def test_get_test_history_sorted_by_timestamp_newest_first(self, store):
+        """Test that history is sorted by timestamp descending (newest first)"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        result1 = store.record_test_result(verse.id, passed=True)
+        result2 = store.record_test_result(verse.id, passed=True)
+        result3 = store.record_test_result(verse.id, passed=True)
+
+        history = store.get_test_history()
+        # Most recent should be first
+        assert history[0].timestamp >= history[1].timestamp >= history[2].timestamp
+
+    def test_get_test_history_filtered_by_verse(self, store):
+        """Test filtering history by verse_id"""
+        verse1 = store.add_verse("John 3:16", "For God so loved the world...")
+        verse2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+
+        store.record_test_result(verse1.id, passed=True)
+        store.record_test_result(verse2.id, passed=True)
+        store.record_test_result(verse1.id, passed=False)
+
+        history = store.get_test_history(verse_id=verse1.id)
+        assert len(history) == 2
+        assert all(h.verse_id == verse1.id for h in history)
+
+    def test_get_test_history_nonexistent_verse_filter(self, store):
+        """Test filtering by non-existent verse returns empty list"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+
+        history = store.get_test_history(verse_id="nonexistent-id")
+        assert history == []
+
+    def test_get_test_history_with_limit(self, store):
+        """Test limiting the number of results"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        for _ in range(10):
+            store.record_test_result(verse.id, passed=True)
+
+        history = store.get_test_history(limit=5)
+        assert len(history) == 5
+
+    def test_get_test_history_limit_greater_than_available(self, store):
+        """Test limit greater than available results returns all"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+
+        history = store.get_test_history(limit=100)
+        assert len(history) == 2
+
+    def test_get_test_history_verse_filter_and_limit(self, store):
+        """Test combining verse filter and limit"""
+        verse1 = store.add_verse("John 3:16", "For God so loved the world...")
+        verse2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+
+        for _ in range(5):
+            store.record_test_result(verse1.id, passed=True)
+            store.record_test_result(verse2.id, passed=True)
+
+        history = store.get_test_history(verse_id=verse1.id, limit=3)
+        assert len(history) == 3
+        assert all(h.verse_id == verse1.id for h in history)
+
+    def test_get_test_history_across_multiple_verses(self, store):
+        """Test getting history across all verses"""
+        verse1 = store.add_verse("John 3:16", "For God so loved the world...")
+        verse2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+        verse3 = store.add_verse("Romans 3:23", "For all have sinned...")
+
+        store.record_test_result(verse1.id, passed=True)
+        store.record_test_result(verse2.id, passed=True)
+        store.record_test_result(verse3.id, passed=True)
+        store.record_test_result(verse1.id, passed=False)
+
+        history = store.get_test_history()
+        assert len(history) == 4
+
+    def test_get_test_history_returns_newest_first_across_verses(self, store):
+        """Test that cross-verse history is still sorted newest first"""
+        verse1 = store.add_verse("John 3:16", "For God so loved the world...")
+        verse2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+
+        result1 = store.record_test_result(verse1.id, passed=True)
+        result2 = store.record_test_result(verse2.id, passed=True)
+
+        history = store.get_test_history()
+        assert history[0].timestamp >= history[1].timestamp
+
+
+class TestTestResultIntegration:
+    """Integration tests for test results"""
+
+    def test_remove_verse_cascades_to_test_results(self, store):
+        """Test that removing a verse also removes its test results"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+
+        assert len(store.get_test_history(verse_id=verse.id)) == 1
+
+        store.remove_verse(verse.id)
+
+        assert len(store.get_test_history(verse_id=verse.id)) == 0
+
+    def test_reset_progress_cascades_to_test_results(self, store):
+        """Test that resetting progress also removes test results"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True, score=0.95)
+        store.record_test_result(verse.id, passed=False, score=0.60)
+
+        assert len(store.get_test_history(verse_id=verse.id)) == 2
+
+        store.reset_progress(verse.id)
+
+        assert len(store.get_test_history(verse_id=verse.id)) == 0
+
+    def test_progress_and_test_result_integration(self, store):
+        """Test that progress and test results are properly integrated"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        # Practice first
+        store.record_practice(verse.id)
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 1
+        assert progress.times_tested == 0
+
+        # Then test
+        store.record_test_result(verse.id, passed=True, score=0.90)
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 1
+        assert progress.times_tested == 1
+        assert progress.times_correct == 1
+
+    def test_persistence_with_test_results(self, temp_storage):
+        """Test save/load cycle with test results"""
+        store1 = MemoryMateStore(storage_path=temp_storage)
+        verse = store1.add_verse("John 3:16", "For God so loved the world...")
+        result1 = store1.record_test_result(verse.id, passed=True, score=0.95)
+        result2 = store1.record_test_result(verse.id, passed=False, score=0.60)
+
+        # Load in new store instance
+        store2 = MemoryMateStore(storage_path=temp_storage)
+        history = store2.get_test_history(verse_id=verse.id)
+
+        assert len(history) == 2
+        # Check newest first
+        assert history[0].id == result2.id
+        assert history[1].id == result1.id
+
+    def test_full_workflow_with_verses_and_tests(self, store):
+        """Test complete workflow: add verse, practice, test, check progress"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        # Practice phase
+        store.record_practice(verse.id)
+        store.set_comfort_level(verse.id, 2)
+
+        # Test phase
+        store.record_test_result(verse.id, passed=True, score=0.85)
+        store.record_test_result(verse.id, passed=True, score=0.92)
+
+        # Check results
+        progress = store.get_progress(verse.id)
+        assert progress.times_practiced == 1
+        assert progress.times_tested == 2
+        assert progress.times_correct == 2
+        assert progress.comfort_level == 2
+
+        history = store.get_test_history(verse_id=verse.id)
+        assert len(history) == 2

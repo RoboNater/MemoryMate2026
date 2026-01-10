@@ -69,6 +69,37 @@ class VerseProgress:
         )
 
 
+@dataclass
+class TestResult:
+    """Individual test attempt record."""
+    id: str
+    verse_id: str
+    timestamp: datetime
+    passed: bool
+    score: Optional[float] = None  # 0.0-1.0
+
+    def to_dict(self) -> dict:
+        """Convert test result to dictionary for JSON serialization."""
+        return {
+            'id': self.id,
+            'verse_id': self.verse_id,
+            'timestamp': self.timestamp.isoformat(),
+            'passed': self.passed,
+            'score': self.score
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> 'TestResult':
+        """Create TestResult from dictionary (JSON deserialization)."""
+        return TestResult(
+            id=data['id'],
+            verse_id=data['verse_id'],
+            timestamp=datetime.fromisoformat(data['timestamp']),
+            passed=data['passed'],
+            score=data.get('score')
+        )
+
+
 class MemoryMateStore:
     """
     Main data store for Memory Mate prototype.
@@ -230,6 +261,81 @@ class MemoryMateStore:
         self._save()
         return True
 
+    # ========== Test Results ==========
+
+    def record_test_result(self, verse_id: str, passed: bool,
+                          score: Optional[float] = None) -> Optional[TestResult]:
+        """
+        Record a test attempt for a verse.
+
+        Args:
+            verse_id: The verse being tested
+            passed: Whether the test was passed
+            score: Optional accuracy score (0.0-1.0)
+
+        Returns:
+            TestResult object if successfully recorded, None if validation fails
+        """
+        # Validate verse exists
+        if verse_id not in self._verses:
+            return None
+
+        # Validate score if provided
+        if score is not None:
+            if not isinstance(score, (int, float)) or score < 0.0 or score > 1.0:
+                return None
+
+        # Create test result
+        result = TestResult(
+            id=str(uuid.uuid4()),
+            verse_id=verse_id,
+            timestamp=datetime.now(),
+            passed=passed,
+            score=score
+        )
+
+        # Add to results list
+        self._test_results.append(result)
+
+        # Update progress (creates lazily if needed)
+        progress = self._ensure_progress(verse_id)
+        if progress:
+            progress.times_tested += 1
+            if passed:
+                progress.times_correct += 1
+            progress.last_tested = result.timestamp
+
+        self._save()
+        return result
+
+    def get_test_history(self, verse_id: Optional[str] = None,
+                        limit: Optional[int] = None) -> list[TestResult]:
+        """
+        Retrieve test history, optionally filtered by verse and limited in quantity.
+
+        Args:
+            verse_id: Optional filter to get results for specific verse only
+            limit: Optional maximum number of results to return (most recent first)
+
+        Returns:
+            List of TestResult objects sorted by timestamp (newest first)
+        """
+        # Start with all test results
+        results = self._test_results.copy()
+
+        # Filter by verse_id if provided
+        if verse_id is not None:
+            results = [tr for tr in results if tr.verse_id == verse_id]
+
+        # Sort by timestamp descending (newest first)
+        results.sort(key=lambda tr: tr.timestamp, reverse=True)
+
+        # Apply limit if provided
+        if limit is not None:
+            results = results[:limit]
+
+        return results
+
     # ========== Persistence ==========
 
     def _load(self) -> None:
@@ -250,6 +356,11 @@ class MemoryMateStore:
             progress_data = data.get('progress', {})
             for verse_id, progress_dict in progress_data.items():
                 self._progress[verse_id] = VerseProgress.from_dict(progress_dict)
+
+            # Load test results
+            test_results_data = data.get('test_results', [])
+            for result_dict in test_results_data:
+                self._test_results.append(TestResult.from_dict(result_dict))
         except (json.JSONDecodeError, IOError) as e:
             raise RuntimeError(f"Failed to load data from {self._storage_path}: {e}")
 
@@ -257,7 +368,8 @@ class MemoryMateStore:
         """Save data to storage file."""
         data = {
             'verses': {verse_id: verse.to_dict() for verse_id, verse in self._verses.items()},
-            'progress': {verse_id: prog.to_dict() for verse_id, prog in self._progress.items()}
+            'progress': {verse_id: prog.to_dict() for verse_id, prog in self._progress.items()},
+            'test_results': [tr.to_dict() for tr in self._test_results]
         }
 
         try:
