@@ -475,6 +475,110 @@ def demo_progress_tracking():
     return store
 
 
+def demo_statistics():
+    """Demonstrate statistics functionality"""
+    print_section("10. STATISTICS - Overall and Per-Verse Analytics")
+
+    # Create a fresh store for this demo
+    store = MemoryMateStore(storage_path="demo_memory_mate_data.json")
+
+    # Add multiple verses and build up some stats
+    print("→ Adding verses and recording practice/test data...\n")
+
+    john = store.add_verse(
+        reference="John 3:16",
+        text="For God so loved the world that he gave his one and only Son...",
+        translation="NIV"
+    )
+    print(f"  Added: {john.reference}")
+
+    psalm = store.add_verse(
+        reference="Psalm 23:1",
+        text="The Lord is my shepherd, I lack nothing...",
+        translation="NIV"
+    )
+    print(f"  Added: {psalm.reference}")
+
+    romans = store.add_verse(
+        reference="Romans 3:23",
+        text="For all have sinned and fall short of the glory of God...",
+        translation="KJV"
+    )
+    print(f"  Added: {romans.reference}\n")
+
+    # Record practice and test data
+    print("→ Recording practice and test sessions:\n")
+
+    # John - lots of practice and tests
+    for _ in range(5):
+        store.record_practice(john.id)
+    store.set_comfort_level(john.id, 5)
+    store.record_test_result(john.id, passed=True, score=0.95)
+    store.record_test_result(john.id, passed=True, score=0.98)
+    store.record_test_result(john.id, passed=True, score=0.92)
+    print(f"  {john.reference}: 5 practices, 3 tests (all passed), comfort 5/5")
+
+    # Psalm - medium practice and mixed results
+    for _ in range(3):
+        store.record_practice(psalm.id)
+    store.set_comfort_level(psalm.id, 3)
+    store.record_test_result(psalm.id, passed=True, score=0.85)
+    store.record_test_result(psalm.id, passed=False, score=0.60)
+    store.record_test_result(psalm.id, passed=True, score=0.80)
+    print(f"  {psalm.reference}: 3 practices, 3 tests (2 passed), comfort 3/5")
+
+    # Romans - minimal interaction
+    store.record_practice(romans.id)
+    store.set_comfort_level(romans.id, 2)
+    store.record_test_result(romans.id, passed=False, score=0.45)
+    print(f"  {romans.reference}: 1 practice, 1 test (failed), comfort 2/5\n")
+
+    # Get overall stats
+    print("→ OVERALL STATISTICS:\n")
+    overall = store.get_stats()
+
+    print(f"  Verses Active: {overall['total_verses']}")
+    print(f"  Verses Archived: {overall['total_archived']}")
+    print(f"  Total Practice Sessions: {overall['total_practiced']}")
+    print(f"  Total Tests: {overall['total_tested']}")
+    print(f"  Total Correct: {overall['total_correct']}")
+    print(f"  Overall Accuracy: {overall['overall_accuracy']*100:.1f}%")
+    print(f"  Verses at Perfect Comfort (5/5): {overall['verses_with_perfect_comfort']}")
+    print(f"  Average Comfort Level: {overall['average_comfort_level']:.2f}/5\n")
+
+    # Get per-verse stats
+    print("→ PER-VERSE STATISTICS:\n")
+
+    for verse in [john, psalm, romans]:
+        stats = store.get_verse_stats(verse.id)
+        print(f"  {verse.reference}:")
+        print(f"    - Times Practiced: {stats['times_practiced']}")
+        print(f"    - Times Tested: {stats['times_tested']}")
+        print(f"    - Times Correct: {stats['times_correct']}")
+        if stats['times_tested'] > 0:
+            print(f"    - Accuracy: {stats['accuracy']*100:.1f}%")
+        else:
+            print(f"    - Accuracy: N/A (no tests)")
+        print(f"    - Comfort Level: {stats['comfort_level']}/5")
+        print(f"    - Consecutive Correct: {stats['consecutive_correct']}")
+        if stats['last_tested']:
+            last_tested = stats['last_tested'].split('T')[0]  # Extract date
+            print(f"    - Last Tested: {last_tested}")
+        print()
+
+    # Archive a verse and show how stats change
+    print("→ Archiving John 3:16 and rechecking stats:\n")
+    store.archive_verse(john.id)
+
+    overall = store.get_stats()
+    print(f"  Verses Active: {overall['total_verses']} (was 3)")
+    print(f"  Verses Archived: {overall['total_archived']} (was 0)")
+    print(f"  Overall Accuracy: {overall['overall_accuracy']*100:.1f}% (from remaining verses)")
+    print(f"  Average Comfort Level: {overall['average_comfort_level']:.2f}/5\n")
+
+    return store
+
+
 def main():
     """Run all demonstrations"""
     print("\n")
@@ -497,6 +601,7 @@ def main():
         demo_data_model()
         demo_progress_tracking()
         demo_test_results()
+        demo_statistics()
 
         print_section("DEMO COMPLETE")
         print("✓ All demonstrations completed successfully!\n")
@@ -511,6 +616,8 @@ def main():
         print("  • Recording test attempts with scores")
         print("  • Retrieving test history with filtering and limits")
         print("  • Resetting progress (cascade deletes test results)")
+        print("  • Getting overall statistics (across all verses)")
+        print("  • Getting per-verse statistics (accuracy, comfort, consecutive streak)")
         print("  • Persisting data to JSON storage")
         print("  • Loading data from storage (simulating app restart)")
         print("  • Error handling for edge cases")

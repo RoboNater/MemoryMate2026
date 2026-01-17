@@ -1404,3 +1404,372 @@ class TestTestResultIntegration:
 
         history = store.get_test_history(verse_id=verse.id)
         assert len(history) == 2
+
+
+class TestGetStats:
+    """Tests for get_stats method (overall statistics)"""
+
+    def test_get_stats_empty_store(self, store):
+        """Test stats on empty store"""
+        stats = store.get_stats()
+        assert stats['total_verses'] == 0
+        assert stats['total_archived'] == 0
+        assert stats['total_practiced'] == 0
+        assert stats['total_tested'] == 0
+        assert stats['total_correct'] == 0
+        assert stats['overall_accuracy'] == 0.0
+        assert stats['verses_with_perfect_comfort'] == 0
+        assert stats['average_comfort_level'] == 0.0
+
+    def test_get_stats_single_verse_no_progress(self, store):
+        """Test stats with a verse but no progress data"""
+        store.add_verse("John 3:16", "For God so loved the world...")
+        stats = store.get_stats()
+
+        assert stats['total_verses'] == 1
+        assert stats['total_archived'] == 0
+        assert stats['total_practiced'] == 0
+        assert stats['total_tested'] == 0
+
+    def test_get_stats_single_verse_with_practice(self, store):
+        """Test stats with practice data"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.record_practice(verse.id)
+
+        stats = store.get_stats()
+        assert stats['total_practiced'] == 2
+        assert stats['total_tested'] == 0
+
+    def test_get_stats_single_verse_with_tests(self, store):
+        """Test stats with test data"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=False)
+
+        stats = store.get_stats()
+        assert stats['total_tested'] == 3
+        assert stats['total_correct'] == 2
+        assert stats['overall_accuracy'] == pytest.approx(2/3)
+
+    def test_get_stats_overall_accuracy_perfect(self, store):
+        """Test overall accuracy when all tests pass"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+
+        stats = store.get_stats()
+        assert stats['overall_accuracy'] == 1.0
+
+    def test_get_stats_overall_accuracy_zero(self, store):
+        """Test overall accuracy when all tests fail"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=False)
+        store.record_test_result(verse.id, passed=False)
+
+        stats = store.get_stats()
+        assert stats['overall_accuracy'] == 0.0
+
+    def test_get_stats_multiple_verses(self, store):
+        """Test stats across multiple verses"""
+        v1 = store.add_verse("John 3:16", "For God so loved the world...")
+        v2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+
+        store.record_practice(v1.id)
+        store.record_practice(v2.id)
+        store.record_practice(v2.id)
+
+        stats = store.get_stats()
+        assert stats['total_verses'] == 2
+        assert stats['total_practiced'] == 3
+
+    def test_get_stats_with_archived_verses(self, store):
+        """Test that archived verses are counted separately"""
+        v1 = store.add_verse("John 3:16", "For God so loved the world...")
+        v2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+
+        store.archive_verse(v1.id)
+
+        stats = store.get_stats()
+        assert stats['total_verses'] == 1
+        assert stats['total_archived'] == 1
+
+    def test_get_stats_comfort_level_tracking(self, store):
+        """Test comfort level statistics"""
+        v1 = store.add_verse("John 3:16", "For God so loved the world...")
+        v2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+        v3 = store.add_verse("Romans 3:23", "For all have sinned...")
+
+        store.set_comfort_level(v1.id, 3)
+        store.set_comfort_level(v2.id, 5)
+        store.set_comfort_level(v3.id, 4)
+
+        stats = store.get_stats()
+        assert stats['verses_with_perfect_comfort'] == 1
+        assert stats['average_comfort_level'] == pytest.approx(4.0)
+
+    def test_get_stats_perfect_comfort_count(self, store):
+        """Test counting verses with perfect comfort (5)"""
+        for i in range(5):
+            verse = store.add_verse(f"Verse {i}", f"Text {i}")
+            store.set_comfort_level(verse.id, 5)
+
+        stats = store.get_stats()
+        assert stats['verses_with_perfect_comfort'] == 5
+
+    def test_get_stats_average_comfort_mixed(self, store):
+        """Test average comfort with mixed levels"""
+        v1 = store.add_verse("John 3:16", "For God so loved the world...")
+        v2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+        v3 = store.add_verse("Romans 3:23", "For all have sinned...")
+        v4 = store.add_verse("Proverbs 3:5", "Trust in the Lord...")
+
+        store.set_comfort_level(v1.id, 1)
+        store.set_comfort_level(v2.id, 2)
+        store.set_comfort_level(v3.id, 3)
+        store.set_comfort_level(v4.id, 4)
+
+        stats = store.get_stats()
+        assert stats['average_comfort_level'] == pytest.approx(2.5)
+
+    def test_get_stats_complex_scenario(self, store):
+        """Test stats with complex multi-verse scenario"""
+        v1 = store.add_verse("John 3:16", "For God so loved the world...")
+        v2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+        v3 = store.add_verse("Romans 3:23", "For all have sinned...")
+
+        # Verse 1: practiced, tested
+        store.record_practice(v1.id)
+        store.record_practice(v1.id)
+        store.record_test_result(v1.id, passed=True)
+        store.record_test_result(v1.id, passed=True)
+        store.set_comfort_level(v1.id, 4)
+
+        # Verse 2: only tested
+        store.record_test_result(v2.id, passed=True)
+        store.record_test_result(v2.id, passed=False)
+        store.set_comfort_level(v2.id, 3)
+
+        # Verse 3: no interaction
+        # (will have default comfort 1)
+
+        stats = store.get_stats()
+        assert stats['total_verses'] == 3
+        assert stats['total_practiced'] == 2
+        assert stats['total_tested'] == 4  # v1: 2 tests, v2: 2 tests
+        assert stats['total_correct'] == 3  # v1: 2 correct, v2: 1 correct
+        assert stats['overall_accuracy'] == pytest.approx(3/4)
+        # Average comfort level is only for verses with progress (v1, v2)
+        assert stats['average_comfort_level'] == pytest.approx((4 + 3) / 2)
+
+    def test_get_stats_returns_dict(self, store):
+        """Test that get_stats returns a dict"""
+        stats = store.get_stats()
+        assert isinstance(stats, dict)
+
+    def test_get_stats_has_required_keys(self, store):
+        """Test that stats dict has all required keys"""
+        stats = store.get_stats()
+        required_keys = {
+            'total_verses', 'total_archived', 'total_practiced', 'total_tested',
+            'total_correct', 'overall_accuracy', 'verses_with_perfect_comfort',
+            'average_comfort_level'
+        }
+        assert set(stats.keys()) == required_keys
+
+
+class TestGetVerseStats:
+    """Tests for get_verse_stats method (per-verse statistics)"""
+
+    def test_get_verse_stats_nonexistent_verse(self, store):
+        """Test getting stats for non-existent verse returns None"""
+        stats = store.get_verse_stats("nonexistent-id")
+        assert stats is None
+
+    def test_get_verse_stats_no_progress(self, store):
+        """Test verse stats when no progress exists"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        stats = store.get_verse_stats(verse.id)
+
+        assert stats is not None
+        assert stats['reference'] == "John 3:16"
+        assert stats['times_practiced'] == 0
+        assert stats['times_tested'] == 0
+        assert stats['times_correct'] == 0
+        assert stats['accuracy'] == 0.0
+        assert stats['comfort_level'] == 1
+        assert stats['last_practiced'] is None
+        assert stats['last_tested'] is None
+        assert stats['consecutive_correct'] == 0
+
+    def test_get_verse_stats_with_practice(self, store):
+        """Test verse stats with practice data"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.record_practice(verse.id)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['times_practiced'] == 2
+        assert stats['last_practiced'] is not None
+
+    def test_get_verse_stats_with_tests(self, store):
+        """Test verse stats with test data"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=False)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['times_tested'] == 3
+        assert stats['times_correct'] == 2
+        assert stats['accuracy'] == pytest.approx(2/3)
+        assert stats['last_tested'] is not None
+
+    def test_get_verse_stats_accuracy_perfect(self, store):
+        """Test accuracy when all tests pass"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['accuracy'] == 1.0
+
+    def test_get_verse_stats_accuracy_zero(self, store):
+        """Test accuracy when all tests fail"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=False)
+        store.record_test_result(verse.id, passed=False)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['accuracy'] == 0.0
+
+    def test_get_verse_stats_comfort_level(self, store):
+        """Test comfort level in verse stats"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.set_comfort_level(verse.id, 4)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['comfort_level'] == 4
+
+    def test_get_verse_stats_consecutive_correct_all_pass(self, store):
+        """Test consecutive correct when all recent tests pass"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['consecutive_correct'] == 3
+
+    def test_get_verse_stats_consecutive_correct_break(self, store):
+        """Test consecutive correct with a failure in between"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=False)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+
+        stats = store.get_verse_stats(verse.id)
+        # Most recent tests are: pass, pass (streak of 2)
+        assert stats['consecutive_correct'] == 2
+
+    def test_get_verse_stats_consecutive_correct_all_fail(self, store):
+        """Test consecutive correct when all tests fail"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=False)
+        store.record_test_result(verse.id, passed=False)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['consecutive_correct'] == 0
+
+    def test_get_verse_stats_consecutive_correct_single_pass(self, store):
+        """Test consecutive correct with single pass"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_test_result(verse.id, passed=True)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['consecutive_correct'] == 1
+
+    def test_get_verse_stats_timestamps_iso_format(self, store):
+        """Test that timestamps are in ISO format"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        store.record_practice(verse.id)
+        store.record_test_result(verse.id, passed=True)
+
+        stats = store.get_verse_stats(verse.id)
+        assert isinstance(stats['last_practiced'], str)
+        assert isinstance(stats['last_tested'], str)
+        # Verify ISO format by checking structure
+        assert 'T' in stats['last_practiced']
+        assert 'T' in stats['last_tested']
+
+    def test_get_verse_stats_reference_included(self, store):
+        """Test that verse reference is included in stats"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        stats = store.get_verse_stats(verse.id)
+        assert stats['reference'] == "John 3:16"
+
+    def test_get_verse_stats_returns_dict(self, store):
+        """Test that get_verse_stats returns a dict"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        stats = store.get_verse_stats(verse.id)
+        assert isinstance(stats, dict)
+
+    def test_get_verse_stats_has_required_keys(self, store):
+        """Test that stats dict has all required keys"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+        stats = store.get_verse_stats(verse.id)
+        required_keys = {
+            'reference', 'times_practiced', 'times_tested', 'times_correct',
+            'accuracy', 'comfort_level', 'last_practiced', 'last_tested',
+            'consecutive_correct'
+        }
+        assert set(stats.keys()) == required_keys
+
+    def test_get_verse_stats_complex_scenario(self, store):
+        """Test verse stats with complex practice and test history"""
+        verse = store.add_verse("John 3:16", "For God so loved the world...")
+
+        # Multiple practices
+        store.record_practice(verse.id)
+        store.record_practice(verse.id)
+        store.record_practice(verse.id)
+
+        # Multiple tests with various results
+        store.record_test_result(verse.id, passed=False)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+        store.record_test_result(verse.id, passed=True)
+
+        # Set comfort level
+        store.set_comfort_level(verse.id, 3)
+
+        stats = store.get_verse_stats(verse.id)
+        assert stats['times_practiced'] == 3
+        assert stats['times_tested'] == 4
+        assert stats['times_correct'] == 3
+        assert stats['accuracy'] == pytest.approx(3/4)
+        assert stats['comfort_level'] == 3
+        assert stats['consecutive_correct'] == 3
+
+    def test_get_verse_stats_multiple_verses_independent(self, store):
+        """Test that stats for different verses are independent"""
+        v1 = store.add_verse("John 3:16", "For God so loved the world...")
+        v2 = store.add_verse("Psalm 23:1", "The Lord is my shepherd...")
+
+        store.record_practice(v1.id)
+        store.record_practice(v1.id)
+        store.record_test_result(v1.id, passed=True)
+
+        store.record_test_result(v2.id, passed=False)
+
+        stats1 = store.get_verse_stats(v1.id)
+        stats2 = store.get_verse_stats(v2.id)
+
+        assert stats1['times_practiced'] == 2
+        assert stats1['times_tested'] == 1
+        assert stats2['times_practiced'] == 0
+        assert stats2['times_tested'] == 1

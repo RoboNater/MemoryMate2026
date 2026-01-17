@@ -336,6 +336,117 @@ class MemoryMateStore:
 
         return results
 
+    # ========== Statistics ==========
+
+    def get_stats(self) -> dict:
+        """
+        Get overall statistics across all verses.
+
+        Returns:
+            Dict with keys:
+            - total_verses: Number of active (non-archived) verses
+            - total_archived: Number of archived verses
+            - total_practiced: Sum of all practice sessions
+            - total_tested: Sum of all test attempts
+            - total_correct: Sum of all correct test answers
+            - overall_accuracy: Percentage of correct tests (0.0-1.0)
+            - verses_with_perfect_comfort: Number of verses at comfort level 5
+            - average_comfort_level: Mean comfort level across verses with progress
+        """
+        # Verse counts
+        all_verses = list(self._verses.values())
+        active_verses = [v for v in all_verses if not v.archived]
+        archived_verses = [v for v in all_verses if v.archived]
+
+        # Aggregate progress across all verses
+        total_practiced = sum(p.times_practiced for p in self._progress.values())
+        total_tested = sum(p.times_tested for p in self._progress.values())
+        total_correct = sum(p.times_correct for p in self._progress.values())
+
+        # Calculate accuracy
+        overall_accuracy = (total_correct / total_tested) if total_tested > 0 else 0.0
+
+        # Comfort level stats
+        comfort_levels = [p.comfort_level for p in self._progress.values()]
+        verses_with_perfect_comfort = sum(1 for p in self._progress.values() if p.comfort_level == 5)
+        average_comfort = (sum(comfort_levels) / len(comfort_levels)) if comfort_levels else 0.0
+
+        return {
+            'total_verses': len(active_verses),
+            'total_archived': len(archived_verses),
+            'total_practiced': total_practiced,
+            'total_tested': total_tested,
+            'total_correct': total_correct,
+            'overall_accuracy': overall_accuracy,
+            'verses_with_perfect_comfort': verses_with_perfect_comfort,
+            'average_comfort_level': average_comfort
+        }
+
+    def get_verse_stats(self, verse_id: str) -> Optional[dict]:
+        """
+        Get statistics for a specific verse.
+
+        Args:
+            verse_id: The verse to get statistics for
+
+        Returns:
+            Dict with keys:
+            - reference: Verse reference
+            - times_practiced: Number of practice sessions
+            - times_tested: Number of test attempts
+            - times_correct: Number of correct answers
+            - accuracy: Percentage of correct tests (0.0-1.0)
+            - comfort_level: User's self-assessed comfort (1-5)
+            - last_practiced: Most recent practice timestamp
+            - last_tested: Most recent test timestamp
+            - consecutive_correct: Number of consecutive correct test results
+            Or None if verse doesn't exist
+        """
+        verse = self._verses.get(verse_id)
+        if not verse:
+            return None
+
+        progress = self._progress.get(verse_id)
+        if not progress:
+            # Verse exists but no progress yet
+            return {
+                'reference': verse.reference,
+                'times_practiced': 0,
+                'times_tested': 0,
+                'times_correct': 0,
+                'accuracy': 0.0,
+                'comfort_level': 1,
+                'last_practiced': None,
+                'last_tested': None,
+                'consecutive_correct': 0
+            }
+
+        # Get test history for this verse to calculate consecutive correct
+        verse_tests = [tr for tr in self._test_results if tr.verse_id == verse_id]
+        verse_tests.sort(key=lambda tr: tr.timestamp, reverse=True)
+
+        consecutive_correct = 0
+        for test in verse_tests:
+            if test.passed:
+                consecutive_correct += 1
+            else:
+                break
+
+        # Calculate accuracy
+        accuracy = (progress.times_correct / progress.times_tested) if progress.times_tested > 0 else 0.0
+
+        return {
+            'reference': verse.reference,
+            'times_practiced': progress.times_practiced,
+            'times_tested': progress.times_tested,
+            'times_correct': progress.times_correct,
+            'accuracy': accuracy,
+            'comfort_level': progress.comfort_level,
+            'last_practiced': progress.last_practiced.isoformat() if progress.last_practiced else None,
+            'last_tested': progress.last_tested.isoformat() if progress.last_tested else None,
+            'consecutive_correct': consecutive_correct
+        }
+
     # ========== Persistence ==========
 
     def _load(self) -> None:
