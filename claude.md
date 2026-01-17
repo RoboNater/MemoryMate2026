@@ -32,8 +32,11 @@ The project uses a **phased approach**:
 - ✅ Unit tests for TestResult (38 tests, 98% overall coverage)
 - ✅ Demo script updated with test result tracking features
 
+### Completed (Continued)
+- ✅ Statistics methods (`get_stats`, `get_verse_stats`)
+- ✅ Unit tests for statistics methods (30 tests, 98% overall coverage)
+
 ### Not Started
-- ⏳ Statistics methods (`get_stats`, `get_verse_stats`)
 - ⏳ MVP frontend (React Native + Expo app)
 
 ---
@@ -45,7 +48,7 @@ The project uses a **phased approach**:
 |-------|------------|
 | Language | Python 3.12 |
 | Storage | JSON file |
-| Testing | pytest (124 tests, 98% coverage) |
+| Testing | pytest (155 tests, 98% coverage) |
 
 ### MVP (Planned)
 | Layer | Technology | Rationale |
@@ -163,7 +166,9 @@ Data persists as JSON in `memory_mate_data.json`:
 - [x] Implement TestResult entity and methods
 - [x] Add unit tests for TestResult (38 tests, 98% coverage)
 - [x] Update demo script with test result tracking
-- [ ] Implement statistics methods (`get_stats`, `get_verse_stats`)
+- [x] Implement statistics methods (`get_stats`, `get_verse_stats`)
+- [x] Add unit tests for statistics (30 tests, 98% coverage)
+- [x] Update demo script with statistics tracking
 - [ ] Validate data model with real-world verse data
 
 ### Phase 2: MVP Backend & Frontend
@@ -318,5 +323,5 @@ See [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and
 
 ---
 
-**Last Updated**: 2026-01-10
-**Project Status**: Prototype Phase - TestResult Complete (124 tests, 98% coverage)
+**Last Updated**: 2026-01-17
+**Project Status**: Prototype Phase - Statistics Complete (155 tests, 98% coverage)
