@@ -2,11 +2,13 @@
 
 This document records the setup process for the Memory Mate MVP development environment.
 
+**IMPORTANT**: See [ccc.12.web-expo-react-issues.md](ccc.12.web-expo-react-issues.md) for detailed troubleshooting of issues encountered during initial setup.
+
 ---
 
 ## System Information
 
-**Date**: 2026-01-17
+**Date**: 2026-01-17 (updated 2026-01-18)
 **Platform**: Linux (WSL2)
 **OS Version**: Linux 6.6.87.2-microsoft-standard-WSL2
 **Node.js Version**: v24.11.1
@@ -45,40 +47,59 @@ cd memory-mate-mvp
 
 ### 2. Install Core Dependencies
 
+**IMPORTANT**: Use `--legacy-peer-deps` for all npm installs due to React 19 peer dependency conflicts. See [ccc.011.react-19-dependency-conflicts.md](ccc.011.react-19-dependency-conflicts.md) for details.
+
 ```bash
 # Navigation (Expo Router)
 npx expo install expo-router react-native-safe-area-context react-native-screens expo-linking expo-constants expo-status-bar
 
 # Styling (NativeWind - Tailwind CSS for React Native)
-npm install nativewind
-npm install --save-dev tailwindcss@3.3.2
+# IMPORTANT: Install ALL peer dependencies together
+npm install nativewind react-native-reanimated react-native-worklets --legacy-peer-deps
+npm install --save-dev tailwindcss@^3.4.17 babel-preset-expo --legacy-peer-deps
+
+# Web platform support (required for web builds)
+# IMPORTANT: Pin react-dom to match react version exactly
+npm install react-dom@19.1.0 react-native-web --legacy-peer-deps
 
 # State Management (Zustand)
-npm install zustand
+npm install zustand --legacy-peer-deps
 
 # Local Storage (SQLite)
 npx expo install expo-sqlite
-
-# Additional utilities
-npx expo install react-native-reanimated
 ```
 
-### 3. Configure Expo Router
+### 3. Update package.json Entry Point
 
-Update `app.json` to enable Expo Router:
+**CRITICAL**: Update the `main` field for Expo Router:
+
+```json
+{
+  "main": "expo-router/entry"
+}
+```
+
+### 4. Configure Expo Router
+
+Update `app.json` to enable Expo Router and web support:
 
 ```json
 {
   "expo": {
     "scheme": "memorymate",
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-sqlite"
     ]
   }
 }
 ```
 
-### 4. Configure NativeWind
+### 5. Configure NativeWind
 
 Create `tailwind.config.js`:
 
@@ -86,14 +107,34 @@ Create `tailwind.config.js`:
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
+    "./App.{js,jsx,ts,tsx}",
+    "./src/**/*.{js,jsx,ts,tsx}",
     "./app/**/*.{js,jsx,ts,tsx}",
     "./components/**/*.{js,jsx,ts,tsx}"
   ],
+  presets: [require("nativewind/preset")],
   theme: {
     extend: {},
   },
   plugins: [],
 }
+```
+
+Create `babel.config.js`:
+
+```js
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: [
+      ['babel-preset-expo', { jsxImportSource: 'nativewind' }],
+      'nativewind/babel',
+    ],
+    plugins: [
+      'react-native-reanimated/plugin',
+    ],
+  };
+};
 ```
 
 Create `metro.config.js`:
@@ -115,7 +156,7 @@ Create `global.css`:
 @tailwind utilities;
 ```
 
-### 5. Configure TypeScript
+### 6. Configure TypeScript
 
 Update `tsconfig.json` to support path aliases:
 
@@ -131,7 +172,15 @@ Update `tsconfig.json` to support path aliases:
 }
 ```
 
-### 6. Setup Project Structure
+Create `nativewind-env.d.ts` for TypeScript support:
+
+```ts
+/// <reference types="nativewind/types" />
+```
+
+### 7. Setup Project Structure
+
+**IMPORTANT**: Use `src/app/` for Expo Router files (not `app/` at root).
 
 ```bash
 # Create directory structure
@@ -144,11 +193,42 @@ mkdir -p src/utils
 mkdir -p src/constants
 ```
 
-Move Expo Router app files:
+### 8. Create Root Layout
 
-```bash
-# Move App.tsx to app/_layout.tsx if needed
-# This will be done as part of implementation
+Create `src/app/_layout.tsx`:
+
+```tsx
+import { Stack } from 'expo-router';
+import '../../global.css';
+
+export default function RootLayout() {
+  return (
+    <Stack>
+      <Stack.Screen name="index" options={{ title: 'Memory Mate' }} />
+    </Stack>
+  );
+}
+```
+
+### 9. Create Index Page
+
+Create `src/app/index.tsx`:
+
+```tsx
+import { View, Text } from 'react-native';
+
+export default function Index() {
+  return (
+    <View className="flex-1 items-center justify-center bg-white">
+      <Text className="text-2xl font-bold text-blue-600">
+        Memory Mate MVP
+      </Text>
+      <Text className="mt-4 text-gray-600">
+        Phase 1: Project Setup Complete
+      </Text>
+    </View>
+  );
+}
 ```
 
 ---
@@ -158,7 +238,7 @@ Move Expo Router app files:
 ### 1. ESLint Configuration
 
 ```bash
-npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin
+npm install --save-dev eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin --legacy-peer-deps
 ```
 
 Create `.eslintrc.js`:
@@ -177,7 +257,7 @@ module.exports = {
 ### 2. Prettier Configuration
 
 ```bash
-npm install --save-dev prettier
+npm install --save-dev prettier --legacy-peer-deps
 ```
 
 Create `.prettierrc`:
@@ -202,6 +282,12 @@ Create `.prettierrc`:
 npx expo start
 ```
 
+Use `--clear` flag after configuration changes:
+
+```bash
+npx expo start --clear
+```
+
 ### Run on Platforms
 
 ```bash
@@ -211,7 +297,7 @@ npx expo start --ios
 # Android Emulator
 npx expo start --android
 
-# Web Browser
+# Web Browser (press 'w' after starting, or use --web flag)
 npx expo start --web
 
 # Scan QR code with Expo Go app for physical device testing
@@ -221,17 +307,17 @@ npx expo start --web
 
 ## Verification Steps (CP-1)
 
-### ✅ Checklist
+### Checklist
 
-- [ ] Node.js and npm installed and working
-- [ ] Expo project created successfully
-- [ ] All dependencies installed without errors
-- [ ] Project structure created
-- [ ] TypeScript compilation works
-- [ ] Development server starts successfully
+- [x] Node.js and npm installed and working
+- [x] Expo project created successfully
+- [x] All dependencies installed (with --legacy-peer-deps)
+- [x] Project structure created
+- [x] TypeScript compilation works
+- [x] Development server starts successfully
 - [ ] App runs on iOS simulator/device
 - [ ] App runs on Android emulator/device
-- [ ] App runs in web browser
+- [x] App runs in web browser
 - [ ] Hot reload works (make a change, see it update)
 
 ---
@@ -239,22 +325,32 @@ npx expo start --web
 ## Implementation Notes
 
 ### Dependency Installation
-- Used `--legacy-peer-deps` flag when installing `nativewind` and `zustand` due to React version peer dependency conflicts
+- Used `--legacy-peer-deps` flag for ALL npm installs due to React 19 peer dependency conflicts
 - This is a known issue with React 19 and some packages; functionality is not affected
+- See [ccc.011.react-19-dependency-conflicts.md](ccc.011.react-19-dependency-conflicts.md) for details
+
+### Critical Configuration Points
+1. **package.json main field**: Must be `"expo-router/entry"` for Expo Router
+2. **app.json web.bundler**: Must be `"metro"` for web platform
+3. **tailwind.config.js**: Must include `presets: [require("nativewind/preset")]`
+4. **babel.config.js**: Must include NativeWind and reanimated plugins
+5. **react-dom version**: Must match react version exactly (19.1.0)
 
 ### Project Structure
-- Created `app/` directory for Expo Router (file-based routing)
+- Routes are in `src/app/` directory (Expo Router file-based routing)
 - Created `src/` directory for organized code structure
-- Both App.tsx (original) and app/ directory coexist; Expo Router takes precedence
+- Original `App.tsx` can be deleted (not used with Expo Router)
 
 ### Configuration Files Created
-- `tailwind.config.js` - Tailwind CSS configuration
+- `tailwind.config.js` - Tailwind CSS configuration with NativeWind preset
+- `babel.config.js` - Babel configuration with NativeWind and reanimated
 - `metro.config.js` - Metro bundler with NativeWind integration
 - `global.css` - Tailwind directives
 - `nativewind-env.d.ts` - TypeScript support for NativeWind
 - `.prettierrc` - Code formatting rules
 - Updated `tsconfig.json` - Added path aliases
-- Updated `app.json` - Added scheme for deep linking
+- Updated `app.json` - Added scheme, web bundler, and plugins
+- Updated `package.json` - Changed main to expo-router/entry
 
 ## Troubleshooting
 
@@ -270,7 +366,19 @@ npx expo start --web
 - **Solution**: Run `npx tsc --noEmit` to check for type errors
 
 **Issue**: NativeWind styles not applying
-- **Solution**: Ensure `global.css` is imported in root layout
+- **Solution**: Ensure `global.css` is imported in root layout, and tailwind.config.js has NativeWind preset
+
+**Issue**: Blank page on web
+- **Solution**: Check browser console for errors. See [ccc.12.web-expo-react-issues.md](ccc.12.web-expo-react-issues.md)
+
+**Issue**: React/react-dom version mismatch
+- **Solution**: Pin react-dom to match react: `npm install react-dom@19.1.0 --legacy-peer-deps`
+
+**Issue**: "Open up App.tsx" showing instead of app content
+- **Solution**: Ensure package.json has `"main": "expo-router/entry"`
+
+**Issue**: Boilerplate showing instead of custom content
+- **Solution**: Ensure routes are in `src/app/` not `app/` at root
 
 ---
 
@@ -291,7 +399,15 @@ npx expo start --web
 
 ### Styling
 - nativewind: ^4.2.1
-- tailwindcss: ^3.3.2
+- tailwindcss: ^3.4.17
+
+### Animation (NativeWind peer dependency)
+- react-native-reanimated: ~4.1.1
+- react-native-worklets: ^0.7.2
+
+### Web Platform
+- react-dom: 19.1.0
+- react-native-web: ^0.21.2
 
 ### State & Storage
 - zustand: ^5.0.10
@@ -300,7 +416,7 @@ npx expo start --web
 ### Development Tools
 - typescript: ~5.9.2
 - @types/react: ~19.1.0
-- @types/react-native: (included with React Native types)
+- babel-preset-expo: ^54.0.9
 
 ---
 
@@ -313,6 +429,6 @@ After CP-1 approval:
 
 ---
 
-**Document Version**: 1.0
+**Document Version**: 2.0
 **Created**: 2026-01-17
-**Last Updated**: 2026-01-17
+**Last Updated**: 2026-01-18
