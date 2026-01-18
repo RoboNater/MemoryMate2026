@@ -47,7 +47,7 @@ cd memory-mate-mvp
 
 ### 2. Install Core Dependencies
 
-**IMPORTANT**: Use `--legacy-peer-deps` for all npm installs due to React 19 peer dependency conflicts. See [ccc.011.react-19-dependency-conflicts.md](ccc.011.react-19-dependency-conflicts.md) for details.
+**IMPORTANT**: Use `--legacy-peer-deps` for all npm installs due to React 19 peer dependency conflicts. See [ccc.11.react-19-dependency-conflicts.md](ccc.11.react-19-dependency-conflicts.md) for details.
 
 ```bash
 # Navigation (Expo Router)
@@ -327,7 +327,7 @@ npx expo start --web
 ### Dependency Installation
 - Used `--legacy-peer-deps` flag for ALL npm installs due to React 19 peer dependency conflicts
 - This is a known issue with React 19 and some packages; functionality is not affected
-- See [ccc.011.react-19-dependency-conflicts.md](ccc.011.react-19-dependency-conflicts.md) for details
+- See [ccc.11.react-19-dependency-conflicts.md](ccc.11.react-19-dependency-conflicts.md) for details
 
 ### Critical Configuration Points
 1. **package.json main field**: Must be `"expo-router/entry"` for Expo Router
