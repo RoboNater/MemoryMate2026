@@ -1,3 +1,4 @@
 .coverage
 __pycache__
 demo_memory_mate_data.json
+node_modules
