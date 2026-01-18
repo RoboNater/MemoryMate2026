@@ -35,9 +35,22 @@ The project uses a **phased approach**:
 ### Completed (Continued)
 - ✅ Statistics methods (`get_stats`, `get_verse_stats`)
 - ✅ Unit tests for statistics methods (30 tests, 98% overall coverage)
+- ✅ MVP use cases documented (16 use cases across 4 categories)
+- ✅ MVP implementation plan with review checkpoints
+- ✅ **MVP Phase 1: Project Setup Complete**
+  - Expo + TypeScript project initialized
+  - Expo Router, NativeWind, Zustand, SQLite configured
+  - Project structure created
+  - Development environment documented
 
-### Not Started
-- ⏳ MVP frontend (React Native + Expo app)
+### In Progress
+- ⏸️ **Checkpoint 1 (CP-1)**: Awaiting user verification of dev environment
+  - Need to verify: dev server starts, web works, hot reload works
+  - See: [CP-1-CHECKPOINT-REVIEW.md](CP-1-CHECKPOINT-REVIEW.md)
+
+### Next Steps
+- ⏳ Phase 2: Navigation & Screen Shells (after CP-1 approval)
+- ⏳ Checkpoint 2: UI/UX review vs use cases
 
 ---
 
@@ -50,17 +63,17 @@ The project uses a **phased approach**:
 | Storage | JSON file |
 | Testing | pytest (155 tests, 98% coverage) |
 
-### MVP (Planned)
-| Layer | Technology | Rationale |
-|-------|------------|-----------|
-| Frontend Framework | React Native + Expo | Single codebase for iOS, Android, Web |
-| Language | TypeScript | Type safety, excellent tooling |
-| Build/Dev | Expo | Simplified pipeline, OTA updates, Expo Go |
-| Styling | NativeWind (Tailwind for RN) | Familiar utility-first CSS, cross-platform |
-| Navigation | Expo Router | File-based routing, all platforms |
-| State Management | Zustand | Lightweight, minimal boilerplate |
-| Storage | expo-sqlite | Structured data, offline-first |
-| Backend (MVP) | None | Local-only to reduce complexity |
+### MVP (In Development)
+| Layer | Technology | Version | Status |
+|-------|------------|---------|--------|
+| Frontend Framework | React Native + Expo | Expo 54.0, RN 0.81.5 | ✅ Installed |
+| Language | TypeScript | 5.9 | ✅ Configured |
+| Build/Dev | Expo | 54.0 | ✅ Working |
+| Styling | NativeWind (Tailwind for RN) | NativeWind 4.2, Tailwind 3.3 | ✅ Configured |
+| Navigation | Expo Router | 6.0 | ✅ Configured |
+| State Management | Zustand | 5.0 | ✅ Installed |
+| Storage | expo-sqlite | 16.0 | ✅ Installed |
+| Backend (MVP) | None | - | Local-only |
 
 ---
 
@@ -125,14 +138,31 @@ Data persists as JSON in `memory_mate_data.json`:
 /home/alfred/lw/w509-MemoryMate2026/
 ├── README.md                                    # Main project doc (architecture, design principles)
 ├── claude.md                                    # This file - project context for Claude
-├── memory_mate.py                               # Prototype implementation (Verse class, verse methods)
-├── test_memory_mate.py                          # Unit tests (49 tests, 96% coverage)
+├── memory_mate.py                               # Prototype implementation
+├── test_memory_mate.py                          # Unit tests (155 tests, 98% coverage)
 ├── demo_memory_mate.py                          # Demo script showcasing capabilities
 ├── ccc.00.active-context.md                     # Session-specific context and next steps
-├── ccc.01.initial-review.md                     # Review of initial README
-├── ccc.02.design-prototype-data-and-class.md    # Data model & class design spec
-├── ccc.03.review-of-verse-management.md         # Review of verse management implementation
-├── example.01.tmdb-movie-app-architecture.md    # Reference architecture (TMDB app example)
+├── ccc.07.mvp-use-cases.md                      # MVP use cases (16 use cases)
+├── ccc.08.mvp-implementation-plan.md            # MVP implementation plan with checkpoints
+├── ccc.09.dev-environment-setup-for-mvp.md      # MVP dev environment setup guide
+├── CP-1-CHECKPOINT-REVIEW.md                    # Checkpoint 1 review document
+├── memory-mate-mvp/                             # MVP Expo/React Native project
+│   ├── app/                                     # Expo Router pages
+│   │   ├── _layout.tsx                          # Root layout
+│   │   └── index.tsx                            # Home screen (Phase 1 verification)
+│   ├── src/                                     # Organized code structure
+│   │   ├── components/                          # (empty - Phase 3)
+│   │   ├── store/                               # (empty - Phase 4)
+│   │   ├── services/                            # (empty - Phase 4)
+│   │   ├── types/                               # (empty - Phase 4)
+│   │   ├── utils/                               # (empty - Phase 3)
+│   │   └── constants/                           # (empty - Phase 3)
+│   ├── assets/                                  # Images, icons
+│   ├── package.json                             # Dependencies
+│   ├── tailwind.config.js                       # Tailwind CSS config
+│   ├── metro.config.js                          # Metro bundler config
+│   ├── tsconfig.json                            # TypeScript config
+│   └── README.md                                # MVP project README
 └── .git/                                        # Git repository
 ```
 
@@ -147,8 +177,11 @@ Data persists as JSON in `memory_mate_data.json`:
 | [ccc.00.active-context.md](ccc.00.active-context.md) | **READ FOR NEXT SESSION** - Current context and next steps |
 | [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and-class.md) | Data model specification and full class API design |
 | [ccc.03.review-of-verse-management.md](ccc.03.review-of-verse-management.md) | Code review with issues and recommendations |
-| [ccc.01.initial-review.md](ccc.01.initial-review.md) | Early review with formatting fixes and architectural concerns |
-| [example.01.tmdb-movie-app-architecture.md](example.01.tmdb-movie-app-architecture.md) | Reference: architecture patterns from TMDB app |
+| [ccc.07.mvp-use-cases.md](ccc.07.mvp-use-cases.md) | **MVP use cases** - 16 detailed use cases across 4 categories |
+| [ccc.08.mvp-implementation-plan.md](ccc.08.mvp-implementation-plan.md) | **MVP implementation plan** - 6 phases with review checkpoints |
+| [ccc.09.dev-environment-setup-for-mvp.md](ccc.09.dev-environment-setup-for-mvp.md) | **MVP dev setup** - Environment setup and troubleshooting |
+| [CP-1-CHECKPOINT-REVIEW.md](CP-1-CHECKPOINT-REVIEW.md) | **Checkpoint 1 review** - Dev environment verification checklist |
+| [memory-mate-mvp/README.md](memory-mate-mvp/README.md) | MVP project README with development commands |
 
 ---
 
@@ -324,4 +357,4 @@ See [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and
 ---
 
 **Last Updated**: 2026-01-17
-**Project Status**: Prototype Phase - Statistics Complete (155 tests, 98% coverage)
+**Project Status**: MVP Phase 1 Complete - Awaiting Checkpoint 1 Review
