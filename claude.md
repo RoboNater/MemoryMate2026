@@ -49,14 +49,15 @@ The project uses a **phased approach**:
   - Navigation flows implemented (tabs + stack)
   - All use cases have corresponding screens
 
-### In Progress
-- ⏸️ **Checkpoint 2 (CP-2)**: Awaiting user UI/UX review
-  - Need to verify: navigation flows match use cases
+### Completed (Continued)
+- ✅ **Checkpoint 2 (CP-2)**: Navigation structure validated
+  - Navigation flows tested and refined
+  - See: [CP-2-REFINEMENTS.md](CP-2-REFINEMENTS.md)
   - See: [CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md)
   - See: [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md)
 
 ### Next Steps
-- ⏳ Phase 3: UI Components with Mock Data (after CP-2 approval)
+- ⏳ Phase 3: UI Components with Mock Data (awaiting user approval to start)
 - ⏳ Checkpoint 3: Interactive prototype review
 
 ---
@@ -160,6 +161,7 @@ Data persists as JSON in `memory_mate_data.json`:
 │
 ├── CP-1-CHECKPOINT-REVIEW.md                    # Checkpoint 1 review document
 ├── CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md    # Checkpoint 2 review document
+├── CP-2-REFINEMENTS.md                          # CP-2 navigation refinements
 │
 ├── memory_mate.py                               # Prototype: Python implementation
 ├── test_memory_mate.py                          # Prototype: Unit tests (155 tests, 98% coverage)
@@ -227,6 +229,7 @@ Data persists as JSON in `memory_mate_data.json`:
 | [ccc.15.mvp-implementation-phase-2-detailed-plan.md](ccc.15.mvp-implementation-phase-2-detailed-plan.md) | **Phase 2 detailed plan** - Navigation & screen shells implementation |
 | [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md) | **Phase 2 status** - Completion report and CP-2 checklist |
 | [CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md) | **Checkpoint 2 review** - Navigation structure verification |
+| [CP-2-REFINEMENTS.md](CP-2-REFINEMENTS.md) | **CP-2 refinements** - Navigation improvements from testing |
 | | |
 | **MVP App** | |
 | [memory-mate-mvp/README.md](memory-mate-mvp/README.md) | MVP project README with development commands |
@@ -426,4 +429,4 @@ When helping with the MVP app, remember to:
 ---
 
 **Last Updated**: 2026-01-22
-**Project Status**: MVP Phase 2 Complete - Awaiting Checkpoint 2 Review (CP-2)
+**Project Status**: CP-2 Complete - Ready for Phase 3: UI Components with Mock Data

@@ -1,7 +1,7 @@
 # Active Context - Memory Mate 2026
 
 **Last Updated**: 2026-01-22
-**Current Phase**: MVP Development - Checkpoint 2 (CP-2) Review
+**Current Phase**: MVP Development - Ready for Phase 3
 
 ---
 
@@ -9,98 +9,78 @@
 
 ### What Just Happened
 
-**MVP Phase 2: Navigation & Screen Shells** has been completed!
+**Checkpoint 2 (CP-2) Review Complete!** ✅
 
 We've successfully:
-1. Created tab navigation with 5 tabs (Home, Verses, Practice, Test, Settings)
-2. Built all 12 screen shells with placeholder content
-3. Implemented navigation flows (tab + stack navigation)
-4. Ensured all 16 use cases have corresponding screens
-5. Created comprehensive documentation
+1. ✅ Created tab navigation with 5 tabs (Home, Verses, Practice, Test, Settings)
+2. ✅ Built all 12 screen shells with placeholder content
+3. ✅ Implemented navigation flows (tab + stack navigation)
+4. ✅ Ensured all 16 use cases have corresponding screens
+5. ✅ Tested navigation flows and made refinements
+6. ✅ Created comprehensive documentation
 
-The project is now **paused at Checkpoint 2 (CP-2)** waiting for you to review the navigation structure and verify it matches the use cases.
+**Navigation refinements made during CP-2:**
+- Practice/Test "Next Verse" buttons now advance through sessions
+- Practice/Test "Done" buttons exit directly to main tabs
+- Test screen "Check Answer" vs "Give Up" behavior clarified
+- Verse Detail screen "Back" button removed (uses header navigation)
+- Pass/Fail buttons reordered (positive choice on right)
+
+See [CP-2-REFINEMENTS.md](CP-2-REFINEMENTS.md) for details.
 
 ---
 
 ## 📋 What You Need to Do Next
 
-### Checkpoint 2 Review
+### Ready for Phase 3
 
-**READ THESE DOCUMENTS**:
-1. **[ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md)** - Full status report with CP-2 checklist
-2. **[CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md)** - Navigation verification details
+**CP-2 is complete!** The navigation structure has been tested and refined.
 
-### Quick Testing Steps
+When you're ready to proceed, tell me:
+- **"Start Phase 3"** or **"Begin Phase 3"**
 
-1. **Navigate to the MVP project**
-   ```bash
-   cd memory-mate-mvp
-   ```
+I will then begin implementing:
+1. Reusable UI components (VerseCard, StatsCard, etc.)
+2. Mock verse data (5-10 sample verses)
+3. Interactive screens with real UI (replacing placeholders)
+4. Consistent styling and design system
 
-2. **Start the development server**
-   ```bash
-   npm start
-   ```
+### What Happens in Phase 3
 
-3. **Test on your preferred platform**
-   - Press `w` for web browser (easiest)
-   - Press `i` for iOS simulator
-   - Press `a` for Android emulator
+Phase 3 builds the **interactive UI prototype** with mock data:
+- Replace "Coming soon..." placeholders with actual components
+- Create VerseCard component to display verses in lists
+- Add StatsCard components for dashboard
+- Implement ComfortLevelPicker, ProgressBar, etc.
+- Populate screens with 5-10 mock verses (different translations, lengths)
+- Apply consistent styling (colors, typography, spacing)
 
-4. **Walk through navigation flows**
-   - Tap each of the 5 tabs at the bottom
-   - From Verses tab: tap "Add New Verse" button
-   - Navigate to verse details (demo buttons)
-   - Try the Practice and Test demo buttons
-   - Verify back navigation works everywhere
-
-### What to Check
-
-Use the CP-2 checklist in [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md):
-
-- [ ] All 5 tabs accessible from tab bar
-- [ ] Tab switching works smoothly
-- [ ] Navigation flows work (Verses → Add → back, etc.)
-- [ ] All screens have meaningful content (not just blank)
-- [ ] Use case references visible on screens
-- [ ] Visual hierarchy is clear
+Then you'll review at **Checkpoint 3 (CP-3)** to verify the UI feels right before we invest in the data layer.
 
 ---
 
-## 🚦 Decision Point
+## 🚦 Current Checkpoint Status
 
-After testing the navigation, you have options:
+✅ **CP-2 Complete** - Navigation structure validated and refined
 
-### ✅ If Navigation Structure Looks Good
-Tell me: **"CP-2 approved, proceed to Phase 3"**
+### Changes Made During CP-2
+See [CP-2-REFINEMENTS.md](CP-2-REFINEMENTS.md) for full details:
+- Practice/Test session navigation improved
+- Check Answer vs Give Up behavior clarified
+- Redundant back buttons removed
+- Button ordering improved (positive choice on right)
 
-I will then:
-1. Begin Phase 3: UI Components with Mock Data
-2. Create reusable UI components (VerseCard, StatsCard, etc.)
-3. Add mock verse data to populate screens
-4. Build interactive prototype for CP-3 review
-
-### 🔧 If Navigation Needs Adjustments
-Tell me what needs to change:
-- "Missing a screen for [use case]"
-- "Navigation flow for [feature] is confusing"
-- "Can we combine these two screens?"
-- Any other navigation structure feedback
-
-### ❓ If You Have Questions
-Ask about:
-- How specific use cases map to screens
-- Why screens are organized a certain way
-- What's coming in Phase 3 vs Phase 4
-- Anything else!
+### Ready to Proceed
+Tell me **"Start Phase 3"** when ready to build UI components with mock data.
 
 ---
 
 ## 📚 Key Documents
 
-### Must Read for CP-2 Review
-- **[ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md)** - **START HERE** - Full Phase 2 status and CP-2 checklist
+### Phase 2 Documentation (Completed)
+- **[ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md)** - Full Phase 2 status and CP-2 checklist
 - **[CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md)** - Navigation verification summary
+- **[CP-2-REFINEMENTS.md](CP-2-REFINEMENTS.md)** - ✨ Navigation improvements from CP-2 testing
 
 ### Background Information
 - **[ccc.07.mvp-use-cases.md](ccc.07.mvp-use-cases.md)** - 16 use cases we're building for
@@ -229,9 +209,7 @@ That's exactly what CP-2 is for! Tell me what feels wrong about the navigation s
 - ✅ Prototype (Python): Full data model, 155 tests, 98% coverage
 - ✅ MVP Phase 1: Project setup, dependencies, configuration
 - ✅ MVP Phase 2: Navigation & screen shells (12 screens)
-
-### Current Checkpoint ⏸️
-- ⏸️ **CP-2**: Navigation structure review (YOU ARE HERE)
+- ✅ **CP-2**: Navigation structure validated with refinements
 
 ### Upcoming Phases ⏳
 - Phase 3: UI Components with Mock Data
@@ -264,15 +242,12 @@ We're intentionally doing UI/navigation BEFORE data layer because:
 
 ## 🤝 When You Return
 
-Tell me one of:
-1. **"CP-2 approved"** or **"navigation looks good"** → I'll start Phase 3
-2. **"Change: [describe navigation adjustment]"** → I'll modify the structure
-3. **"Question: [ask about navigation]"** → I'll explain the design
-
-Take your time testing the navigation flows!
+Tell me:
+- **"Start Phase 3"** → I'll begin building UI components with mock data
+- Ask any questions about Phase 2 implementation or Phase 3 plans
 
 ---
 
-**Status**: ⏸️ Paused at Checkpoint 2 (CP-2)
-**Next Action**: User navigation structure review
-**Blocking**: None - waiting for your feedback
+**Status**: ✅ CP-2 Complete - Ready for Phase 3
+**Next Action**: Begin Phase 3: UI Components with Mock Data
+**Blocking**: None - awaiting your approval to start Phase 3

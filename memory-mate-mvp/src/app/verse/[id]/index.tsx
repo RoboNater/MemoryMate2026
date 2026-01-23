@@ -1,9 +1,8 @@
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { useLocalSearchParams, Link, useRouter } from 'expo-router';
+import { useLocalSearchParams, Link } from 'expo-router';
 
 export default function VerseDetailScreen() {
   const { id } = useLocalSearchParams();
-  const router = useRouter();
 
   return (
     <ScrollView className="flex-1 bg-white">
@@ -60,13 +59,6 @@ export default function VerseDetailScreen() {
 
           <Pressable className="bg-red-600 p-4 rounded-lg items-center active:bg-red-700">
             <Text className="text-white font-semibold">Delete Verse</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.back()}
-            className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
-          >
-            <Text className="text-gray-800 font-semibold">Back</Text>
           </Pressable>
         </View>
 

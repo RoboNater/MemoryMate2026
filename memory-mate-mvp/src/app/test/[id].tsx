@@ -6,6 +6,7 @@ export default function TestVerseScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const [showResult, setShowResult] = useState(false);
+  const [gaveUp, setGaveUp] = useState(false);
 
   return (
     <ScrollView className="flex-1 bg-white">
@@ -48,7 +49,10 @@ export default function TestVerseScreen() {
             </Pressable>
 
             <Pressable
-              onPress={() => setShowResult(true)}
+              onPress={() => {
+                setShowResult(true);
+                setGaveUp(true);
+              }}
               className="bg-gray-400 p-4 rounded-lg items-center active:bg-gray-500"
             >
               <Text className="text-white font-semibold">Give Up</Text>
@@ -56,13 +60,15 @@ export default function TestVerseScreen() {
           </View>
         ) : (
           <View className="mb-6">
-            <View className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
-              <Text className="text-gray-700 font-semibold mb-2">Correct Answer:</Text>
-              <Text className="text-gray-700 text-base leading-relaxed">
-                For God so loved the world that he gave his one and only Son, that
-                whoever believes in him shall not perish but have eternal life.
-              </Text>
-            </View>
+            {gaveUp && (
+              <View className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
+                <Text className="text-gray-700 font-semibold mb-2">Correct Answer:</Text>
+                <Text className="text-gray-700 text-base leading-relaxed">
+                  For God so loved the world that he gave his one and only Son, that
+                  whoever believes in him shall not perish but have eternal life.
+                </Text>
+              </View>
+            )}
 
             <View className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
               <Text className="text-gray-700 font-semibold mb-2">Comparison:</Text>
@@ -74,25 +80,41 @@ export default function TestVerseScreen() {
             <View className="mb-4">
               <Text className="text-gray-700 font-semibold mb-3">Did you pass?</Text>
               <View className="flex-row gap-2">
-                <Pressable className="flex-1 bg-green-600 p-4 rounded-lg items-center active:bg-green-700">
-                  <Text className="text-white font-semibold">Pass</Text>
-                </Pressable>
                 <Pressable className="flex-1 bg-red-600 p-4 rounded-lg items-center active:bg-red-700">
                   <Text className="text-white font-semibold">Fail</Text>
+                </Pressable>
+                <Pressable className="flex-1 bg-green-600 p-4 rounded-lg items-center active:bg-green-700">
+                  <Text className="text-white font-semibold">Pass</Text>
                 </Pressable>
               </View>
             </View>
           </View>
         )}
 
-        <Pressable
-          onPress={() => router.back()}
-          className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
-        >
-          <Text className="text-gray-800 font-semibold">
-            {showResult ? 'Next Verse' : 'Cancel'}
-          </Text>
-        </Pressable>
+        {showResult ? (
+          <View className="space-y-3">
+            <Pressable
+              onPress={() => router.push(`/test/${Number(id) + 1}`)}
+              className="bg-purple-600 p-4 rounded-lg items-center active:bg-purple-700"
+            >
+              <Text className="text-white font-semibold">Next Verse</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/(tabs)/test')}
+              className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
+            >
+              <Text className="text-gray-800 font-semibold">Done Testing</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => router.push('/(tabs)/test')}
+            className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
+          >
+            <Text className="text-gray-800 font-semibold">Cancel</Text>
+          </Pressable>
+        )}
 
         <Text className="text-xs text-gray-400 text-center mt-8">
           Comparison logic and scoring coming in Phase 5

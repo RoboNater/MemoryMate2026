@@ -64,12 +64,15 @@ export default function PracticeVerseScreen() {
         </View>
 
         <View className="space-y-3">
-          <Pressable className="bg-green-600 p-4 rounded-lg items-center active:bg-green-700">
+          <Pressable
+            onPress={() => router.push(`/practice/${Number(id) + 1}`)}
+            className="bg-green-600 p-4 rounded-lg items-center active:bg-green-700"
+          >
             <Text className="text-white font-semibold">Next Verse</Text>
           </Pressable>
 
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => router.push('/(tabs)/practice')}
             className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
           >
             <Text className="text-gray-800 font-semibold">Done Practicing</Text>
