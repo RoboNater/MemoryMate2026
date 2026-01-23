@@ -1,7 +1,7 @@
 # Active Context - Memory Mate 2026
 
-**Last Updated**: 2026-01-17
-**Current Phase**: MVP Development - Checkpoint 1 (CP-1) Review
+**Last Updated**: 2026-01-22
+**Current Phase**: MVP Development - Checkpoint 2 (CP-2) Review
 
 ---
 
@@ -9,25 +9,26 @@
 
 ### What Just Happened
 
-**MVP Phase 1: Project Setup** has been completed!
+**MVP Phase 2: Navigation & Screen Shells** has been completed!
 
 We've successfully:
-1. Created an Expo + TypeScript project
-2. Installed and configured all core dependencies
-3. Set up the project structure
-4. Created documentation for setup and verification
+1. Created tab navigation with 5 tabs (Home, Verses, Practice, Test, Settings)
+2. Built all 12 screen shells with placeholder content
+3. Implemented navigation flows (tab + stack navigation)
+4. Ensured all 16 use cases have corresponding screens
+5. Created comprehensive documentation
 
-The project is now **paused at Checkpoint 1 (CP-1)** waiting for you to verify the development environment works on your machine.
+The project is now **paused at Checkpoint 2 (CP-2)** waiting for you to review the navigation structure and verify it matches the use cases.
 
 ---
 
 ## 📋 What You Need to Do Next
 
-### Checkpoint 1 Review
+### Checkpoint 2 Review
 
-**READ THIS FIRST**: [CP-1-CHECKPOINT-REVIEW.md](CP-1-CHECKPOINT-REVIEW.md)
-
-This document has complete testing instructions and a verification checklist.
+**READ THESE DOCUMENTS**:
+1. **[ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md)** - Full status report with CP-2 checklist
+2. **[CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md)** - Navigation verification details
 
 ### Quick Testing Steps
 
@@ -38,173 +39,203 @@ This document has complete testing instructions and a verification checklist.
 
 2. **Start the development server**
    ```bash
-   npx expo start
+   npm start
    ```
 
-3. **Test on web** (easiest first test)
-   - Press `w` in the terminal, OR
-   - Run: `npx expo start --web`
-   - Browser should open showing "Memory Mate MVP" with checkmarks
+3. **Test on your preferred platform**
+   - Press `w` for web browser (easiest)
+   - Press `i` for iOS simulator
+   - Press `a` for Android emulator
 
-4. **Verify hot reload works**
-   - Edit `app/index.tsx`
-   - Change "Memory Mate MVP" to something else
-   - Save the file
-   - App should automatically reload with your change
+4. **Walk through navigation flows**
+   - Tap each of the 5 tabs at the bottom
+   - From Verses tab: tap "Add New Verse" button
+   - Navigate to verse details (demo buttons)
+   - Try the Practice and Test demo buttons
+   - Verify back navigation works everywhere
 
 ### What to Check
 
-- [ ] Development server starts without errors
-- [ ] Web version loads in browser
-- [ ] You see the Phase 1 verification screen with checkmarks
-- [ ] Tailwind CSS is working (you see blue and gray styled text)
-- [ ] Hot reload works when you edit files
-- [ ] (Optional) Test on iOS/Android with Expo Go app
+Use the CP-2 checklist in [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md):
+
+- [ ] All 5 tabs accessible from tab bar
+- [ ] Tab switching works smoothly
+- [ ] Navigation flows work (Verses → Add → back, etc.)
+- [ ] All screens have meaningful content (not just blank)
+- [ ] Use case references visible on screens
+- [ ] Visual hierarchy is clear
 
 ---
 
 ## 🚦 Decision Point
 
-After testing, you have two options:
+After testing the navigation, you have options:
 
-### ✅ If Everything Works
-Tell me: **"CP-1 approved, proceed to Phase 2"**
+### ✅ If Navigation Structure Looks Good
+Tell me: **"CP-2 approved, proceed to Phase 3"**
 
 I will then:
-1. Begin Phase 2: Navigation & Screen Shells
-2. Create tab navigation structure
-3. Build placeholder screens for all use cases
-4. Prepare for Checkpoint 2 (UI/UX review)
+1. Begin Phase 3: UI Components with Mock Data
+2. Create reusable UI components (VerseCard, StatsCard, etc.)
+3. Add mock verse data to populate screens
+4. Build interactive prototype for CP-3 review
 
-### ❌ If There Are Issues
-Tell me what's not working, and I'll help troubleshoot:
-- Server won't start?
-- Dependencies failed to install?
-- Web version crashes?
-- Something else?
+### 🔧 If Navigation Needs Adjustments
+Tell me what needs to change:
+- "Missing a screen for [use case]"
+- "Navigation flow for [feature] is confusing"
+- "Can we combine these two screens?"
+- Any other navigation structure feedback
+
+### ❓ If You Have Questions
+Ask about:
+- How specific use cases map to screens
+- Why screens are organized a certain way
+- What's coming in Phase 3 vs Phase 4
+- Anything else!
 
 ---
 
 ## 📚 Key Documents
 
-### Must Read Before Continuing
-- **[CP-1-CHECKPOINT-REVIEW.md](CP-1-CHECKPOINT-REVIEW.md)** - Full verification checklist
+### Must Read for CP-2 Review
+- **[ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md)** - **START HERE** - Full Phase 2 status and CP-2 checklist
+- **[CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md)** - Navigation verification summary
 
 ### Background Information
-- **[ccc.07.mvp-use-cases.md](ccc.07.mvp-use-cases.md)** - 16 use cases we're building
+- **[ccc.07.mvp-use-cases.md](ccc.07.mvp-use-cases.md)** - 16 use cases we're building for
 - **[ccc.08.mvp-implementation-plan.md](ccc.08.mvp-implementation-plan.md)** - 6-phase plan with checkpoints
-- **[ccc.09.dev-environment-setup-for-mvp.md](ccc.09.dev-environment-setup-for-mvp.md)** - Setup details and troubleshooting
-
-### Quick Reference
-- **[memory-mate-mvp/README.md](memory-mate-mvp/README.md)** - MVP project README
+- **[ccc.15.mvp-implementation-phase-2-detailed-plan.md](ccc.15.mvp-implementation-phase-2-detailed-plan.md)** - Phase 2 detailed plan
 
 ---
 
-## 🔧 What Was Built in Phase 1
+## 🗂️ Project Directory Structure
 
-### Project Structure Created
+**IMPORTANT**: The MVP app is in a subdirectory!
+
 ```
-memory-mate-mvp/
-├── app/                    # Expo Router pages
-│   ├── _layout.tsx        # Root layout (imports global.css)
-│   └── index.tsx          # Phase 1 verification screen
-├── src/                   # Organized code folders
-│   ├── components/        # (empty - for Phase 3)
-│   ├── store/             # (empty - for Phase 4)
-│   ├── services/          # (empty - for Phase 4)
-│   ├── types/             # (empty - for Phase 4)
-│   ├── utils/             # (empty - for Phase 3)
-│   └── constants/         # (empty - for Phase 3)
-├── assets/                # Default Expo assets
-├── global.css             # Tailwind CSS directives
-├── tailwind.config.js     # Tailwind configuration
-├── metro.config.js        # Metro bundler with NativeWind
-├── tsconfig.json          # TypeScript with path aliases
-└── app.json               # Expo config
+/home/alfred/lw/w509-MemoryMate2026/
+│
+├── Python Prototype (root level)
+│   ├── memory_mate.py
+│   ├── test_memory_mate.py
+│   └── demo_memory_mate.py
+│
+├── Documentation (root level)
+│   ├── README.md
+│   ├── ccc.*.md files (session documentation)
+│   └── CP-*.md files (checkpoint reviews)
+│
+└── memory-mate-mvp/          ← MVP APP IS HERE
+    ├── src/
+    │   └── app/              ← SCREENS ARE HERE
+    │       ├── _layout.tsx   # Root Stack layout
+    │       ├── (tabs)/       # Tab navigation (5 tabs)
+    │       │   ├── _layout.tsx
+    │       │   ├── index.tsx (Home)
+    │       │   ├── verses.tsx
+    │       │   ├── practice.tsx
+    │       │   ├── test.tsx
+    │       │   └── settings.tsx
+    │       ├── verse/        # Verse screens
+    │       │   ├── add.tsx
+    │       │   └── [id]/
+    │       │       ├── index.tsx
+    │       │       └── edit.tsx
+    │       ├── practice/
+    │       │   └── [id].tsx
+    │       └── test/
+    │           └── [id].tsx
+    ├── package.json
+    └── ... (other config files)
 ```
 
-### Technologies Installed
-- **Expo 54.0** - React Native framework
-- **React 19.1** + React Native 0.81.5
-- **TypeScript 5.9** - Type safety
-- **Expo Router 6.0** - File-based navigation
-- **NativeWind 4.2** - Tailwind CSS for React Native
-- **Zustand 5.0** - State management (not used yet)
-- **expo-sqlite 16.0** - Local storage (not used yet)
-
-### Configuration Highlights
-- TypeScript in strict mode
-- Path aliases configured (`@/components/*`, `@/store/*`, etc.)
-- NativeWind integrated with Metro bundler
-- Expo Router with deep linking scheme (`memorymate://`)
+**When running commands**, navigate to `memory-mate-mvp/` first:
+```bash
+cd /home/alfred/lw/w509-MemoryMate2026/memory-mate-mvp
+npm start
+```
 
 ---
 
-## 🎨 What's Next After CP-1
+## 🔧 What Was Built in Phase 2
 
-### Phase 2: Navigation & Screen Shells
-Once you approve CP-1, we'll build:
-- Tab navigation (Home, Verses, Practice, Test, Settings)
-- All screen shells with placeholder content
-- Basic navigation flows
-- No real functionality yet - just structure
+### 12 Screens Created
 
-Then you'll review at **Checkpoint 2 (CP-2)** to verify the navigation matches the use cases before we invest time in building actual UI components.
+**Tab Screens (5)**:
+1. **Home/Dashboard** - Stats overview placeholder
+2. **Verses** - Verse list with "Add New Verse" button
+3. **Practice** - Practice session entry with demo
+4. **Test** - Test session entry with demo
+5. **Settings** - Settings placeholder
+
+**Stack Screens (5)**:
+6. **Add Verse** - Form to add verses (modal)
+7. **Verse Detail** - View verse with stats, history, actions
+8. **Edit Verse** - Edit verse form (modal)
+9. **Practice Verse** - Individual verse practice with reveal & comfort level
+10. **Test Verse** - Test with input, check answer, pass/fail
+
+**Plus 2 layout files**: Root layout + Tab layout
+
+### Navigation Patterns Implemented
+- ✅ Tab bar switching (5 tabs)
+- ✅ Stack navigation (detail screens on top)
+- ✅ Modal presentations (add/edit slide up)
+- ✅ Dynamic routing (`/verse/[id]`, `/practice/[id]`, etc.)
+- ✅ Back navigation working everywhere
+- ✅ Navigation buttons wired up with placeholder IDs
+
+### All Use Cases Covered
+Every use case from UC-1.1 through UC-4.3 has a corresponding screen. See the mapping in [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md).
 
 ---
 
-## 🐛 Known Issues
+## 🎨 What's Next After CP-2
 
-### Minor Issues (Not Blocking)
-1. **Dependency warnings** - Used `--legacy-peer-deps` for NativeWind/Zustand due to React 19 peer dependency conflicts. This is normal and doesn't affect functionality.
+### Phase 3: UI Components with Mock Data
+Once you approve CP-2, we'll build:
+- **UI Components**: VerseCard, StatsCard, ProgressBar, ComfortLevelPicker, etc.
+- **Mock Data**: 5-10 sample verses with varied translations
+- **Interactive Screens**: Replace "Coming soon" with actual UI
+- **Consistent Styling**: Color scheme, typography, spacing
 
-2. **TypeScript errors in node_modules** - Some type definition errors in react-navigation types. These are in library files, not our code, and don't affect runtime.
-
-### No Blockers
-Everything needed for CP-1 verification should work correctly.
+Then you'll review at **Checkpoint 3 (CP-3)** to verify the interactive UI prototype feels right before we invest in the data layer.
 
 ---
 
-## 💡 Tips for Testing
+## 💡 Tips for Testing CP-2
 
-### If `npx expo start` is slow
-- First run downloads dependencies - normal
-- Clear cache if needed: `npx expo start --clear`
+### What to Focus On
+- **Navigation feel**: Does it feel natural moving between screens?
+- **Screen organization**: Do the tabs make sense?
+- **Use case coverage**: Can you see where each feature will live?
+- **Missing screens**: Any gaps in the navigation structure?
 
-### If web browser doesn't auto-open
-- Look for the URL in terminal (usually http://localhost:8081)
-- Open it manually in your browser
+### What NOT to Worry About Yet
+- **Visual design**: Styling will be polished in Phase 3
+- **Real data**: Mock data comes in Phase 3
+- **Button functionality**: Buttons will do real things in Phase 4
+- **Forms saving**: Data persistence is Phase 4
 
-### Testing on Physical Device
-- Install "Expo Go" app from App Store (iOS) or Play Store (Android)
-- Scan QR code from terminal
-- Make sure phone and computer are on same WiFi network
-
-### Hot Reload Test
-- Simple test: Change any text in `app/index.tsx`
-- Save the file
-- Watch app automatically update (should take 1-2 seconds)
+### If Something Feels Off
+That's exactly what CP-2 is for! Tell me what feels wrong about the navigation structure and we'll adjust it before building the UI.
 
 ---
 
 ## 📊 Progress Tracking
 
-### Prototype (Complete ✅)
-- Python class with all methods
-- 155 tests, 98% coverage
-- Statistics methods implemented
-- Demo script working
+### Completed Phases ✅
+- ✅ Prototype (Python): Full data model, 155 tests, 98% coverage
+- ✅ MVP Phase 1: Project setup, dependencies, configuration
+- ✅ MVP Phase 2: Navigation & screen shells (12 screens)
 
-### MVP Phase 1 (Complete ✅)
-- Project setup done
-- All dependencies installed
-- Configuration complete
-- Documentation written
+### Current Checkpoint ⏸️
+- ⏸️ **CP-2**: Navigation structure review (YOU ARE HERE)
 
-### MVP Next Phases (Pending CP-1)
-- Phase 2: Navigation & Screen Shells
+### Upcoming Phases ⏳
 - Phase 3: UI Components with Mock Data
-- Phase 4: Data Layer Integration
+- Phase 4: Data Layer (SQLite + Zustand)
 - Phase 5: Feature Integration
 - Phase 6: Polish & Release
 
@@ -212,33 +243,36 @@ Everything needed for CP-1 verification should work correctly.
 
 ## 🎯 The Big Picture
 
-### Where We Are
-We finished the **prototype** (Python class with full functionality) and are now building the **MVP** (actual mobile/web app).
+### What We're Validating Now
+We built the **skeleton** of the app - all screens exist but with placeholder content. Before investing time in building beautiful UI components and a database, we want to make sure:
 
-We're using a **UI-first approach** with early checkpoints:
-1. ✅ Phase 1 done - verify environment works
-2. Phase 2 next - verify navigation structure makes sense
-3. Phase 3 after - verify interactive UI feels right
-4. Only then build real data layer
+1. The navigation structure makes sense
+2. All use cases have a home
+3. The flow between screens feels natural
+4. Nothing is missing from the architecture
 
-This ensures we don't waste time building backend for a UI that might need changes.
+Think of this as the "blueprint review" before construction.
 
-### What You're Verifying Now
-Just that the basic Expo/React Native development environment works on your machine so we can continue building.
+### The UI-First Philosophy
+We're intentionally doing UI/navigation BEFORE data layer because:
+- ✅ It's easier to change navigation now than after building components
+- ✅ You can visualize the user experience early
+- ✅ We avoid wasting time on backend for a UI that might change
+- ✅ Each checkpoint validates before investing more effort
 
 ---
 
 ## 🤝 When You Return
 
 Tell me one of:
-1. **"CP-1 approved"** or **"looks good"** or **"working"** → I'll start Phase 2
-2. **"Issue: [describe problem]"** → I'll help troubleshoot
-3. **"I have questions about [topic]"** → I'll explain
+1. **"CP-2 approved"** or **"navigation looks good"** → I'll start Phase 3
+2. **"Change: [describe navigation adjustment]"** → I'll modify the structure
+3. **"Question: [ask about navigation]"** → I'll explain the design
 
-That's it! Take your time with the testing.
+Take your time testing the navigation flows!
 
 ---
 
-**Status**: ⏸️ Paused at Checkpoint 1
-**Next Action**: User verification
-**Blocking**: None - just waiting for your review
+**Status**: ⏸️ Paused at Checkpoint 2 (CP-2)
+**Next Action**: User navigation structure review
+**Blocking**: None - waiting for your feedback

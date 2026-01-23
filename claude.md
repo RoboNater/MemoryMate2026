@@ -38,19 +38,26 @@ The project uses a **phased approach**:
 - ✅ MVP use cases documented (16 use cases across 4 categories)
 - ✅ MVP implementation plan with review checkpoints
 - ✅ **MVP Phase 1: Project Setup Complete**
-  - Expo + TypeScript project initialized
+  - Expo + TypeScript project initialized in `memory-mate-mvp/` subdirectory
   - Expo Router, NativeWind, Zustand, SQLite configured
-  - Project structure created
+  - Project structure created (`src/app/` for Expo Router pages)
   - Development environment documented
+- ✅ **Checkpoint 1 (CP-1)**: Dev environment verified
+- ✅ **MVP Phase 2: Navigation & Screen Shells Complete**
+  - Tab navigation with 5 tabs (Home, Verses, Practice, Test, Settings)
+  - All 12 screens created with placeholder content
+  - Navigation flows implemented (tabs + stack)
+  - All use cases have corresponding screens
 
 ### In Progress
-- ⏸️ **Checkpoint 1 (CP-1)**: Awaiting user verification of dev environment
-  - Need to verify: dev server starts, web works, hot reload works
-  - See: [CP-1-CHECKPOINT-REVIEW.md](CP-1-CHECKPOINT-REVIEW.md)
+- ⏸️ **Checkpoint 2 (CP-2)**: Awaiting user UI/UX review
+  - Need to verify: navigation flows match use cases
+  - See: [CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md)
+  - See: [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md)
 
 ### Next Steps
-- ⏳ Phase 2: Navigation & Screen Shells (after CP-1 approval)
-- ⏳ Checkpoint 2: UI/UX review vs use cases
+- ⏳ Phase 3: UI Components with Mock Data (after CP-2 approval)
+- ⏳ Checkpoint 3: Interactive prototype review
 
 ---
 
@@ -134,53 +141,94 @@ Data persists as JSON in `memory_mate_data.json`:
 
 ## Project Structure
 
+**IMPORTANT**: This project has TWO parallel codebases:
+1. **Python Prototype** (root level) - Complete data model implementation for validation
+2. **MVP App** (in `memory-mate-mvp/` subdirectory) - Expo/React Native mobile & web app
+
 ```
 /home/alfred/lw/w509-MemoryMate2026/
+│
 ├── README.md                                    # Main project doc (architecture, design principles)
 ├── claude.md                                    # This file - project context for Claude
-├── memory_mate.py                               # Prototype implementation
-├── test_memory_mate.py                          # Unit tests (155 tests, 98% coverage)
-├── demo_memory_mate.py                          # Demo script showcasing capabilities
-├── ccc.00.active-context.md                     # Session-specific context and next steps
+├── ccc.00.active-context.md                     # Session-specific context and next steps (HUMAN-READABLE)
+│
 ├── ccc.07.mvp-use-cases.md                      # MVP use cases (16 use cases)
 ├── ccc.08.mvp-implementation-plan.md            # MVP implementation plan with checkpoints
 ├── ccc.09.dev-environment-setup-for-mvp.md      # MVP dev environment setup guide
+├── ccc.15.mvp-implementation-phase-2-detailed-plan.md  # Phase 2 detailed plan
+├── ccc.16.mvp-implementation-phase-2-completed-status.md  # Phase 2 completion status
+│
 ├── CP-1-CHECKPOINT-REVIEW.md                    # Checkpoint 1 review document
-├── memory-mate-mvp/                             # MVP Expo/React Native project
-│   ├── app/                                     # Expo Router pages
-│   │   ├── _layout.tsx                          # Root layout
-│   │   └── index.tsx                            # Home screen (Phase 1 verification)
-│   ├── src/                                     # Organized code structure
-│   │   ├── components/                          # (empty - Phase 3)
-│   │   ├── store/                               # (empty - Phase 4)
-│   │   ├── services/                            # (empty - Phase 4)
-│   │   ├── types/                               # (empty - Phase 4)
-│   │   ├── utils/                               # (empty - Phase 3)
-│   │   └── constants/                           # (empty - Phase 3)
-│   ├── assets/                                  # Images, icons
-│   ├── package.json                             # Dependencies
-│   ├── tailwind.config.js                       # Tailwind CSS config
-│   ├── metro.config.js                          # Metro bundler config
-│   ├── tsconfig.json                            # TypeScript config
-│   └── README.md                                # MVP project README
-└── .git/                                        # Git repository
+├── CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md    # Checkpoint 2 review document
+│
+├── memory_mate.py                               # Prototype: Python implementation
+├── test_memory_mate.py                          # Prototype: Unit tests (155 tests, 98% coverage)
+├── demo_memory_mate.py                          # Prototype: Demo script
+│
+└── memory-mate-mvp/                             # ← MVP APP IS HERE (subdirectory)
+    ├── src/                                     # Source code directory
+    │   └── app/                                 # ← Expo Router pages (file-based routing)
+    │       ├── _layout.tsx                      # Root Stack layout
+    │       ├── (tabs)/                          # Tab navigation group
+    │       │   ├── _layout.tsx                  # Tab bar layout (5 tabs)
+    │       │   ├── index.tsx                    # Home/Dashboard tab
+    │       │   ├── verses.tsx                   # Verses list tab
+    │       │   ├── practice.tsx                 # Practice tab
+    │       │   ├── test.tsx                     # Test tab
+    │       │   └── settings.tsx                 # Settings tab
+    │       ├── verse/                           # Verse stack screens
+    │       │   ├── add.tsx                      # Add verse modal
+    │       │   └── [id]/
+    │       │       ├── index.tsx                # Verse detail
+    │       │       └── edit.tsx                 # Edit verse modal
+    │       ├── practice/
+    │       │   └── [id].tsx                     # Practice individual verse
+    │       └── test/
+    │           └── [id].tsx                     # Test individual verse
+    ├── assets/                                  # Images, icons
+    ├── package.json                             # Dependencies
+    ├── tailwind.config.js                       # Tailwind CSS config
+    ├── metro.config.js                          # Metro bundler config
+    ├── tsconfig.json                            # TypeScript config
+    └── README.md                                # MVP project README
 ```
+
+### Quick Navigation Tips for AI Assistants
+
+**When user mentions "the app"**, they mean: `memory-mate-mvp/`
+**When looking for screens**, check: `memory-mate-mvp/src/app/`
+**When looking for components** (Phase 3+), check: `memory-mate-mvp/src/components/`
+**When looking for Python prototype**, check root level files: `memory_mate.py`, `test_memory_mate.py`
 
 ### Document Guide
 
 | File | Purpose |
 |------|---------|
 | [README.md](README.md) | **START HERE** - Project overview, design principles, tech stack, architecture |
+| [ccc.00.active-context.md](ccc.00.active-context.md) | **READ FOR NEXT SESSION** - Current context and next steps (human-readable) |
+| [claude.md](claude.md) | **THIS FILE** - AI assistant context and project structure |
+| | |
+| **Prototype (Python)** | |
 | [memory_mate.py](memory_mate.py) | Prototype implementation with Verse model and verse management |
 | [test_memory_mate.py](test_memory_mate.py) | Unit tests for all implemented methods |
 | [demo_memory_mate.py](demo_memory_mate.py) | Interactive demo showing all verse management features |
-| [ccc.00.active-context.md](ccc.00.active-context.md) | **READ FOR NEXT SESSION** - Current context and next steps |
 | [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and-class.md) | Data model specification and full class API design |
 | [ccc.03.review-of-verse-management.md](ccc.03.review-of-verse-management.md) | Code review with issues and recommendations |
+| | |
+| **MVP Planning** | |
 | [ccc.07.mvp-use-cases.md](ccc.07.mvp-use-cases.md) | **MVP use cases** - 16 detailed use cases across 4 categories |
 | [ccc.08.mvp-implementation-plan.md](ccc.08.mvp-implementation-plan.md) | **MVP implementation plan** - 6 phases with review checkpoints |
 | [ccc.09.dev-environment-setup-for-mvp.md](ccc.09.dev-environment-setup-for-mvp.md) | **MVP dev setup** - Environment setup and troubleshooting |
+| | |
+| **MVP Phase 1** | |
 | [CP-1-CHECKPOINT-REVIEW.md](CP-1-CHECKPOINT-REVIEW.md) | **Checkpoint 1 review** - Dev environment verification checklist |
+| | |
+| **MVP Phase 2** | |
+| [ccc.15.mvp-implementation-phase-2-detailed-plan.md](ccc.15.mvp-implementation-phase-2-detailed-plan.md) | **Phase 2 detailed plan** - Navigation & screen shells implementation |
+| [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md) | **Phase 2 status** - Completion report and CP-2 checklist |
+| [CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md) | **Checkpoint 2 review** - Navigation structure verification |
+| | |
+| **MVP App** | |
 | [memory-mate-mvp/README.md](memory-mate-mvp/README.md) | MVP project README with development commands |
 
 ---
@@ -356,5 +404,26 @@ See [ccc.02.design-prototype-data-and-class.md](ccc.02.design-prototype-data-and
 
 ---
 
-**Last Updated**: 2026-01-17
-**Project Status**: MVP Phase 1 Complete - Awaiting Checkpoint 1 Review
+## Important Notes for AI Assistants
+
+### Directory Confusion Prevention
+- **The MVP app is NOT at the root level** - it's in `memory-mate-mvp/` subdirectory
+- **Screen files are in** `memory-mate-mvp/src/app/` NOT `app/` at root
+- **Expo Router uses file-based routing** - file structure determines routes
+- **Two parallel codebases exist**: Python prototype (root) and MVP app (subdirectory)
+
+### Current Working Directory
+When helping with the MVP app, remember to:
+- Use paths relative to `/home/alfred/lw/w509-MemoryMate2026/memory-mate-mvp/`
+- Run commands from the `memory-mate-mvp/` directory
+- Read files from `memory-mate-mvp/src/app/` for screens
+
+### Phase 2 Screen Organization
+- **Tab screens**: `src/app/(tabs)/*.tsx` - These keep the tab bar visible
+- **Stack screens**: `src/app/verse/`, `src/app/practice/`, `src/app/test/` - These stack on top
+- **Dynamic routes**: `[id]` in filename means route parameter (e.g., `/verse/123`)
+
+---
+
+**Last Updated**: 2026-01-22
+**Project Status**: MVP Phase 2 Complete - Awaiting Checkpoint 2 Review (CP-2)
