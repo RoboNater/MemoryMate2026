@@ -3,12 +3,18 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": ["./*"],
+      "@/*": ["./src/*"],
+      "@/components": ["./src/components"],
       "@/components/*": ["./src/components/*"],
+      "@/store": ["./src/store"],
       "@/store/*": ["./src/store/*"],
+      "@/services": ["./src/services"],
       "@/services/*": ["./src/services/*"],
+      "@/types": ["./src/types"],
       "@/types/*": ["./src/types/*"],
+      "@/utils": ["./src/utils"],
       "@/utils/*": ["./src/utils/*"],
+      "@/constants": ["./src/constants"],
       "@/constants/*": ["./src/constants/*"]
     }
   }

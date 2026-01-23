@@ -1,38 +1,144 @@
-import { View, Text, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
+import { getActiveVerses, getVersesNeedingPractice, mockProgress } from '@/utils/mockData';
 
 export default function PracticeScreen() {
+  const router = useRouter();
+  const activeVerses = getActiveVerses();
+  const versesNeedingWork = getVersesNeedingPractice();
+
+  // For multi-verse practice, we'll just navigate to the first verse
+  // In Phase 4, we can implement a proper session manager
+  const startPractice = (verses: typeof activeVerses) => {
+    if (verses.length === 0) return;
+    // For now, just navigate to the first verse
+    router.push(`/practice/${verses[0].id}`);
+  };
+
   return (
-    <View className="flex-1 bg-white p-4">
-      <View className="mb-6">
-        <Text className="text-2xl font-bold text-gray-800 mb-2">
-          Practice
-        </Text>
-        <Text className="text-gray-500 text-sm">
-          Supports UC-2.1 & UC-2.2: Start practice sessions
-        </Text>
+    <ScrollView className="flex-1 bg-gray-50">
+      {/* Header */}
+      <View className="bg-green-500 p-6 pb-8">
+        <Text className="text-3xl font-bold text-white mb-2">Practice</Text>
+        <Text className="text-green-100">Review your verses to build familiarity</Text>
       </View>
 
-      <View className="flex-1 items-center justify-center">
-        <Text className="text-gray-600 mb-6 text-center">
-          Select verses to practice from your collection
-        </Text>
-        <Text className="text-gray-400 italic mb-8">
-          Verse selection and practice flow coming in Phase 3...
-        </Text>
+      <View className="p-6 -mt-6">
+        {activeVerses.length === 0 ? (
+          <View className="bg-white rounded-lg p-8 items-center border border-gray-200">
+            <Text className="text-xl font-bold text-gray-900 mb-2">No Verses Yet</Text>
+            <Text className="text-gray-600 text-center mb-6">
+              Add some verses to your collection to start practicing
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push('/verse/add')}
+              className="bg-blue-500 px-6 py-3 rounded-lg"
+            >
+              <Text className="text-white font-semibold">Add Your First Verse</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="gap-4">
+            {/* Practice All Verses */}
+            <TouchableOpacity
+              onPress={() => startPractice(activeVerses)}
+              className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm"
+            >
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-xl font-bold text-gray-900">Practice All</Text>
+                <View className="bg-green-100 px-3 py-1 rounded-full">
+                  <Text className="text-green-700 font-semibold">
+                    {activeVerses.length} verses
+                  </Text>
+                </View>
+              </View>
+              <Text className="text-gray-600 mb-4">
+                Review all active verses in your collection
+              </Text>
+              <View className="bg-green-500 py-3 rounded-lg items-center">
+                <Text className="text-white font-semibold">Start Practice</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Practice Verses Needing Work */}
+            {versesNeedingWork.length > 0 && (
+              <TouchableOpacity
+                onPress={() => startPractice(versesNeedingWork)}
+                className="bg-white rounded-lg p-6 border border-amber-200 shadow-sm"
+              >
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-xl font-bold text-gray-900">Needs Work</Text>
+                  <View className="bg-amber-100 px-3 py-1 rounded-full">
+                    <Text className="text-amber-700 font-semibold">
+                      {versesNeedingWork.length} verses
+                    </Text>
+                  </View>
+                </View>
+                <Text className="text-gray-600 mb-4">
+                  Focus on verses at comfort level 1-3
+                </Text>
+                <View className="bg-amber-500 py-3 rounded-lg items-center">
+                  <Text className="text-white font-semibold">Practice These</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Individual Verses */}
+            <View className="bg-white rounded-lg p-6 border border-gray-200">
+              <Text className="text-lg font-bold text-gray-900 mb-4">
+                Or choose a specific verse
+              </Text>
+              <View className="gap-2">
+                {activeVerses.slice(0, 5).map((verse) => {
+                  const progress = mockProgress[verse.id];
+                  const comfortLevel = progress?.comfort_level || 1;
+                  const comfortColors = {
+                    1: 'bg-gray-400',
+                    2: 'bg-red-400',
+                    3: 'bg-amber-400',
+                    4: 'bg-blue-400',
+                    5: 'bg-green-500',
+                  };
+
+                  return (
+                    <TouchableOpacity
+                      key={verse.id}
+                      onPress={() => router.push(`/practice/${verse.id}`)}
+                      className="flex-row items-center justify-between py-3 border-b border-gray-100"
+                    >
+                      <View className="flex-1">
+                        <Text className="font-semibold text-gray-900">
+                          {verse.reference}
+                        </Text>
+                        <Text className="text-xs text-gray-500 mt-0.5">
+                          {verse.translation}
+                        </Text>
+                      </View>
+                      <View className="flex-row items-center gap-2">
+                        <View
+                          className={`w-3 h-3 rounded-full ${
+                            comfortColors[comfortLevel as 1 | 2 | 3 | 4 | 5]
+                          }`}
+                        />
+                        {progress && (
+                          <Text className="text-xs text-gray-500">
+                            {progress.times_practiced}x
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+                {activeVerses.length > 5 && (
+                  <Text className="text-xs text-gray-500 text-center mt-2">
+                    + {activeVerses.length - 5} more verses
+                  </Text>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
       </View>
-
-      <Link href="/practice/1" asChild>
-        <Pressable className="bg-green-600 p-4 rounded-lg items-center mb-4 active:bg-green-700">
-          <Text className="text-white font-semibold text-center">
-            Start Practice (Demo)
-          </Text>
-        </Pressable>
-      </Link>
-
-      <Text className="text-xs text-gray-400 text-center">
-        UC-2.1: Start session | UC-2.2: Practice verse | UC-2.3: Set comfort level
-      </Text>
-    </View>
+    </ScrollView>
   );
 }

@@ -1,87 +1,155 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { ComfortLevelPicker } from '@/components';
+import { getVerseById, mockProgress } from '@/utils/mockData';
 
 export default function PracticeVerseScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const verse = getVerseById(id || '');
+  const progress = verse ? mockProgress[verse.id] : undefined;
+
   const [revealed, setRevealed] = useState(false);
+  const [comfortLevel, setComfortLevel] = useState<1 | 2 | 3 | 4 | 5>(
+    progress?.comfort_level || 1
+  );
+
+  if (!verse) {
+    return (
+      <View className="flex-1 bg-white items-center justify-center p-6">
+        <Text className="text-xl font-bold text-gray-900 mb-2">Verse Not Found</Text>
+        <Text className="text-gray-600 text-center">
+          The verse you're trying to practice doesn't exist.
+        </Text>
+      </View>
+    );
+  }
+
+  const handleSaveProgress = () => {
+    // In Phase 4, this will actually record the practice session
+    Alert.alert(
+      'Practice Recorded',
+      `Comfort level ${comfortLevel} saved (mock action)`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleDone = () => {
+    handleSaveProgress();
+    router.push('/(tabs)/practice');
+  };
 
   return (
     <ScrollView className="flex-1 bg-white">
-      <View className="p-4">
-        <View className="mb-6">
-          <Text className="text-sm text-gray-600 mb-2">
-            Supports UC-2.2: Practice verse | UC-2.3: Set comfort level
-          </Text>
-        </View>
-
-        <View className="bg-blue-50 p-6 rounded-lg border-2 border-blue-300 mb-6 items-center">
-          <Text className="text-lg text-gray-600 mb-2">Verse Reference</Text>
-          <Text className="text-3xl font-bold text-blue-600 text-center">
-            John 3:16
-          </Text>
-        </View>
-
-        {!revealed ? (
-          <View className="mb-6">
-            <Pressable
-              onPress={() => setRevealed(true)}
-              className="bg-green-600 p-6 rounded-lg items-center active:bg-green-700"
-            >
-              <Text className="text-white font-bold text-lg">
-                Reveal Verse
-              </Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View className="mb-6 bg-green-50 p-4 rounded-lg border border-green-200">
-            <Text className="text-gray-700 text-base leading-relaxed mb-4">
-              For God so loved the world that he gave his one and only Son, that
-              whoever believes in him shall not perish but have eternal life.
+      <View className="p-6">
+        {/* Progress Indicator */}
+        {progress && (
+          <View className="mb-4 flex-row items-center justify-between">
+            <Text className="text-sm text-gray-600">
+              Practiced {progress.times_practiced} times
             </Text>
-            <Text className="text-sm text-gray-600">Translation: NIV</Text>
+            <View className="bg-blue-100 px-3 py-1 rounded-full">
+              <Text className="text-blue-700 text-xs font-semibold">
+                Level {progress.comfort_level}
+              </Text>
+            </View>
           </View>
         )}
 
-        <View className="mb-6 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-          <Text className="text-gray-700 font-semibold mb-3">
-            How comfortable are you with this verse?
+        {/* Verse Reference */}
+        <View className="bg-gradient-to-r from-blue-50 to-blue-100 p-8 rounded-2xl mb-6 items-center border-2 border-blue-200 shadow-sm">
+          <Text className="text-sm text-gray-600 mb-2 uppercase tracking-wide">
+            Practice This Verse
           </Text>
-          <View className="flex-row gap-2">
-            {[1, 2, 3, 4, 5].map((level) => (
-              <Pressable
-                key={level}
-                className="flex-1 bg-yellow-300 p-3 rounded-lg items-center active:bg-yellow-400"
-              >
-                <Text className="font-bold text-gray-800">{level}</Text>
-              </Pressable>
-            ))}
+          <Text className="text-3xl font-bold text-blue-700 text-center mb-1">
+            {verse.reference}
+          </Text>
+          <Text className="text-sm text-blue-600">{verse.translation}</Text>
+        </View>
+
+        {/* Instructions */}
+        {!revealed && (
+          <View className="mb-6 bg-amber-50 p-4 rounded-lg border border-amber-200">
+            <Text className="text-amber-900 font-medium mb-2">
+              Try to recall the verse from memory
+            </Text>
+            <Text className="text-amber-700 text-sm">
+              Take a moment to think about it, then tap "Reveal" to check your recall.
+            </Text>
           </View>
-          <Text className="text-xs text-gray-600 mt-2 text-center">
-            1 = Struggling | 5 = Very Comfortable
+        )}
+
+        {/* Reveal Button or Verse Text */}
+        {!revealed ? (
+          <View className="mb-6">
+            <TouchableOpacity
+              onPress={() => setRevealed(true)}
+              className="bg-green-500 p-6 rounded-xl items-center shadow-md active:bg-green-600"
+            >
+              <Text className="text-white font-bold text-lg">Reveal Verse</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="mb-6 bg-green-50 p-6 rounded-xl border-2 border-green-200">
+            <Text className="text-gray-800 text-lg leading-8 mb-4">
+              {verse.text}
+            </Text>
+            <View className="flex-row items-center justify-between pt-4 border-t border-green-200">
+              <Text className="text-sm text-green-700 font-medium">
+                {verse.translation}
+              </Text>
+              <Text className="text-xs text-gray-500">
+                {verse.text.split(' ').length} words
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Comfort Level Picker */}
+        {revealed && (
+          <View className="mb-8 bg-white p-6 rounded-xl border-2 border-gray-200 shadow-sm">
+            <ComfortLevelPicker
+              value={comfortLevel}
+              onChange={setComfortLevel}
+              label="How comfortable are you with this verse?"
+              size="md"
+            />
+          </View>
+        )}
+
+        {/* Action Buttons */}
+        <View className="gap-3 mb-6">
+          {revealed && (
+            <TouchableOpacity
+              onPress={handleSaveProgress}
+              className="bg-blue-500 py-4 rounded-lg items-center"
+            >
+              <Text className="text-white font-semibold text-base">
+                Save & Continue
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            onPress={handleDone}
+            className="bg-gray-200 py-4 rounded-lg items-center"
+          >
+            <Text className="text-gray-700 font-semibold text-base">
+              {revealed ? 'Save & Finish' : 'Skip & Finish'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Help Text */}
+        <View className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+          <Text className="text-blue-900 font-semibold mb-2 text-center">
+            Practice Tips
+          </Text>
+          <Text className="text-blue-700 text-sm text-center">
+            Regular practice builds long-term retention. Try to practice daily for best results.
           </Text>
         </View>
-
-        <View className="space-y-3">
-          <Pressable
-            onPress={() => router.push(`/practice/${Number(id) + 1}`)}
-            className="bg-green-600 p-4 rounded-lg items-center active:bg-green-700"
-          >
-            <Text className="text-white font-semibold">Next Verse</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/(tabs)/practice')}
-            className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
-          >
-            <Text className="text-gray-800 font-semibold">Done Practicing</Text>
-          </Pressable>
-        </View>
-
-        <Text className="text-xs text-gray-400 text-center mt-8">
-          Practice flow and progress tracking coming in Phase 4
-        </Text>
       </View>
     </ScrollView>
   );

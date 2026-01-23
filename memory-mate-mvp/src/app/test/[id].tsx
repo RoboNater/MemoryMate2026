@@ -1,124 +1,249 @@
-import { View, Text, TextInput, Pressable, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { getVerseById, mockProgress } from '@/utils/mockData';
 
 export default function TestVerseScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const verse = getVerseById(id || '');
+  const progress = verse ? mockProgress[verse.id] : undefined;
+
+  const [userInput, setUserInput] = useState('');
   const [showResult, setShowResult] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
+  const [testPassed, setTestPassed] = useState<boolean | null>(null);
+
+  if (!verse) {
+    return (
+      <View className="flex-1 bg-white items-center justify-center p-6">
+        <Text className="text-xl font-bold text-gray-900 mb-2">Verse Not Found</Text>
+        <Text className="text-gray-600 text-center">
+          The verse you're trying to test doesn't exist.
+        </Text>
+      </View>
+    );
+  }
+
+  // Simple word matching for scoring (can be improved in Phase 5)
+  const calculateScore = () => {
+    const correctWords = verse.text.toLowerCase().split(/\s+/);
+    const userWords = userInput.toLowerCase().split(/\s+/);
+    let matches = 0;
+
+    correctWords.forEach((word, index) => {
+      if (userWords[index] && userWords[index] === word) {
+        matches++;
+      }
+    });
+
+    return {
+      matches,
+      total: correctWords.length,
+      percentage: Math.round((matches / correctWords.length) * 100),
+    };
+  };
+
+  const score = showResult ? calculateScore() : null;
+
+  const handleCheck = () => {
+    if (userInput.trim().length === 0) {
+      Alert.alert('Input Required', 'Please type the verse before checking');
+      return;
+    }
+    setShowResult(true);
+  };
+
+  const handleGiveUp = () => {
+    setShowResult(true);
+    setGaveUp(true);
+    setTestPassed(false);
+  };
+
+  const handlePassFail = (passed: boolean) => {
+    setTestPassed(passed);
+    // In Phase 4, this will record the test result
+    Alert.alert(
+      'Test Recorded',
+      `Result: ${passed ? 'PASS' : 'FAIL'} (mock action)`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleDone = () => {
+    if (showResult && testPassed === null) {
+      Alert.alert('Please mark as Pass or Fail', 'Did you pass this test?');
+      return;
+    }
+    router.push('/(tabs)/test');
+  };
 
   return (
     <ScrollView className="flex-1 bg-white">
-      <View className="p-4">
-        <View className="mb-6">
-          <Text className="text-sm text-gray-600 mb-2">
-            Supports UC-3.2: Take test | UC-3.3: View results
-          </Text>
-        </View>
-
-        <View className="bg-purple-50 p-6 rounded-lg border-2 border-purple-300 mb-6 items-center">
-          <Text className="text-lg text-gray-600 mb-2">Verse Reference</Text>
-          <Text className="text-3xl font-bold text-purple-600 text-center">
-            John 3:16
-          </Text>
-        </View>
-
-        <View className="mb-6">
-          <Text className="text-gray-700 font-semibold mb-2">
-            Type the verse from memory:
-          </Text>
-          <TextInput
-            placeholder="Enter the verse text here..."
-            multiline
-            numberOfLines={6}
-            editable={!showResult}
-            className="border border-gray-300 rounded-lg px-4 py-3 mb-4"
-            placeholderTextColor="#9ca3af"
-            textAlignVertical="top"
-          />
-        </View>
-
-        {!showResult ? (
-          <View className="space-y-3 mb-6">
-            <Pressable
-              onPress={() => setShowResult(true)}
-              className="bg-blue-600 p-4 rounded-lg items-center active:bg-blue-700"
-            >
-              <Text className="text-white font-semibold">Check Answer</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => {
-                setShowResult(true);
-                setGaveUp(true);
-              }}
-              className="bg-gray-400 p-4 rounded-lg items-center active:bg-gray-500"
-            >
-              <Text className="text-white font-semibold">Give Up</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View className="mb-6">
-            {gaveUp && (
-              <View className="bg-green-50 p-4 rounded-lg border border-green-200 mb-4">
-                <Text className="text-gray-700 font-semibold mb-2">Correct Answer:</Text>
-                <Text className="text-gray-700 text-base leading-relaxed">
-                  For God so loved the world that he gave his one and only Son, that
-                  whoever believes in him shall not perish but have eternal life.
+      <View className="p-6">
+        {/* Progress Indicator */}
+        {progress && (
+          <View className="mb-4 flex-row items-center justify-between">
+            <Text className="text-sm text-gray-600">
+              Tested {progress.times_tested} times
+            </Text>
+            {progress.times_tested > 0 && (
+              <View className="bg-purple-100 px-3 py-1 rounded-full">
+                <Text className="text-purple-700 text-xs font-semibold">
+                  {Math.round((progress.times_correct / progress.times_tested) * 100)}% accuracy
                 </Text>
               </View>
             )}
+          </View>
+        )}
 
-            <View className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
-              <Text className="text-gray-700 font-semibold mb-2">Comparison:</Text>
-              <Text className="text-sm text-gray-600">
-                Word match: 18/32 words correct (56%)
+        {/* Verse Reference */}
+        <View className="bg-gradient-to-r from-purple-50 to-purple-100 p-8 rounded-2xl mb-6 items-center border-2 border-purple-200 shadow-sm">
+          <Text className="text-sm text-gray-600 mb-2 uppercase tracking-wide">
+            Test This Verse
+          </Text>
+          <Text className="text-3xl font-bold text-purple-700 text-center mb-1">
+            {verse.reference}
+          </Text>
+          <Text className="text-sm text-purple-600">{verse.translation}</Text>
+        </View>
+
+        {/* Instructions */}
+        {!showResult && (
+          <View className="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <Text className="text-blue-900 font-medium mb-2">
+              Type the verse from memory
+            </Text>
+            <Text className="text-blue-700 text-sm">
+              Don't peek! Try to recall as much as you can.
+            </Text>
+          </View>
+        )}
+
+        {/* Input Area */}
+        <View className="mb-6">
+          <Text className="text-gray-700 font-semibold mb-2">Your Answer:</Text>
+          <TextInput
+            value={userInput}
+            onChangeText={setUserInput}
+            placeholder="Type the verse text here..."
+            multiline
+            numberOfLines={8}
+            editable={!showResult}
+            className={`border ${
+              showResult ? 'border-gray-200 bg-gray-50' : 'border-gray-300 bg-white'
+            } rounded-lg px-4 py-3 text-gray-900 text-base leading-6`}
+            placeholderTextColor="#9ca3af"
+            textAlignVertical="top"
+          />
+          {userInput.length > 0 && !showResult && (
+            <Text className="text-xs text-gray-500 mt-1">
+              {userInput.split(/\s+/).length} words entered
+            </Text>
+          )}
+        </View>
+
+        {/* Action Buttons - Before Result */}
+        {!showResult ? (
+          <View className="gap-3 mb-6">
+            <TouchableOpacity
+              onPress={handleCheck}
+              className="bg-blue-500 py-4 rounded-lg items-center"
+            >
+              <Text className="text-white font-semibold text-base">Check Answer</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleGiveUp}
+              className="bg-gray-400 py-4 rounded-lg items-center"
+            >
+              <Text className="text-white font-semibold text-base">Give Up</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="bg-gray-200 py-3 rounded-lg items-center"
+            >
+              <Text className="text-gray-700 font-medium">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View className="mb-6">
+            {/* Correct Answer (if gave up or after checking) */}
+            <View className="bg-green-50 p-6 rounded-xl border-2 border-green-200 mb-4">
+              <Text className="text-green-900 font-bold mb-3">Correct Answer:</Text>
+              <Text className="text-gray-800 text-base leading-7">
+                {verse.text}
               </Text>
             </View>
 
-            <View className="mb-4">
-              <Text className="text-gray-700 font-semibold mb-3">Did you pass?</Text>
-              <View className="flex-row gap-2">
-                <Pressable className="flex-1 bg-red-600 p-4 rounded-lg items-center active:bg-red-700">
-                  <Text className="text-white font-semibold">Fail</Text>
-                </Pressable>
-                <Pressable className="flex-1 bg-green-600 p-4 rounded-lg items-center active:bg-green-700">
-                  <Text className="text-white font-semibold">Pass</Text>
-                </Pressable>
+            {/* Score */}
+            {score && !gaveUp && (
+              <View className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
+                <Text className="text-blue-900 font-semibold mb-2">Word Match Score:</Text>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-sm text-gray-700">
+                    {score.matches} of {score.total} words correct
+                  </Text>
+                  <Text className="text-2xl font-bold text-blue-600">
+                    {score.percentage}%
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Pass/Fail Selection */}
+            <View className="bg-white p-6 rounded-xl border-2 border-gray-200 mb-4">
+              <Text className="text-gray-900 font-bold mb-3 text-center">
+                Did you pass this test?
+              </Text>
+              <View className="flex-row gap-3">
+                <TouchableOpacity
+                  onPress={() => handlePassFail(false)}
+                  className={`flex-1 py-4 rounded-lg items-center ${
+                    testPassed === false ? 'bg-red-600' : 'bg-red-400'
+                  }`}
+                >
+                  <Text className="text-white font-semibold text-base">
+                    {testPassed === false ? '✓ Fail' : 'Fail'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handlePassFail(true)}
+                  className={`flex-1 py-4 rounded-lg items-center ${
+                    testPassed === true ? 'bg-green-600' : 'bg-green-400'
+                  }`}
+                >
+                  <Text className="text-white font-semibold text-base">
+                    {testPassed === true ? '✓ Pass' : 'Pass'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
+
+            {/* Done Button */}
+            <TouchableOpacity
+              onPress={handleDone}
+              className="bg-purple-500 py-4 rounded-lg items-center"
+            >
+              <Text className="text-white font-semibold text-base">
+                {testPassed !== null ? 'Save & Finish' : 'Finish Test'}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
-        {showResult ? (
-          <View className="space-y-3">
-            <Pressable
-              onPress={() => router.push(`/test/${Number(id) + 1}`)}
-              className="bg-purple-600 p-4 rounded-lg items-center active:bg-purple-700"
-            >
-              <Text className="text-white font-semibold">Next Verse</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => router.push('/(tabs)/test')}
-              className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
-            >
-              <Text className="text-gray-800 font-semibold">Done Testing</Text>
-            </Pressable>
+        {/* Help Text */}
+        {!showResult && (
+          <View className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+            <Text className="text-purple-900 font-semibold mb-2 text-center">
+              Testing Tips
+            </Text>
+            <Text className="text-purple-700 text-sm text-center">
+              Focus on accuracy rather than speed. It's okay to take your time.
+            </Text>
           </View>
-        ) : (
-          <Pressable
-            onPress={() => router.push('/(tabs)/test')}
-            className="bg-gray-300 p-4 rounded-lg items-center active:bg-gray-400"
-          >
-            <Text className="text-gray-800 font-semibold">Cancel</Text>
-          </Pressable>
         )}
-
-        <Text className="text-xs text-gray-400 text-center mt-8">
-          Comparison logic and scoring coming in Phase 5
-        </Text>
       </View>
     </ScrollView>
   );
