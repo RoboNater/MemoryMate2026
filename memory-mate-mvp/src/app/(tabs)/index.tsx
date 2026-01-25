@@ -1,26 +1,30 @@
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { StatsCard } from '@/components';
-import { mockOverallStats, mockVerses, mockProgress } from '@/utils/mockData';
+import { StatsCard, LoadingSpinner } from '@/components';
+import { useVerseStore } from '@/store';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const stats = mockOverallStats;
+  const { stats, verses, progress, isLoading } = useVerseStore();
+
+  if (isLoading || !stats) {
+    return <LoadingSpinner message="Loading dashboard..." />;
+  }
 
   // Calculate additional stats
-  const versesNeedingWork = Object.values(mockProgress).filter(
-    (p) => p.comfort_level <= 2
+  const versesNeedingWork = Object.values(progress).filter(
+    (p: any) => p.comfort_level <= 2
   ).length;
 
-  const recentlyPracticed = mockVerses
+  const recentlyPracticed = verses
     .filter((v) => !v.archived)
     .filter((v) => {
-      const progress = mockProgress[v.id];
-      return progress && progress.last_practiced;
+      const prog = progress[v.id];
+      return prog && prog.last_practiced;
     })
     .sort((a, b) => {
-      const progressA = mockProgress[a.id];
-      const progressB = mockProgress[b.id];
+      const progressA = progress[a.id];
+      const progressB = progress[b.id];
       if (!progressA?.last_practiced) return 1;
       if (!progressB?.last_practiced) return -1;
       return (
@@ -194,7 +198,7 @@ export default function HomeScreen() {
                   <View className="flex-row items-center gap-2">
                     <View
                       className={`w-3 h-3 rounded-full ${
-                        mockProgress[verse.id].comfort_level >= 4
+                        progress[verse.id]?.comfort_level >= 4
                           ? 'bg-green-500'
                           : 'bg-amber-500'
                       }`}

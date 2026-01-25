@@ -7,3 +7,5 @@ export { VerseCard } from './VerseCard';
 export { VerseDetail } from './VerseDetail';
 export { VerseForm } from './VerseForm';
 export { ConfirmDialog } from './ConfirmDialog';
+export { LoadingSpinner } from './LoadingSpinner';
+export { ErrorDisplay } from './ErrorDisplay';

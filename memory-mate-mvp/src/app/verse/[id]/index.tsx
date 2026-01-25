@@ -1,18 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { VerseDetail, ConfirmDialog } from '@/components';
-import { getVerseById, mockProgress, getTestResultsForVerse } from '@/utils/mockData';
+import { VerseDetail, ConfirmDialog, LoadingSpinner } from '@/components';
+import { useVerseStore } from '@/store';
+import { TestResult } from '@/types';
 
 export default function VerseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [testHistory, setTestHistory] = useState<TestResult[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
-  const verse = getVerseById(id || '');
-  const progress = verse ? mockProgress[verse.id] : undefined;
-  const testHistory = verse ? getTestResultsForVerse(verse.id) : [];
+  const { verses, progress, archiveVerse, unarchiveVerse, removeVerse, getTestHistory } = useVerseStore();
+  const verse = verses.find((v) => v.id === id);
+
+  useEffect(() => {
+    const loadTestHistory = async () => {
+      if (!id) return;
+      try {
+        const history = await getTestHistory(id);
+        setTestHistory(history);
+      } catch (error) {
+        console.error('Failed to load test history:', error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+    loadTestHistory();
+  }, [id, getTestHistory]);
+
+  if (isLoadingHistory) {
+    return <LoadingSpinner message="Loading verse details..." />;
+  }
 
   if (!verse) {
     return (
@@ -24,6 +45,8 @@ export default function VerseDetailScreen() {
       </View>
     );
   }
+
+  const verseProgress = progress[verse.id];
 
   const handlePractice = () => {
     // Navigate to practice screen for this specific verse
@@ -43,40 +66,52 @@ export default function VerseDetailScreen() {
     setShowArchiveDialog(true);
   };
 
-  const confirmArchive = () => {
+  const confirmArchive = async () => {
     setShowArchiveDialog(false);
-    // In Phase 4, this will call the actual archive function
-    Alert.alert(
-      'Success',
-      `Verse ${verse.archived ? 'unarchived' : 'archived'} successfully (mock action)`,
-      [{ text: 'OK' }]
-    );
+    if (!verse) return;
+
+    try {
+      if (verse.archived) {
+        await unarchiveVerse(verse.id);
+      } else {
+        await archiveVerse(verse.id);
+      }
+      Alert.alert(
+        'Success',
+        `Verse ${verse.archived ? 'unarchived' : 'archived'} successfully`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update verse', [{ text: 'OK' }]);
+    }
   };
 
   const handleDelete = () => {
     setShowDeleteDialog(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     setShowDeleteDialog(false);
-    // In Phase 4, this will call the actual delete function
-    Alert.alert(
-      'Verse Deleted',
-      'Verse deleted successfully (mock action)',
-      [
+    if (!verse) return;
+
+    try {
+      await removeVerse(verse.id);
+      Alert.alert('Success', 'Verse deleted successfully', [
         {
           text: 'OK',
           onPress: () => router.back(),
         },
-      ]
-    );
+      ]);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete verse', [{ text: 'OK' }]);
+    }
   };
 
   return (
     <>
       <VerseDetail
         verse={verse}
-        progress={progress}
+        progress={verseProgress}
         testHistory={testHistory}
         onPractice={handlePractice}
         onTest={handleTest}

@@ -1,11 +1,17 @@
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getActiveVerses, getVersesReadyForTest, mockProgress } from '@/utils/mockData';
+import { LoadingSpinner } from '@/components';
+import { useVerseStore } from '@/store';
 
 export default function TestScreen() {
   const router = useRouter();
+  const { isLoading, getActiveVerses, getVersesReadyForTest, progress } = useVerseStore();
   const activeVerses = getActiveVerses();
   const versesReady = getVersesReadyForTest();
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading verses..." />;
+  }
 
   // For multi-verse tests, we'll just navigate to the first verse
   // In Phase 4, we can implement a proper test session manager
@@ -89,10 +95,10 @@ export default function TestScreen() {
               </Text>
               <View className="gap-2">
                 {activeVerses.slice(0, 5).map((verse) => {
-                  const progress = mockProgress[verse.id];
+                  const prog = progress[verse.id];
                   const accuracy =
-                    progress && progress.times_tested > 0
-                      ? Math.round((progress.times_correct / progress.times_tested) * 100)
+                    prog && prog.times_tested > 0
+                      ? Math.round((prog.times_correct / prog.times_tested) * 100)
                       : null;
 
                   return (
@@ -110,14 +116,14 @@ export default function TestScreen() {
                         </Text>
                       </View>
                       <View className="flex-row items-center gap-3">
-                        {progress && progress.times_tested > 0 && (
+                        {prog && prog.times_tested > 0 && (
                           <Text className="text-sm font-semibold text-gray-700">
                             {accuracy}%
                           </Text>
                         )}
-                        {progress && (
+                        {prog && (
                           <Text className="text-xs text-gray-500">
-                            {progress.times_tested} tests
+                            {prog.times_tested} tests
                           </Text>
                         )}
                       </View>

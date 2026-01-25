@@ -1,13 +1,14 @@
 import { View, Text, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { VerseForm } from '@/components';
-import { getVerseById } from '@/utils/mockData';
+import { useVerseStore } from '@/store';
 
 export default function EditVerseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { verses, updateVerse } = useVerseStore();
 
-  const verse = getVerseById(id || '');
+  const verse = verses.find((v) => v.id === id);
 
   if (!verse) {
     return (
@@ -20,18 +21,26 @@ export default function EditVerseScreen() {
     );
   }
 
-  const handleSave = (updatedVerse: { reference: string; text: string; translation: string }) => {
-    // In Phase 4, this will call the actual update verse function
-    Alert.alert(
-      'Verse Updated',
-      `${updatedVerse.reference} updated successfully (mock action)`,
-      [
+  const handleSave = async (updatedVerse: { reference: string; text: string; translation: string }) => {
+    try {
+      await updateVerse(verse.id, updatedVerse);
+      Alert.alert(
+        'Verse Updated',
+        `${updatedVerse.reference} updated successfully`,
+        [
+          {
+            text: 'OK',
+            onPress: () => router.back(),
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update verse. Please try again.', [
         {
           text: 'OK',
-          onPress: () => router.back(),
         },
-      ]
-    );
+      ]);
+    }
   };
 
   const handleCancel = () => {

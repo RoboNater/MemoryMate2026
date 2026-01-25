@@ -2,17 +2,18 @@ import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ComfortLevelPicker } from '@/components';
-import { getVerseById, mockProgress } from '@/utils/mockData';
+import { useVerseStore } from '@/store';
 
 export default function PracticeVerseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const verse = getVerseById(id || '');
-  const progress = verse ? mockProgress[verse.id] : undefined;
+  const { verses, progress, recordPractice, setComfortLevel: setComfortLevelAction } = useVerseStore();
+  const verse = verses.find((v) => v.id === id);
+  const verseProgress = verse ? progress[verse.id] : undefined;
 
   const [revealed, setRevealed] = useState(false);
   const [comfortLevel, setComfortLevel] = useState<1 | 2 | 3 | 4 | 5>(
-    progress?.comfort_level || 1
+    verseProgress?.comfort_level || 1
   );
 
   if (!verse) {
@@ -26,17 +27,20 @@ export default function PracticeVerseScreen() {
     );
   }
 
-  const handleSaveProgress = () => {
-    // In Phase 4, this will actually record the practice session
-    Alert.alert(
-      'Practice Recorded',
-      `Comfort level ${comfortLevel} saved (mock action)`,
-      [{ text: 'OK' }]
-    );
+  const handleSaveProgress = async () => {
+    try {
+      await recordPractice(verse.id);
+      await setComfortLevelAction(verse.id, comfortLevel);
+      Alert.alert('Success', `Comfort level ${comfortLevel} saved`, [{ text: 'OK' }]);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save progress. Please try again.', [{ text: 'OK' }]);
+    }
   };
 
-  const handleDone = () => {
-    handleSaveProgress();
+  const handleDone = async () => {
+    if (revealed) {
+      await handleSaveProgress();
+    }
     router.push('/(tabs)/practice');
   };
 
@@ -44,14 +48,14 @@ export default function PracticeVerseScreen() {
     <ScrollView className="flex-1 bg-white">
       <View className="p-6">
         {/* Progress Indicator */}
-        {progress && (
+        {verseProgress && (
           <View className="mb-4 flex-row items-center justify-between">
             <Text className="text-sm text-gray-600">
-              Practiced {progress.times_practiced} times
+              Practiced {verseProgress.times_practiced} times
             </Text>
             <View className="bg-blue-100 px-3 py-1 rounded-full">
               <Text className="text-blue-700 text-xs font-semibold">
-                Level {progress.comfort_level}
+                Level {verseProgress.comfort_level}
               </Text>
             </View>
           </View>

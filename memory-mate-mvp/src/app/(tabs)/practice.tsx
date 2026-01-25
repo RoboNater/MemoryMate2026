@@ -1,11 +1,17 @@
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { getActiveVerses, getVersesNeedingPractice, mockProgress } from '@/utils/mockData';
+import { LoadingSpinner } from '@/components';
+import { useVerseStore } from '@/store';
 
 export default function PracticeScreen() {
   const router = useRouter();
+  const { isLoading, getActiveVerses, getVersesNeedingPractice, progress } = useVerseStore();
   const activeVerses = getActiveVerses();
   const versesNeedingWork = getVersesNeedingPractice();
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading verses..." />;
+  }
 
   // For multi-verse practice, we'll just navigate to the first verse
   // In Phase 4, we can implement a proper session manager
@@ -90,8 +96,8 @@ export default function PracticeScreen() {
               </Text>
               <View className="gap-2">
                 {activeVerses.slice(0, 5).map((verse) => {
-                  const progress = mockProgress[verse.id];
-                  const comfortLevel = progress?.comfort_level || 1;
+                  const prog = progress[verse.id];
+                  const comfortLevel = prog?.comfort_level || 1;
                   const comfortColors = {
                     1: 'bg-gray-400',
                     2: 'bg-red-400',
@@ -120,9 +126,9 @@ export default function PracticeScreen() {
                             comfortColors[comfortLevel as 1 | 2 | 3 | 4 | 5]
                           }`}
                         />
-                        {progress && (
+                        {prog && (
                           <Text className="text-xs text-gray-500">
-                            {progress.times_practiced}x
+                            {prog.times_practiced}x
                           </Text>
                         )}
                       </View>

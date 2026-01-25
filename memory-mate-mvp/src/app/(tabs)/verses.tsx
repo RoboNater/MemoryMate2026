@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { VerseCard } from '@/components';
-import { mockVerses, mockProgress, getActiveVerses, getArchivedVerses } from '@/utils/mockData';
+import { VerseCard, LoadingSpinner } from '@/components';
+import { useVerseStore } from '@/store';
 
 export default function VersesScreen() {
   const router = useRouter();
   const [showArchived, setShowArchived] = useState(false);
+  const { verses, progress, isLoading, getActiveVerses, getArchivedVerses } = useVerseStore();
 
-  const verses = showArchived ? mockVerses : getActiveVerses();
+  const displayVerses = showArchived ? getArchivedVerses() : getActiveVerses();
   const activeCount = getActiveVerses().length;
   const archivedCount = getArchivedVerses().length;
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading verses..." />;
+  }
 
   const handleVersePress = (verseId: string) => {
     router.push(`/verse/${verseId}`);
@@ -63,7 +68,7 @@ export default function VersesScreen() {
                   showArchived ? 'text-white' : 'text-gray-600'
                 }`}
               >
-                All ({mockVerses.length})
+                All ({verses.length})
               </Text>
             </TouchableOpacity>
           </View>
@@ -72,7 +77,7 @@ export default function VersesScreen() {
 
       {/* Verse List */}
       <ScrollView className="flex-1 p-4">
-        {verses.length === 0 ? (
+        {displayVerses.length === 0 ? (
           <View className="flex-1 items-center justify-center py-12">
             <Text className="text-gray-400 text-lg mb-4">No verses yet</Text>
             <Text className="text-gray-500 text-sm text-center mb-6 px-8">
@@ -86,11 +91,11 @@ export default function VersesScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          verses.map((verse) => (
+          displayVerses.map((verse) => (
             <VerseCard
               key={verse.id}
               verse={verse}
-              progress={mockProgress[verse.id]}
+              progress={progress[verse.id]}
               onPress={handleVersePress}
             />
           ))

@@ -1,13 +1,14 @@
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { getVerseById, mockProgress } from '@/utils/mockData';
+import { useVerseStore } from '@/store';
 
 export default function TestVerseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const verse = getVerseById(id || '');
-  const progress = verse ? mockProgress[verse.id] : undefined;
+  const { verses, progress, recordTestResult } = useVerseStore();
+  const verse = verses.find((v) => v.id === id);
+  const verseProgress = verse ? progress[verse.id] : undefined;
 
   const [userInput, setUserInput] = useState('');
   const [showResult, setShowResult] = useState(false);
@@ -60,14 +61,14 @@ export default function TestVerseScreen() {
     setTestPassed(false);
   };
 
-  const handlePassFail = (passed: boolean) => {
+  const handlePassFail = async (passed: boolean) => {
     setTestPassed(passed);
-    // In Phase 4, this will record the test result
-    Alert.alert(
-      'Test Recorded',
-      `Result: ${passed ? 'PASS' : 'FAIL'} (mock action)`,
-      [{ text: 'OK' }]
-    );
+    try {
+      await recordTestResult(verse.id, passed);
+      Alert.alert('Success', `Test result: ${passed ? 'PASS' : 'FAIL'}`, [{ text: 'OK' }]);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to record test result. Please try again.', [{ text: 'OK' }]);
+    }
   };
 
   const handleDone = () => {
@@ -82,15 +83,15 @@ export default function TestVerseScreen() {
     <ScrollView className="flex-1 bg-white">
       <View className="p-6">
         {/* Progress Indicator */}
-        {progress && (
+        {verseProgress && (
           <View className="mb-4 flex-row items-center justify-between">
             <Text className="text-sm text-gray-600">
-              Tested {progress.times_tested} times
+              Tested {verseProgress.times_tested} times
             </Text>
-            {progress.times_tested > 0 && (
+            {verseProgress.times_tested > 0 && (
               <View className="bg-purple-100 px-3 py-1 rounded-full">
                 <Text className="text-purple-700 text-xs font-semibold">
-                  {Math.round((progress.times_correct / progress.times_tested) * 100)}% accuracy
+                  {Math.round((verseProgress.times_correct / verseProgress.times_tested) * 100)}% accuracy
                 </Text>
               </View>
             )}
