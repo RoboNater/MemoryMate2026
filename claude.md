@@ -65,8 +65,9 @@ The project uses a **phased approach**:
   - See: [ccc.17.mvp-implementation-phase-3-completed-status.md](ccc.17.mvp-implementation-phase-3-completed-status.md)
 
 ### Next Steps
-- ⏳ Checkpoint 3 (CP-3): Interactive prototype review
+- ✅ Checkpoint 3 (CP-3): Interactive prototype reviewed (minor issues deferred)
 - ⏳ Phase 4: Data Layer Integration (SQLite + Zustand)
+  - See: [ccc.18.mvp-implementation-phase-4-detailed-plan.md](ccc.18.mvp-implementation-phase-4-detailed-plan.md)
 
 ---
 
@@ -238,6 +239,9 @@ Data persists as JSON in `memory_mate_data.json`:
 | [ccc.16.mvp-implementation-phase-2-completed-status.md](ccc.16.mvp-implementation-phase-2-completed-status.md) | **Phase 2 status** - Completion report and CP-2 checklist |
 | [CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md](CP-2-NAVIGATION-STRUCTURE-VERIFICATION.md) | **Checkpoint 2 review** - Navigation structure verification |
 | [CP-2-REFINEMENTS.md](CP-2-REFINEMENTS.md) | **CP-2 refinements** - Navigation improvements from testing |
+| | |
+| **MVP Phase 4** | |
+| [ccc.18.mvp-implementation-phase-4-detailed-plan.md](ccc.18.mvp-implementation-phase-4-detailed-plan.md) | **Phase 4 detailed plan** - Data layer integration |
 | | |
 | **MVP App** | |
 | [memory-mate-mvp/README.md](memory-mate-mvp/README.md) | MVP project README with development commands |
@@ -436,5 +440,5 @@ When helping with the MVP app, remember to:
 
 ---
 
-**Last Updated**: 2026-01-22
-**Project Status**: Phase 3 Complete - Ready for CP-3: Interactive Prototype Review
+**Last Updated**: 2026-01-25
+**Project Status**: Phase 4 Planning Complete - Ready for Phase 4 Implementation
