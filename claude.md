@@ -73,6 +73,12 @@ The project uses a **phased approach**:
   - ~909 lines of production code across 9 new files
   - See: [ccc.18.mvp-implementation-phase-4-detailed-plan.md](ccc.18.mvp-implementation-phase-4-detailed-plan.md)
   - See: [ccc.19.mvp-phase-4-completion-summary.md](ccc.19.mvp-phase-4-completion-summary.md)
+- ✅ **Web Platform Fix: expo-sqlite replaced with sql.js on web**
+  - expo-sqlite Web Worker/OPFS backend hangs under Metro web bundler
+  - sql.js provides in-memory SQLite via WASM (works in all browsers)
+  - Web data does NOT persist between page reloads; native has full persistence
+  - NativeWind dark mode fix (`darkMode: 'class'` in tailwind.config.js)
+  - See: [ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md)
 
 ### Next Steps
 - ⏳ Checkpoint 4 (CP-4): Test data persistence and verify all CRUD operations
@@ -99,7 +105,8 @@ The project uses a **phased approach**:
 | Styling | NativeWind (Tailwind for RN) | NativeWind 4.2, Tailwind 3.3 | ✅ Configured |
 | Navigation | Expo Router | 6.0 | ✅ Configured |
 | State Management | Zustand | 5.0 | ✅ Installed |
-| Storage | expo-sqlite | 16.0 | ✅ Installed |
+| Storage (native) | expo-sqlite | 16.0 | ✅ Persistent |
+| Storage (web) | sql.js | 1.x | ✅ In-memory only (no persistence between reloads) |
 | Backend (MVP) | None | - | Local-only |
 
 ---
@@ -213,7 +220,8 @@ Data persists as JSON in `memory_mate_data.json`:
     │   │   └── ... (8 other components)
     │   ├── services/                            # ✨ Data access layer (Phase 4)
     │   │   ├── index.ts                         # Service exports
-    │   │   ├── database.ts                      # SQLite initialization
+    │   │   ├── database.ts                      # Platform-aware DB init (AppDatabase interface)
+    │   │   ├── webDatabase.ts                   # sql.js adapter for web platform
     │   │   ├── verseService.ts                  # Verse CRUD operations
     │   │   ├── progressService.ts               # Progress tracking
     │   │   ├── testService.ts                   # Test result management
@@ -275,6 +283,7 @@ Data persists as JSON in `memory_mate_data.json`:
 | **MVP Phase 4** | |
 | [ccc.18.mvp-implementation-phase-4-detailed-plan.md](ccc.18.mvp-implementation-phase-4-detailed-plan.md) | **Phase 4 detailed plan** - Data layer integration |
 | [ccc.19.mvp-phase-4-completion-summary.md](ccc.19.mvp-phase-4-completion-summary.md) | **Phase 4 completion** - Data layer implementation summary |
+| [ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md) | **Web fix** - expo-sqlite web issue and sql.js workaround |
 | | |
 | **MVP App** | |
 | [memory-mate-mvp/README.md](memory-mate-mvp/README.md) | MVP project README with development commands |

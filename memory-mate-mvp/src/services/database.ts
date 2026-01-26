@@ -1,25 +1,50 @@
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
 
 const DATABASE_NAME = 'memory_mate.db';
-const DATABASE_VERSION = 1;
-
-// Database instance (singleton)
-let db: SQLite.SQLiteDatabase | null = null;
 
 /**
- * Initialize database with schema
+ * Minimal database interface shared by expo-sqlite (native) and sql.js (web).
+ * Services program against this interface so they work on all platforms.
  */
-export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (db) return db;
+export interface AppDatabase {
+  execAsync(source: string): Promise<void>;
+  runAsync(source: string, params?: any[]): Promise<any>;
+  getFirstAsync<T>(source: string, params?: any[]): Promise<T | null>;
+  getAllAsync<T>(source: string, params?: any[]): Promise<T[]>;
+  withTransactionAsync(task: () => Promise<void>): Promise<void>;
+  closeAsync(): Promise<void>;
+}
 
-  db = await SQLite.openDatabaseAsync(DATABASE_NAME);
+// Database singleton
+let db: AppDatabase | null = null;
+
+/**
+ * Initialize database with schema.
+ *
+ * On native platforms this uses expo-sqlite (persistent).
+ * On web this uses sql.js — an in-memory SQLite compiled to WASM that
+ * works in every modern browser without special server headers.
+ * Web data does not persist between page reloads.
+ */
+export async function initDatabase(): Promise<void> {
+  if (db) return;
+
+  if (Platform.OS === 'web') {
+    const { openWebDatabase } = await import('./webDatabase');
+    db = await openWebDatabase();
+    console.info(
+      '[MemoryMate] Using sql.js in-memory database (web). Data will not persist between page reloads.'
+    );
+  } else {
+    db = await SQLite.openDatabaseAsync(DATABASE_NAME) as unknown as AppDatabase;
+  }
 
   // Enable foreign keys
   await db.execAsync('PRAGMA foreign_keys = ON;');
 
-  // Create tables
+  // Create tables (one statement per execAsync for sql.js compatibility)
   await db.execAsync(`
-    -- Verses table
     CREATE TABLE IF NOT EXISTS verses (
       id TEXT PRIMARY KEY,
       reference TEXT NOT NULL,
@@ -28,8 +53,9 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       created_at TEXT NOT NULL,
       archived INTEGER NOT NULL DEFAULT 0
     );
+  `);
 
-    -- Progress table
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS progress (
       verse_id TEXT PRIMARY KEY,
       times_practiced INTEGER NOT NULL DEFAULT 0,
@@ -40,8 +66,9 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       comfort_level INTEGER NOT NULL DEFAULT 1,
       FOREIGN KEY (verse_id) REFERENCES verses(id) ON DELETE CASCADE
     );
+  `);
 
-    -- Test results table
+  await db.execAsync(`
     CREATE TABLE IF NOT EXISTS test_results (
       id TEXT PRIMARY KEY,
       verse_id TEXT NOT NULL,
@@ -50,19 +77,21 @@ export async function initDatabase(): Promise<SQLite.SQLiteDatabase> {
       score REAL,
       FOREIGN KEY (verse_id) REFERENCES verses(id) ON DELETE CASCADE
     );
-
-    -- Indexes for common queries
-    CREATE INDEX IF NOT EXISTS idx_test_results_verse_id ON test_results(verse_id);
-    CREATE INDEX IF NOT EXISTS idx_test_results_timestamp ON test_results(timestamp);
   `);
 
-  return db;
+  await db.execAsync(
+    'CREATE INDEX IF NOT EXISTS idx_test_results_verse_id ON test_results(verse_id);'
+  );
+
+  await db.execAsync(
+    'CREATE INDEX IF NOT EXISTS idx_test_results_timestamp ON test_results(timestamp);'
+  );
 }
 
 /**
- * Get database instance
+ * Get database instance.
  */
-export function getDatabase(): SQLite.SQLiteDatabase {
+export function getDatabase(): AppDatabase {
   if (!db) throw new Error('Database not initialized. Call initDatabase() first.');
   return db;
 }

@@ -96,11 +96,11 @@ Test the following scenarios to verify data persistence:
 - ✅ Error alerts appear if something fails
 - ✅ Cascade deletes work (deleting verse removes progress/test results)
 
-**Known minor issues** (non-critical):
+**Known issues / limitations**:
+- ⚠️ **Web: No data persistence between page reloads.** expo-sqlite does not work on web via Metro bundler (Web Worker/OPFS init hangs). The app uses sql.js as an in-memory SQLite fallback on web. All functionality works in a single session, but data is lost on reload. Native (iOS/Android) has full persistence via expo-sqlite. See [ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md) for details.
+- ⚠️ NativeWind required `darkMode: 'class'` in `tailwind.config.js` to avoid a web-only runtime error.
 - ⚠️ Some TypeScript warnings about implicit 'any' types (doesn't affect functionality)
 - ⚠️ Missing @expo/vector-icons type declarations (visual icons work fine)
-
-These can be addressed in Phase 5 if they become problematic.
 
 ---
 
@@ -126,6 +126,7 @@ Tell me one of the following:
 ### Phase 4 Documentation (Just Completed)
 - **[ccc.18.mvp-implementation-phase-4-detailed-plan.md](ccc.18.mvp-implementation-phase-4-detailed-plan.md)** - Detailed implementation plan for Phase 4
 - **[ccc.19.mvp-phase-4-completion-summary.md](ccc.19.mvp-phase-4-completion-summary.md)** - ✨ Complete summary of what was built
+- **[ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md)** - expo-sqlite web issue and sql.js workaround
 
 ### Previous Phases
 - **[ccc.17.mvp-implementation-phase-3-completed-status.md](ccc.17.mvp-implementation-phase-3-completed-status.md)** - Phase 3 completion (UI components)
@@ -169,7 +170,8 @@ Tell me one of the following:
     │   │   └── ... (8 other components)
     │   │
     │   ├── services/         ← NEW - Data Layer (Phase 4)
-    │   │   ├── database.ts          # SQLite initialization
+    │   │   ├── database.ts          # Platform-aware DB init (AppDatabase interface)
+    │   │   ├── webDatabase.ts       # sql.js adapter for web platform
     │   │   ├── verseService.ts      # Verse CRUD
     │   │   ├── progressService.ts   # Progress tracking
     │   │   ├── testService.ts       # Test results
