@@ -14,6 +14,7 @@ export interface AppDatabase {
   getAllAsync<T>(source: string, params?: any[]): Promise<T[]>;
   withTransactionAsync(task: () => Promise<void>): Promise<void>;
   closeAsync(): Promise<void>;
+  exportDatabase?(): Uint8Array; // Optional: used by web adapter for IndexedDB persistence
 }
 
 // Database singleton
@@ -23,19 +24,30 @@ let db: AppDatabase | null = null;
  * Initialize database with schema.
  *
  * On native platforms this uses expo-sqlite (persistent).
- * On web this uses sql.js — an in-memory SQLite compiled to WASM that
- * works in every modern browser without special server headers.
- * Web data does not persist between page reloads.
+ * On web this uses sql.js with IndexedDB persistence — SQLite compiled to WASM
+ * that works in every modern browser. Web data persists via IndexedDB.
  */
 export async function initDatabase(): Promise<void> {
   if (db) return;
 
   if (Platform.OS === 'web') {
     const { openWebDatabase } = await import('./webDatabase');
-    db = await openWebDatabase();
-    console.info(
-      '[MemoryMate] Using sql.js in-memory database (web). Data will not persist between page reloads.'
-    );
+    const { loadDatabaseBlob } = await import('./webPersistence');
+
+    // Try to restore saved database blob from IndexedDB
+    const savedBlob = await loadDatabaseBlob();
+
+    db = await openWebDatabase(savedBlob);
+
+    if (savedBlob) {
+      console.info(
+        '[MemoryMate] Restored database from IndexedDB (web). Data persists between page reloads.'
+      );
+    } else {
+      console.info(
+        '[MemoryMate] Using new sql.js database with IndexedDB persistence (web). Data will persist between page reloads.'
+      );
+    }
   } else {
     db = await SQLite.openDatabaseAsync(DATABASE_NAME) as unknown as AppDatabase;
   }

@@ -1,5 +1,5 @@
 /**
- * Web-compatible SQLite adapter using sql.js.
+ * Web-compatible SQLite adapter using sql.js with IndexedDB persistence.
  *
  * expo-sqlite relies on a Web Worker + OPFS backend that doesn't load
  * reliably under the Metro web bundler.  sql.js is a battle-tested
@@ -10,9 +10,12 @@
  * layer already calls on the expo-sqlite SQLiteDatabase object, so no
  * service code needs to change.
  *
- * NOTE: Data lives only in memory — it does not survive a page reload.
- * Persistent storage is provided by expo-sqlite on native (iOS/Android).
+ * Persistence: Data is automatically exported to IndexedDB after each mutation.
+ * On startup, the saved blob is restored from IndexedDB, providing full data
+ * persistence across page reloads (on web).
  */
+
+import { saveDatabaseBlob } from './webPersistence';
 
 export interface WebSQLiteDatabase {
   execAsync(source: string): Promise<void>;
@@ -24,9 +27,12 @@ export interface WebSQLiteDatabase {
   getAllAsync<T>(source: string, params?: unknown[]): Promise<T[]>;
   withTransactionAsync(task: () => Promise<void>): Promise<void>;
   closeAsync(): Promise<void>;
+  exportDatabase(): Uint8Array;
 }
 
-export async function openWebDatabase(): Promise<WebSQLiteDatabase> {
+export async function openWebDatabase(
+  savedBlob?: Uint8Array,
+): Promise<WebSQLiteDatabase> {
   // Dynamic import so sql.js is never bundled for native platforms.
   const initSqlJs = (await import('sql.js')).default;
 
@@ -35,11 +41,34 @@ export async function openWebDatabase(): Promise<WebSQLiteDatabase> {
     locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
   });
 
-  const sqlDb = new SQL.Database();
+  // Initialize database from saved blob or create new empty database
+  const sqlDb = savedBlob
+    ? new SQL.Database(savedBlob)
+    : new SQL.Database();
+
+  // Debounce timer for save operations (prevent hammering IndexedDB)
+  let saveTimeout: NodeJS.Timeout | null = null;
+
+  /**
+   * Schedule a debounced save to IndexedDB.
+   * Consecutive writes within 500ms are batched into a single save.
+   */
+  const scheduleSave = () => {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+      try {
+        const blob = sqlDb.export();
+        await saveDatabaseBlob(blob);
+      } catch (error) {
+        console.error('[MemoryMate] Failed to save database to IndexedDB:', error);
+      }
+    }, 500);
+  };
 
   return {
     async execAsync(source: string): Promise<void> {
       sqlDb.run(source);
+      scheduleSave();
     },
 
     async runAsync(
@@ -47,6 +76,7 @@ export async function openWebDatabase(): Promise<WebSQLiteDatabase> {
       params?: unknown[],
     ): Promise<{ changes: number; lastInsertRowId: number }> {
       sqlDb.run(source, params as any);
+      scheduleSave();
       return {
         changes: sqlDb.getRowsModified(),
         lastInsertRowId: 0,
@@ -87,6 +117,7 @@ export async function openWebDatabase(): Promise<WebSQLiteDatabase> {
       try {
         await task();
         sqlDb.run('COMMIT');
+        scheduleSave();
       } catch (e) {
         sqlDb.run('ROLLBACK');
         throw e;
@@ -94,7 +125,17 @@ export async function openWebDatabase(): Promise<WebSQLiteDatabase> {
     },
 
     async closeAsync(): Promise<void> {
+      // Flush any pending save before closing
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        const blob = sqlDb.export();
+        await saveDatabaseBlob(blob);
+      }
       sqlDb.close();
+    },
+
+    exportDatabase(): Uint8Array {
+      return sqlDb.export();
     },
   };
 }

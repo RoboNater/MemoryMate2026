@@ -3,6 +3,7 @@ declare module 'sql.js' {
     run(sql: string, params?: any[]): void;
     prepare(sql: string): Statement;
     getRowsModified(): number;
+    export(): Uint8Array;
     close(): void;
   }
 
@@ -14,7 +15,10 @@ declare module 'sql.js' {
   }
 
   interface SqlJsStatic {
-    Database: new () => Database;
+    Database: {
+      new (): Database;
+      new (blob: Uint8Array): Database;
+    };
   }
 
   interface InitSqlJsOptions {
