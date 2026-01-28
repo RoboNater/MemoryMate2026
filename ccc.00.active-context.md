@@ -1,7 +1,8 @@
 # Active Context - Memory Mate 2026
 
-**Last Updated**: 2026-01-25
-**Current Phase**: MVP Development - Phase 4 Complete, Ready for CP-4 Testing
+**Last Updated**: 2026-01-26
+**Current Phase**: MVP Development - Phase 4 Complete, Phase 4 Addendum Parts 1 & 2 Complete
+**Status**: Ready for Phase 4 Addendum Testing
 
 ---
 
@@ -9,123 +10,171 @@
 
 ### What Just Happened
 
-**Phase 4: Data Layer Integration - COMPLETE!** ✅
+**Phase 4 Addendum, Part 2: JSON Export/Import - COMPLETE!** ✅
 
-We've successfully implemented the full data persistence layer, transforming the interactive prototype into a functional app with real database storage. Here's what was built:
+We've successfully implemented complete data portability with JSON export/import functionality. Users can now backup and transfer their data across devices and platforms.
 
-#### ✅ Database Layer (SQLite)
-- Created SQLite database with 3 tables (verses, progress, test_results)
-- Foreign key constraints for data integrity
-- Indexes for optimized queries
+#### ✅ Phase 4 Complete (Previous Session)
+- **Database Layer**: SQLite with 3 tables (verses, progress, test_results)
+- **Service Layer**: 5 modules (verse, progress, test, stats, database)
+- **State Management**: Zustand store with full CRUD operations
+- **Screen Integration**: All 9 screens connected to real database
+- **Persistence**: Native platforms (iOS/Android) with expo-sqlite
 
-#### ✅ Service Layer (5 modules)
-- **verseService.ts** - Verse CRUD operations (add, get, update, archive, delete)
-- **progressService.ts** - Progress tracking (practice, comfort levels)
-- **testService.ts** - Test result recording and history
-- **statsService.ts** - Overall and per-verse statistics
-- **database.ts** - SQLite initialization and schema
+#### ✅ Phase 4 Addendum, Part 1: IndexedDB Persistence
+- **Web Persistence**: IndexedDB storage for sql.js database blob
+- **Cross-Session**: Data survives page reloads on web
+- **Platform Support**: Web uses IndexedDB, native uses expo-sqlite
+- **Transparent**: No UI changes, persistence handled at adapter layer
 
-#### ✅ State Management (Zustand)
-- Centralized reactive store with all state and actions
-- Computed getters for filtered data (active verses, verses needing practice, etc.)
-- Loading and error states throughout
+#### ✅ Phase 4 Addendum, Part 2: JSON Export/Import (JUST COMPLETED!)
+- **Export Service**: `dataExportService.ts` with full validation
+- **JSON Format**: Human-readable, version-aware, portable format
+- **Validation**: 17+ rules for data integrity (UUIDs, datetimes, constraints)
+- **Transaction Safety**: All-or-nothing import with automatic rollback
+- **Settings UI**: New "Data Management" section in settings screen
+- **Platform-Specific**:
+  - Web: Browser download/upload
+  - Native: Share sheet and document picker
+- **Cross-Platform**: Export on one platform, import on another
 
-#### ✅ Screen Updates (All 9 screens)
-- Replaced ALL mock data with real database operations
-- Added loading spinners and error displays
-- Proper async error handling with user alerts
-- Database initialization on app startup
-
-#### ✅ New Components
-- LoadingSpinner - Reusable loading state component
-- ErrorDisplay - Error display with optional retry button
-
-### The Numbers
-- **~909 lines** of new production code
-- **9 new files** created (services + store)
-- **10 files** modified (screens + components)
-- **0 mock data** used in the app (deprecated for reference only)
+### The Numbers (Phase 4 + Addendum)
+- **~1,400+ lines** total production code (Phase 4 + Addendum)
+- **11 new files** created (services + store + export service)
+- **12+ files** modified (screens + components + store)
+- **3 new dependencies** (expo-file-system, expo-sharing, expo-document-picker)
+- **0 mock data** used in production code
 
 ---
 
 ## 📋 What You Need to Do Next
 
-### Ready for CP-4 Testing
+### Ready for Phase 4 Addendum Testing
 
-**Phase 4 is complete!** The app now has full data persistence. Before proceeding to Phase 5, we need to verify everything works correctly.
+**Phase 4 Addendum Parts 1 & 2 are complete!** The app now has full web persistence (IndexedDB) and data portability (JSON export/import). Before proceeding to Phase 5, we need to verify both work correctly.
 
-### CP-4 Verification Checklist
+### Phase 4 Addendum Verification Checklist
 
-Test the following scenarios to verify data persistence:
+#### Part 1: IndexedDB Persistence (Web Platform)
+Test the following on **web platform** (Chrome, Safari, Firefox, etc.):
 
-#### ✅ Basic CRUD Operations
-- [ ] **Fresh install test** - Clear app data and launch (should show empty state)
-- [ ] **Add verse** - Add a new verse, close app, reopen (should persist)
-- [ ] **Edit verse** - Modify verse text, close app, reopen (changes should persist)
-- [ ] **Archive verse** - Archive a verse (should hide from active list)
-- [ ] **Unarchive verse** - Restore from archived view (should return to active list)
-- [ ] **Delete verse** - Delete a verse (should be permanently removed)
+**Web Platform - IndexedDB Persistence:**
+- [ ] **Fresh start** - Open app in new incognito window (should be empty)
+- [ ] **Add data** - Add several verses, practice some, take tests
+- [ ] **Page reload** - Press Ctrl+R / Cmd+R (all data should be there!)
+- [ ] **Browser console** - Check DevTools → Application → IndexedDB → MemoryMateDB
+- [ ] **Clear & refresh** - Clear IndexedDB in DevTools, refresh (should show fresh app)
 
-#### ✅ Progress Tracking
-- [ ] **Practice session** - Practice a verse 3 times (counter should increment)
-- [ ] **Comfort level** - Change comfort level to 3 (should persist)
-- [ ] **View progress** - Check practice count and last practiced date
+**Native Platform - expo-sqlite (Should already work from Phase 4):**
+- [ ] **iOS** - Data persists on app restart
+- [ ] **Android** - Data persists on app restart
 
-#### ✅ Testing
-- [ ] **Test pass** - Take a test and mark as passed (should increment counts)
-- [ ] **Test fail** - Take a test and mark as failed (should only increment tested count)
-- [ ] **Test history** - View test history on verse detail screen
-- [ ] **Accuracy** - Verify accuracy calculation on dashboard
+---
 
-#### ✅ Statistics
-- [ ] **Dashboard stats** - Verify counts match actual data
-- [ ] **Comfort distribution** - Check comfort level bar chart
-- [ ] **Per-verse stats** - View detailed stats on verse detail screen
+#### Part 2: JSON Export/Import
+Test the following on **all platforms** (web, iOS, Android):
 
-#### ✅ Edge Cases
-- [ ] **Empty state** - Confirm empty state messages display correctly
-- [ ] **Rapid actions** - Try rapid consecutive actions (add, practice, test)
-- [ ] **Long verse text** - Add a very long verse (should handle gracefully)
+**Export Testing:**
+- [ ] **Settings screen** - Navigate to Settings tab
+- [ ] **Data Management section** - Should show "Current Data" stats
+- [ ] **Export button** - Click "Export Data"
+  - **Web**: Should trigger browser download dialog
+  - **Native**: Should open share sheet (AirDrop/email)
+- [ ] **JSON file** - Inspect downloaded/shared file
+  - Should contain all verses, progress, test results
+  - Should have valid JSON format
+  - Should have version, exported_at, app fields
+- [ ] **Filename** - Should include timestamp (memorymate-export-2026-01-26...)
+
+**Import Testing:**
+- [ ] **Import button** - Click "Import Data"
+- [ ] **Confirmation** - Alert shows warning about replacing data
+- [ ] **Cancel works** - Cancel button prevents any changes
+- [ ] **File picker** -
+  - **Web**: File input appears
+  - **Native**: Document picker opens
+- [ ] **Valid import** - Select previously exported JSON file
+  - Should show "Import Successful"
+  - Should display counts imported
+  - UI should refresh with new data
+- [ ] **Data persists** -
+  - **Web**: Reload page → data should still be there
+  - **Native**: Close/reopen app → data should still be there
+
+**Error Handling:**
+- [ ] **Invalid JSON** - Try importing non-JSON file (should show error)
+- [ ] **Wrong format** - Try importing random JSON (should show specific error)
+- [ ] **Malformed data** - Try importing corrupted export (should show validation error)
+- [ ] **Cancel on error** - Database should remain unchanged
+
+**Cross-Platform:**
+- [ ] **Export web, import native** - Export from web, import on iOS/Android
+- [ ] **Export native, import web** - Export from iOS/Android, import on web
+- [ ] **Data integrity** - All data should match exactly
 
 ### What to Look For
 
-**Things that should work**:
-- ✅ Data survives app restart
-- ✅ Changes immediately reflected in UI
-- ✅ Loading spinners show during operations
-- ✅ Error alerts appear if something fails
-- ✅ Cascade deletes work (deleting verse removes progress/test results)
+**Phase 4 Addendum Part 1 (IndexedDB)**:
+- ✅ Data persists across page reloads on web
+- ✅ IndexedDB appears in DevTools (Application tab)
+- ✅ Saves are debounced (prevents hammering IndexedDB)
+- ✅ All functionality works as before (transparent persistence)
 
-**Known issues / limitations**:
-- ⚠️ **Web: No data persistence between page reloads.** expo-sqlite does not work on web via Metro bundler (Web Worker/OPFS init hangs). The app uses sql.js as an in-memory SQLite fallback on web. All functionality works in a single session, but data is lost on reload. Native (iOS/Android) has full persistence via expo-sqlite. See [ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md) for details.
+**Phase 4 Addendum Part 2 (Export/Import)**:
+- ✅ Export generates valid JSON file
+- ✅ JSON is human-readable and properly formatted
+- ✅ Import validates all data before committing
+- ✅ Import replaces all data atomically (all-or-nothing)
+- ✅ Error messages are specific and actionable
+- ✅ Settings screen shows data stats
+- ✅ Platform-specific UI works correctly
+
+**Things that should work**:
+- ✅ All Phase 4 features still work (CRUD, progress, testing)
+- ✅ Web persistence now works (IndexedDB)
+- ✅ Export button generates JSON
+- ✅ Import button accepts JSON files
+- ✅ Confirmation dialogs appear for destructive actions
+- ✅ Loading states show during operations
+- ✅ Error alerts appear if something fails
+
+**Known Issues / Limitations**:
+- ⚠️ **Import is destructive** (replaces all data, not merge). Users must export before importing if they want to keep existing data.
+- ⚠️ **Version 1 only** - Import only supports version 1 exports. Future versions will need migration logic.
 - ⚠️ NativeWind required `darkMode: 'class'` in `tailwind.config.js` to avoid a web-only runtime error.
 - ⚠️ Some TypeScript warnings about implicit 'any' types (doesn't affect functionality)
 - ⚠️ Missing @expo/vector-icons type declarations (visual icons work fine)
 
 ---
 
-## 🚦 Checkpoint Status
+## 🚦 Phase Completion Status
 
-✅ **CP-1 Complete** - Dev environment verified
-✅ **CP-2 Complete** - Navigation structure validated
-✅ **CP-3 Complete** - Interactive prototype reviewed
-⏳ **CP-4 Pending** - Awaiting data persistence verification
+✅ **Phase 4 Complete** - Data layer integration (SQLite + Zustand)
+✅ **Phase 4 Addendum Part 1 Complete** - IndexedDB persistence for web
+✅ **Phase 4 Addendum Part 2 Complete** - JSON export/import (JUST NOW!)
 
-### When You're Done Testing
+### Next: Phase 4 Addendum Testing
 
 Tell me one of the following:
 
-1. **"CP-4 approved"** or **"Phase 4 verified"** → We'll proceed to Phase 5
+1. **"Phase 4 Addendum approved"** or **"All tests passed"** → We'll proceed to Phase 5
 2. **"Found issues: [describe]"** → I'll fix any problems before proceeding
-3. **"Questions about [topic]"** → I'll explain how something works
+3. **"How does [feature] work?"** → I'll explain the implementation
+
+**Testing focus**: Export data, import data, verify cross-platform compatibility
 
 ---
 
 ## 📚 Key Documents
 
-### Phase 4 Documentation (Just Completed)
+### Phase 4 Addendum Documentation (Just Completed!)
+- **[ccc.23.plan-for-mvp-phase-4-addendum-part2-json-export-import.md](ccc.23.plan-for-mvp-phase-4-addendum-part2-json-export-import.md)** - Detailed plan for Part 2 (export/import)
+- **[ccc.24.mvp-phase-4-addendum-part2-implementation-complete.md](ccc.24.mvp-phase-4-addendum-part2-implementation-complete.md)** - ✨ Implementation summary for Part 2
+- **[ccc.22.mvp-phase-4-addendum-part1-indexeddb-persistence-complete.md](ccc.22.mvp-phase-4-addendum-part1-indexeddb-persistence-complete.md)** - Part 1 completion (IndexedDB)
+
+### Phase 4 Documentation (Previous Session)
 - **[ccc.18.mvp-implementation-phase-4-detailed-plan.md](ccc.18.mvp-implementation-phase-4-detailed-plan.md)** - Detailed implementation plan for Phase 4
-- **[ccc.19.mvp-phase-4-completion-summary.md](ccc.19.mvp-phase-4-completion-summary.md)** - ✨ Complete summary of what was built
+- **[ccc.19.mvp-phase-4-completion-summary.md](ccc.19.mvp-phase-4-completion-summary.md)** - Complete summary of Phase 4
 - **[ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md)** - expo-sqlite web issue and sql.js workaround
 
 ### Previous Phases
@@ -169,13 +218,15 @@ Tell me one of the following:
     │   │   ├── ErrorDisplay.tsx    # NEW in Phase 4
     │   │   └── ... (8 other components)
     │   │
-    │   ├── services/         ← NEW - Data Layer (Phase 4)
-    │   │   ├── database.ts          # Platform-aware DB init (AppDatabase interface)
-    │   │   ├── webDatabase.ts       # sql.js adapter for web platform
-    │   │   ├── verseService.ts      # Verse CRUD
-    │   │   ├── progressService.ts   # Progress tracking
-    │   │   ├── testService.ts       # Test results
-    │   │   └── statsService.ts      # Statistics
+    │   ├── services/         ← NEW - Data Layer (Phase 4 + Addendum)
+    │   │   ├── database.ts                  # Platform-aware DB init (AppDatabase interface)
+    │   │   ├── webDatabase.ts              # sql.js adapter for web platform
+    │   │   ├── webPersistence.ts           # IndexedDB storage for sql.js blob (Addendum Part 1)
+    │   │   ├── dataExportService.ts        # JSON export/import logic (Addendum Part 2) ← NEW!
+    │   │   ├── verseService.ts             # Verse CRUD
+    │   │   ├── progressService.ts          # Progress tracking
+    │   │   ├── testService.ts              # Test results
+    │   │   └── statsService.ts             # Statistics
     │   │
     │   ├── store/            ← NEW - State Management (Phase 4)
     │   │   └── verseStore.ts        # Zustand store
@@ -198,9 +249,9 @@ npm start
 
 ---
 
-## 🔧 What Was Built in Phase 4
+## 🔧 What Was Built in Phase 4 + Phase 4 Addendum
 
-### Data Architecture
+### Phase 4: Data Architecture
 
 **SQLite Database** (`database.ts`)
 - 3 tables: verses, progress, test_results
@@ -218,34 +269,56 @@ npm start
 - Computed getters for derived data
 - Loading and error state management
 
-### Screen Integration
-
 **All 9 screens now use real data**:
-1. **Home/Dashboard** - Shows real stats from database
-2. **Verses List** - Displays actual verses with filter
-3. **Practice Selection** - Lists verses needing practice
-4. **Test Selection** - Lists verses ready for testing
+1. **Home/Dashboard** - Real stats from database
+2. **Verses List** - Actual verses with filter
+3. **Practice Selection** - Verses needing practice
+4. **Test Selection** - Verses ready for testing
 5. **Add Verse** - Saves to database
-6. **Verse Detail** - Loads from database, shows test history
+6. **Verse Detail** - Loads from database, test history
 7. **Edit Verse** - Updates database
 8. **Practice Verse** - Records practice sessions
 9. **Test Verse** - Records test results
+
+### Phase 4 Addendum Part 1: Web Persistence
+
+**IndexedDB Persistence** (`webPersistence.ts`)
+- Stores sql.js database blob in IndexedDB
+- Survives page reloads on web platform
+- Debounced saves (500ms) prevent hammering storage
+- Transparent to rest of app (adapter handles it)
+
+### Phase 4 Addendum Part 2: Data Portability
+
+**JSON Export/Import** (`dataExportService.ts`)
+- Export all data to portable JSON format
+- Version-aware format for future migrations
+- Comprehensive validation (17+ rules)
+- Transaction-safe import with rollback
+- Cross-platform support (export on web, import on native, etc.)
+
+**Settings Screen Updates** (`settings.tsx`)
+- New "Data Management" section
+- Data stats summary display
+- Export button (platform-specific)
+- Import button with confirmation dialog
+- Proper error handling and user feedback
 
 **Mock data completely removed** from production code (kept in utils/mockData.ts for reference only).
 
 ---
 
-## 🎨 What's Next After CP-4
+## 🎨 What's Next After Phase 4 Addendum
 
 ### Phase 5: Feature Integration & Polish
 
-Once CP-4 is approved, we'll add:
+Once Phase 4 Addendum is approved (IndexedDB + Export/Import working), we'll add:
 - **Multi-verse sessions** - Select multiple verses for practice/test
 - **Improved test scoring** - Better word matching algorithm
 - **Pagination** - Handle large verse collections
-- **Settings screen** - App preferences and data management
-- **Export/Import** - Backup and restore data
+- **Performance optimization** - Optimize for 100+ verses
 - **Polish** - Animations, transitions, refinements
+- **Settings** - Preferences (theme, notifications, etc.)
 
 ### Phase 6: Final Testing & Release
 
@@ -303,10 +376,12 @@ I'll fix it before we proceed to Phase 5.
 - ✅ MVP Phase 1: Project setup, dependencies, configuration
 - ✅ MVP Phase 2: Navigation & screen shells (12 screens)
 - ✅ MVP Phase 3: UI components with mock data (8 components, all screens interactive)
-- ✅ MVP Phase 4: Data layer integration (SQLite + Zustand, ~909 lines of code)
+- ✅ MVP Phase 4: Data layer integration (SQLite + Zustand, ~909 lines)
+- ✅ MVP Phase 4 Addendum Part 1: Web persistence (IndexedDB, transparent)
+- ✅ MVP Phase 4 Addendum Part 2: Data portability (JSON export/import, ~480 lines)
 
-### Current Checkpoint 🔍
-- ⏳ **CP-4**: Data persistence verification (awaiting your testing)
+### Current Status 🔍
+- ⏳ **Phase 4 Addendum Testing**: Verify IndexedDB and export/import features work
 
 ### Upcoming Phases 📅
 - Phase 5: Feature Integration & Polish
@@ -349,14 +424,25 @@ This is a **real MVP** - it solves the core problem of helping people memorize B
 ## 🤝 When You Return
 
 Tell me:
-- **"CP-4 approved"** → I'll mark Phase 4 as verified and we'll plan Phase 5
+- **"Phase 4 Addendum approved"** or **"All tests passed"** → I'll mark Phase 4 Addendum as verified and we'll plan Phase 5
 - **"Found issues: [details]"** → I'll fix any problems
+- **"Export works, import [issue]"** → I'll diagnose and fix
 - **"How does [feature] work?"** → I'll explain the implementation
 
-Or ask any questions about the architecture, data flow, or implementation details.
+Or ask any questions about:
+- Export/import validation rules
+- Transaction safety and rollback behavior
+- Cross-platform compatibility
+- IndexedDB persistence on web
+- Any other architecture questions
 
 ---
 
-**Status**: ✅ Phase 4 Complete - Awaiting CP-4 Verification
-**Next Action**: Test data persistence using CP-4 checklist above
+**Status**: ✅ Phase 4 Complete + Phase 4 Addendum Parts 1 & 2 Complete
+**Next Action**: Test IndexedDB and export/import using checklist above
 **Blocking**: None - ready for your testing
+
+## 📋 Quick Testing Summary
+
+**Part 1 (IndexedDB - Web)**: Open web app, add data, reload page, data should persist
+**Part 2 (Export/Import)**: Go to Settings, click "Export Data", import the JSON file back, data should be restored

@@ -21,6 +21,7 @@ function rowToTestResult(row: TestResultRow): TestResult {
   return {
     ...row,
     passed: row.passed === 1,
+    score: row.score ?? undefined,
   };
 }
 

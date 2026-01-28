@@ -76,12 +76,25 @@ The project uses a **phased approach**:
 - ✅ **Web Platform Fix: expo-sqlite replaced with sql.js on web**
   - expo-sqlite Web Worker/OPFS backend hangs under Metro web bundler
   - sql.js provides in-memory SQLite via WASM (works in all browsers)
-  - Web data does NOT persist between page reloads; native has full persistence
   - NativeWind dark mode fix (`darkMode: 'class'` in tailwind.config.js)
   - See: [ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md)
+- ✅ **MVP Phase 4 Addendum, Part 1: IndexedDB Persistence (Web)**
+  - Web data now persists between page reloads via IndexedDB
+  - sql.js database blob stored in IndexedDB, restored on page load
+  - Debounced saves prevent excessive storage writes
+  - Transparent to app (handled at adapter layer)
+  - See: [ccc.22.mvp-phase-4-addendum-part1-indexeddb-persistence-complete.md](ccc.22.mvp-phase-4-addendum-part1-indexeddb-persistence-complete.md)
+- ✅ **MVP Phase 4 Addendum, Part 2: JSON Export/Import**
+  - dataExportService.ts with export/import logic
+  - 17+ validation rules for data integrity
+  - Transaction-safe import (all-or-nothing)
+  - Settings screen with Data Management section
+  - Platform-specific UI (download/upload web, share/picker native)
+  - See: [ccc.23.plan-for-mvp-phase-4-addendum-part2-json-export-import.md](ccc.23.plan-for-mvp-phase-4-addendum-part2-json-export-import.md)
+  - See: [ccc.24.mvp-phase-4-addendum-part2-implementation-complete.md](ccc.24.mvp-phase-4-addendum-part2-implementation-complete.md)
 
 ### Next Steps
-- ⏳ Checkpoint 4 (CP-4): Test data persistence and verify all CRUD operations
+- ⏳ Phase 4 Addendum Testing: Verify IndexedDB and export/import functionality
 - Phase 5: Feature Integration & Polish
 - Phase 6: Final Testing & Release Preparation
 
@@ -105,8 +118,9 @@ The project uses a **phased approach**:
 | Styling | NativeWind (Tailwind for RN) | NativeWind 4.2, Tailwind 3.3 | ✅ Configured |
 | Navigation | Expo Router | 6.0 | ✅ Configured |
 | State Management | Zustand | 5.0 | ✅ Installed |
-| Storage (native) | expo-sqlite | 16.0 | ✅ Persistent |
-| Storage (web) | sql.js | 1.x | ✅ In-memory only (no persistence between reloads) |
+| Storage (native) | expo-sqlite | 16.0 | ✅ Persistent (file system) |
+| Storage (web) | sql.js + IndexedDB | 1.x | ✅ Persistent (IndexedDB blob storage) |
+| Export/Import | JSON format | 1.0 | ✅ Complete with validation |
 | Backend (MVP) | None | - | Local-only |
 
 ---
@@ -218,10 +232,12 @@ Data persists as JSON in `memory_mate_data.json`:
     │   │   ├── LoadingSpinner.tsx               # Loading state component
     │   │   ├── ErrorDisplay.tsx                 # Error display component
     │   │   └── ... (8 other components)
-    │   ├── services/                            # ✨ Data access layer (Phase 4)
+    │   ├── services/                            # ✨ Data access layer (Phase 4 + Addendum)
     │   │   ├── index.ts                         # Service exports
     │   │   ├── database.ts                      # Platform-aware DB init (AppDatabase interface)
     │   │   ├── webDatabase.ts                   # sql.js adapter for web platform
+    │   │   ├── webPersistence.ts                # IndexedDB storage for sql.js blob (Addendum P1)
+    │   │   ├── dataExportService.ts             # JSON export/import (Addendum P2) ← NEW
     │   │   ├── verseService.ts                  # Verse CRUD operations
     │   │   ├── progressService.ts               # Progress tracking
     │   │   ├── testService.ts                   # Test result management
@@ -284,6 +300,12 @@ Data persists as JSON in `memory_mate_data.json`:
 | [ccc.18.mvp-implementation-phase-4-detailed-plan.md](ccc.18.mvp-implementation-phase-4-detailed-plan.md) | **Phase 4 detailed plan** - Data layer integration |
 | [ccc.19.mvp-phase-4-completion-summary.md](ccc.19.mvp-phase-4-completion-summary.md) | **Phase 4 completion** - Data layer implementation summary |
 | [ccc.20.expo-sqlite-web-workaround.md](ccc.20.expo-sqlite-web-workaround.md) | **Web fix** - expo-sqlite web issue and sql.js workaround |
+| | |
+| **MVP Phase 4 Addendum** | |
+| [ccc.21.mvp-data-persistence-and-export-import.md](ccc.21.mvp-data-persistence-and-export-import.md) | **Addendum plan** - High-level plans for Parts 1 & 2 |
+| [ccc.22.mvp-phase-4-addendum-part1-indexeddb-persistence-complete.md](ccc.22.mvp-phase-4-addendum-part1-indexeddb-persistence-complete.md) | **Part 1 completion** - IndexedDB persistence implementation |
+| [ccc.23.plan-for-mvp-phase-4-addendum-part2-json-export-import.md](ccc.23.plan-for-mvp-phase-4-addendum-part2-json-export-import.md) | **Part 2 detailed plan** - JSON export/import design |
+| [ccc.24.mvp-phase-4-addendum-part2-implementation-complete.md](ccc.24.mvp-phase-4-addendum-part2-implementation-complete.md) | **Part 2 completion** - JSON export/import implementation |
 | | |
 | **MVP App** | |
 | [memory-mate-mvp/README.md](memory-mate-mvp/README.md) | MVP project README with development commands |
@@ -482,5 +504,5 @@ When helping with the MVP app, remember to:
 
 ---
 
-**Last Updated**: 2026-01-25
-**Project Status**: Phase 4 Implementation Complete - Ready for CP-4 Testing
+**Last Updated**: 2026-01-26
+**Project Status**: Phase 4 Complete + Phase 4 Addendum (Parts 1 & 2) Complete - Ready for Testing

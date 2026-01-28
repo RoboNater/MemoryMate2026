@@ -8,6 +8,7 @@ import * as verseService from '@/services/verseService';
 import * as progressService from '@/services/progressService';
 import * as testService from '@/services/testService';
 import * as statsService from '@/services/statsService';
+import * as dataExportService from '@/services/dataExportService';
 
 export interface VerseStore {
   // State
@@ -49,6 +50,10 @@ export interface VerseStore {
   getArchivedVerses: () => Verse[];
   getVersesNeedingPractice: () => Verse[];
   getVersesReadyForTest: () => Verse[];
+
+  // Data export/import
+  exportData: () => Promise<string>;
+  importData: (json: string) => Promise<dataExportService.ImportResult>;
 }
 
 export const useVerseStore = create<VerseStore>()((set, get) => ({
@@ -363,5 +368,40 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       const p = progress[v.id];
       return p && p.comfort_level >= 3;
     });
+  },
+
+  // Export all data as JSON
+  exportData: async () => {
+    try {
+      const jsonString = await dataExportService.exportAllDataAsJSON();
+      return jsonString;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to export data';
+      set({ error: errorMsg });
+      throw error;
+    }
+  },
+
+  // Import data from JSON
+  importData: async (json) => {
+    set({ isLoading: true, error: null });
+    try {
+      const result = await dataExportService.importAllDataFromJSON(json);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Import failed');
+      }
+
+      // Refresh all state from database
+      await get().initialize();
+
+      return result;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to import data';
+      set({ error: errorMsg });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
   },
 }));

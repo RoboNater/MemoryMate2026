@@ -37,7 +37,7 @@ export async function initDatabase(): Promise<void> {
     // Try to restore saved database blob from IndexedDB
     const savedBlob = await loadDatabaseBlob();
 
-    db = await openWebDatabase(savedBlob);
+    db = await openWebDatabase(savedBlob || undefined);
 
     if (savedBlob) {
       console.info(
