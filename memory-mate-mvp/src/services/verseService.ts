@@ -1,6 +1,6 @@
 import { getDatabase } from './database';
 import { Verse } from '@/types';
-import * as Crypto from 'expo-crypto';
+import { generateUUID } from '@/utils/uuid';
 
 /**
  * SQLite row type for verses (uses number for boolean)
@@ -33,7 +33,7 @@ export async function addVerse(
   translation: string = 'NIV'
 ): Promise<Verse> {
   const db = getDatabase();
-  const id = Crypto.randomUUID();
+  const id = generateUUID();
   const created_at = new Date().toISOString();
 
   await db.runAsync(

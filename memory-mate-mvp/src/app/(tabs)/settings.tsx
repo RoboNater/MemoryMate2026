@@ -64,57 +64,43 @@ export default function SettingsScreen() {
    * Handle import - file picker and data import
    */
   const handleImport = async () => {
-    // Confirmation prompt
-    Alert.alert(
-      'Import Data',
-      'This will replace all your current data. Are you sure you want to continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Import',
-          style: 'destructive',
-          onPress: async () => {
-            setIsImporting(true);
-            try {
-              let jsonString: string;
+    setIsImporting(true);
+    try {
+      let jsonString: string;
 
-              if (Platform.OS === 'web') {
-                // Web: File input picker
-                jsonString = await pickFileWeb();
-              } else {
-                // Native: Document picker
-                const result = await DocumentPicker.getDocumentAsync({
-                  type: 'application/json',
-                  copyToCacheDirectory: true,
-                });
+      if (Platform.OS === 'web') {
+        // Web: File input picker - direct call works
+        jsonString = await pickFileWeb();
+      } else {
+        // Native: Document picker
+        const result = await DocumentPicker.getDocumentAsync({
+          type: 'application/json',
+          copyToCacheDirectory: true,
+        });
 
-                if (result.canceled || !result.assets || result.assets.length === 0) {
-                  setIsImporting(false);
-                  return;
-                }
+        if (result.canceled || !result.assets || result.assets.length === 0) {
+          setIsImporting(false);
+          return;
+        }
 
-                jsonString = await FileSystem.readAsStringAsync(result.assets[0].uri);
-              }
+        jsonString = await FileSystem.readAsStringAsync(result.assets[0].uri);
+      }
 
-              // Import the data
-              const result = await importData(jsonString);
+      // Import the data
+      const result = await importData(jsonString);
 
-              Alert.alert(
-                'Import Successful',
-                `Imported:\n• ${result.versesImported} verses\n• ${result.progressImported} progress records\n• ${result.testResultsImported} test results`
-              );
-            } catch (error) {
-              Alert.alert(
-                'Import Failed',
-                error instanceof Error ? error.message : 'Failed to import data'
-              );
-            } finally {
-              setIsImporting(false);
-            }
-          },
-        },
-      ]
-    );
+      Alert.alert(
+        'Import Successful',
+        `Imported:\n• ${result.versesImported} verses\n• ${result.progressImported} progress records\n• ${result.testResultsImported} test results`
+      );
+    } catch (error) {
+      Alert.alert(
+        'Import Failed',
+        error instanceof Error ? error.message : 'Failed to import data'
+      );
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   /**
@@ -183,6 +169,14 @@ export default function SettingsScreen() {
             <Text className="text-blue-100 text-center text-sm mt-1">Download your data as JSON</Text>
           </TouchableOpacity>
 
+          {/* Warning - before Import Button */}
+          <View className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+            <Text className="text-amber-800 text-xs font-semibold mb-1">⚠️ Important</Text>
+            <Text className="text-amber-700 text-xs">
+              Importing will replace all existing data. Export your current data first if you want to keep it.
+            </Text>
+          </View>
+
           {/* Import Button */}
           <TouchableOpacity
             onPress={handleImport}
@@ -194,14 +188,6 @@ export default function SettingsScreen() {
             </Text>
             <Text className="text-green-100 text-center text-sm mt-1">Restore from JSON file</Text>
           </TouchableOpacity>
-
-          {/* Warning */}
-          <View className="bg-amber-50 p-3 rounded-lg border border-amber-200 mt-4">
-            <Text className="text-amber-800 text-xs font-semibold mb-1">⚠️ Important</Text>
-            <Text className="text-amber-700 text-xs">
-              Importing will replace all existing data. Export your current data first if you want to keep it.
-            </Text>
-          </View>
         </View>
 
         {/* App Info */}

@@ -1,6 +1,6 @@
 import { getDatabase } from './database';
 import { TestResult } from '@/types';
-import * as Crypto from 'expo-crypto';
+import { generateUUID } from '@/utils/uuid';
 import * as progressService from './progressService';
 
 /**
@@ -34,7 +34,7 @@ export async function recordTestResult(
   score?: number
 ): Promise<TestResult> {
   const db = getDatabase();
-  const id = Crypto.randomUUID();
+  const id = generateUUID();
   const timestamp = new Date().toISOString();
 
   // Start transaction
