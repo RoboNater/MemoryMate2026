@@ -393,7 +393,14 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       }
 
       // Refresh all state from database
-      await get().initialize();
+      try {
+        await get().refreshVerses();  // Loads verses AND progress
+        await get().refreshStats();    // Loads overall statistics
+      } catch (refreshError) {
+        // Log refresh error but don't fail the import
+        // Data is already in the database, UI will update on navigation
+        console.error('Failed to refresh UI after import:', refreshError);
+      }
 
       return result;
     } catch (error) {

@@ -64,41 +64,53 @@ export default function SettingsScreen() {
    * Handle import - file picker and data import
    */
   const handleImport = async () => {
+    console.log('Import button pressed');
     setIsImporting(true);
     try {
       let jsonString: string;
 
       if (Platform.OS === 'web') {
+        console.log('Platform: web');
         // Web: File input picker - direct call works
         jsonString = await pickFileWeb();
       } else {
+        console.log('Platform: native, opening document picker...');
         // Native: Document picker
         const result = await DocumentPicker.getDocumentAsync({
           type: 'application/json',
           copyToCacheDirectory: true,
         });
 
+        console.log('Document picker result:', result);
+
         if (result.canceled || !result.assets || result.assets.length === 0) {
+          console.log('Document picker canceled or no file selected');
           setIsImporting(false);
           return;
         }
 
+        console.log('Reading file from:', result.assets[0].uri);
         jsonString = await FileSystem.readAsStringAsync(result.assets[0].uri);
+        console.log('File read successfully, length:', jsonString.length);
       }
 
       // Import the data
+      console.log('Calling importData...');
       const result = await importData(jsonString);
+      console.log('Import result:', result);
 
       Alert.alert(
         'Import Successful',
         `Imported:\n• ${result.versesImported} verses\n• ${result.progressImported} progress records\n• ${result.testResultsImported} test results`
       );
     } catch (error) {
+      console.error('Import error:', error);
       Alert.alert(
         'Import Failed',
         error instanceof Error ? error.message : 'Failed to import data'
       );
     } finally {
+      console.log('Import process finished');
       setIsImporting(false);
     }
   };
