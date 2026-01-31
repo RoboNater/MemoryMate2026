@@ -110,11 +110,20 @@ export async function updateVerse(
 }
 
 /**
- * Delete a verse (cascades to progress and test results)
+ * Delete a verse and all related data (progress and test results)
+ * Uses explicit deletion with transaction for reliability across all platforms
  */
 export async function removeVerse(id: string): Promise<boolean> {
   const db = getDatabase();
-  await db.runAsync('DELETE FROM verses WHERE id = ?', [id]);
+
+  // Use transaction to ensure all-or-nothing deletion
+  // Delete in dependency order: test_results -> progress -> verse
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM test_results WHERE verse_id = ?', [id]);
+    await db.runAsync('DELETE FROM progress WHERE verse_id = ?', [id]);
+    await db.runAsync('DELETE FROM verses WHERE id = ?', [id]);
+  });
+
   return true;
 }
 

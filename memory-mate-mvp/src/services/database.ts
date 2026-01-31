@@ -52,7 +52,11 @@ export async function initDatabase(): Promise<void> {
     db = await SQLite.openDatabaseAsync(DATABASE_NAME) as unknown as AppDatabase;
   }
 
-  // Enable foreign keys
+  // CRITICAL: Enable foreign keys for this connection.
+  // In SQLite, PRAGMA foreign_keys is per-connection and does NOT persist in the
+  // database file. It must be set every time a connection is opened. This is why
+  // we also set it in webDatabase.ts after database restoration from blob.
+  // Reference: https://www.sqlite.org/pragma.html#pragma_foreign_keys
   await db.execAsync('PRAGMA foreign_keys = ON;');
 
   // Create tables (one statement per execAsync for sql.js compatibility)

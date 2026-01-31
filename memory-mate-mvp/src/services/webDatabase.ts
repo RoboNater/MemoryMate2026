@@ -46,6 +46,11 @@ export async function openWebDatabase(
     ? new SQL.Database(savedBlob)
     : new SQL.Database();
 
+  // CRITICAL: Foreign keys must be enabled for EVERY connection.
+  // In SQLite, PRAGMA foreign_keys is per-connection and does NOT persist
+  // in the saved database blob, so it must be re-enabled after restoration.
+  sqlDb.run('PRAGMA foreign_keys = ON;');
+
   // Debounce timer for save operations (prevent hammering IndexedDB)
   let saveTimeout: NodeJS.Timeout | null = null;
 
