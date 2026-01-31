@@ -99,9 +99,18 @@ export default function SettingsScreen() {
       const result = await importData(jsonString);
       console.log('Import result:', result);
 
+      // Build warning text if present
+      const warningText =
+        result.warnings && result.warnings.length > 0
+          ? `\n\n⚠️ Warnings:\n${result.warnings
+              .slice(0, 5)
+              .map((w) => `• ${w}`)
+              .join('\n')}${result.warnings.length > 5 ? `\n... and ${result.warnings.length - 5} more` : ''}`
+          : '';
+
       Alert.alert(
         'Import Successful',
-        `Imported:\n• ${result.versesImported} verses\n• ${result.progressImported} progress records\n• ${result.testResultsImported} test results`
+        `Imported:\n• ${result.versesImported} verses\n• ${result.progressImported} progress records\n• ${result.testResultsImported} test results${warningText}`
       );
     } catch (error) {
       console.error('Import error:', error);

@@ -34,6 +34,7 @@ export interface ImportResult {
   progressImported: number;
   testResultsImported: number;
   error?: string;
+  warnings?: string[];
 }
 
 /**
@@ -106,7 +107,10 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
 
     const { verses: versesData, progress: progressData, test_results: testResultsData } = exportFile.data;
 
-    // Validate verses
+    // Track warnings for skipped records
+    const warnings: string[] = [];
+
+    // Validate verses (strict - must have at least one valid verse)
     const verseIds = new Set<string>();
     for (const verse of versesData) {
       const error = validateVerse(verse);
@@ -131,42 +135,45 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
       verseIds.add(verse.id);
     }
 
-    // Validate progress records
+    // Check that we have at least one valid verse
+    if (versesData.length === 0) {
+      return {
+        success: false,
+        versesImported: 0,
+        progressImported: 0,
+        testResultsImported: 0,
+        error: 'No valid verses found in import file. Cannot import empty dataset.',
+      };
+    }
+
+    // Filter progress records: collect valid ones, warn about invalid ones
+    const validProgress: VerseProgress[] = [];
     for (const progress of progressData) {
       const error = validateProgress(progress, verseIds);
       if (error) {
-        return {
-          success: false,
-          versesImported: 0,
-          progressImported: 0,
-          testResultsImported: 0,
-          error: `Invalid progress data: ${error}`,
-        };
+        warnings.push(`Skipped progress record for verse_id ${progress.verse_id}: ${error}`);
+      } else {
+        validProgress.push(progress);
       }
     }
 
-    // Validate test results
+    // Filter test results: collect valid ones, warn about invalid ones
+    const validTestResults: TestResult[] = [];
     const testIds = new Set<string>();
     for (const result of testResultsData) {
       const error = validateTestResult(result, verseIds);
       if (error) {
-        return {
-          success: false,
-          versesImported: 0,
-          progressImported: 0,
-          testResultsImported: 0,
-          error: `Invalid test result data: ${error}`,
-        };
+        warnings.push(`Skipped test result ${result.id}: ${error}`);
+        continue;
       }
+
+      // Check for duplicate test IDs among VALID results
       if (testIds.has(result.id)) {
-        return {
-          success: false,
-          versesImported: 0,
-          progressImported: 0,
-          testResultsImported: 0,
-          error: `Duplicate test result ID: ${result.id}`,
-        };
+        warnings.push(`Skipped duplicate test result ID: ${result.id}`);
+        continue;
       }
+
+      validTestResults.push(result);
       testIds.add(result.id);
     }
 
@@ -188,7 +195,8 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
           );
         }
 
-        for (const progress of progressData) {
+        // Insert only VALID progress records
+        for (const progress of validProgress) {
           await db.runAsync(
             'INSERT INTO progress (verse_id, times_practiced, times_tested, times_correct, last_practiced, last_tested, comfort_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
@@ -203,7 +211,8 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
           );
         }
 
-        for (const result of testResultsData) {
+        // Insert only VALID test results
+        for (const result of validTestResults) {
           await db.runAsync(
             'INSERT INTO test_results (id, verse_id, timestamp, passed, score) VALUES (?, ?, ?, ?, ?)',
             [result.id, result.verse_id, result.timestamp, result.passed ? 1 : 0, result.score ?? null]
@@ -219,8 +228,9 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
     return {
       success: true,
       versesImported: versesData.length,
-      progressImported: progressData.length,
-      testResultsImported: testResultsData.length,
+      progressImported: validProgress.length,
+      testResultsImported: validTestResults.length,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
   } catch (error) {
     return {

@@ -189,6 +189,38 @@ This follows the established pattern used by other operations and allows gracefu
 
 ---
 
+## Issue 9: Data Import Fails on Inconsistent Data
+
+**Summary:** Import failed completely if any progress or test_results record referenced a non-existent verse_id, preventing recovery of otherwise valid backup data.
+
+### Lessons Learned
+
+1. **Distinguish validation strategy from transaction strategy**
+   - Database transactions should be atomic (all-or-nothing) for data integrity
+   - Validation doesn't require the same strictness
+   - Foreign key violations in dependent data can be handled by filtering rather than failing
+
+2. **Design for data recovery scenarios**
+   - Export/import is often used for backup and data recovery
+   - Real-world data may become inconsistent due to bugs
+   - Import should be forgiving and recover as much valid data as possible
+   - Users would rather get 90% of their data than 0%
+
+3. **Validation strictness should match data criticality**
+   - Core entities (verses) need strict validation - they're the source of truth
+   - Dependent records (progress, test_results) can be more lenient - they're derived data
+   - Losing some practice history is acceptable; losing verses is not
+
+4. **Provide visibility into data quality issues**
+   - Silent data filtering is opaque and confusing to users
+   - Warnings give transparency into what was skipped and why
+
+5. **Design for graceful degradation**
+   - Rather than binary success/failure, support partial success with warnings
+   - Return structured results: `{ success, counts, warnings }` not just `{ success, error }`
+
+---
+
 ## References
 
 - [MDN: File input security](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file) - Browser file input security model
