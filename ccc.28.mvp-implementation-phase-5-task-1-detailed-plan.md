@@ -251,13 +251,27 @@ if (!ids || verseIds.length === 0) {
   return <ErrorDisplay message="Invalid session. Please start a new practice session." />;
 }
 
-// Invalid index
-if (currentIndex < 0 || currentIndex >= verseIds.length) {
+// Filter to only valid verses (handles orphaned IDs or deleted verses)
+const validVerseIds = verseIds.filter(id => verses.find(v => v.id === id));
+
+if (validVerseIds.length === 0) {
+  return <ErrorDisplay message="No valid verses found in session." />;
+}
+
+// Warn if some verses are missing (e.g., deleted during session)
+if (validVerseIds.length < verseIds.length) {
+  console.warn(`Session started with ${verseIds.length} verses, ${validVerseIds.length} valid verses found`);
+}
+
+// Invalid index (check against validVerseIds, not original verseIds)
+if (currentIndex < 0 || currentIndex >= validVerseIds.length) {
   return <ErrorDisplay message="Invalid verse in session." />;
 }
 
-// Verse not found
+const currentVerseId = validVerseIds[currentIndex];
 const verse = verses.find(v => v.id === currentVerseId);
+
+// This shouldn't happen after filtering above, but defensive check
 if (!verse) {
   return <ErrorDisplay message="Verse not found in your collection." />;
 }
@@ -508,7 +522,8 @@ const handlePracticeMore = () => {
 
 ### Edge Case 3: User Deletes Verse During Session
 **Scenario**: User has app open in multiple tabs, deletes a verse
-**Solution**: Skip verse if not found, show warning in summary
+**Note**: As of the fix for Issue 8, deleting a verse now cascades to remove associated progress and test_results records via database CASCADE DELETE constraints.
+**Solution**: Skip verse if not found in the verses array, show warning in summary if any verses in the session are missing
 
 ### Edge Case 4: User Navigates Away Mid-Session
 **Scenario**: User presses back button or switches tabs
@@ -535,6 +550,13 @@ const handlePracticeMore = () => {
 ## Testing Strategy
 
 ### Manual Testing Checklist
+
+**Cross-Platform Testing (CRITICAL):**
+- [ ] Test complete flow on Web (Chrome/Firefox/Safari)
+- [ ] Test complete flow on Android (Expo Go or dev build)
+- [ ] Test complete flow on iOS (Expo Go or dev build)
+- [ ] Verify state persistence works on all platforms
+- [ ] Verify navigation works consistently across platforms
 
 **Happy Path:**
 - [ ] Start session with 3 verses
@@ -717,6 +739,19 @@ After implementation, we should be able to:
 5. **Performance Optimization**
    - Preload next verse while practicing current one
    - Optimize for large collections (100+ verses)
+
+---
+
+## Related Issues
+
+### Issue 2: Test Flow Has Same Limitation
+
+**Note**: Issue 2 from testing identified that the test flow has the exact same problem - after completing one test, it returns to home instead of continuing with the next test in "Test All" sessions.
+
+**Impact**:
+- ✅ This practice flow implementation will serve as a **template** for fixing the test flow in a future phase
+- ✅ Ensure patterns used here are consistent and reusable for test sessions
+- ⏳ Defer test flow updates to a later phase (Phase 5 Task 2 or later)
 
 ---
 
