@@ -13,12 +13,18 @@ export default function PracticeScreen() {
     return <LoadingSpinner message="Loading verses..." />;
   }
 
-  // For multi-verse practice, we'll just navigate to the first verse
-  // In Phase 4, we can implement a proper session manager
   const startPractice = (verses: typeof activeVerses) => {
     if (verses.length === 0) return;
-    // For now, just navigate to the first verse
-    router.push(`/practice/${verses[0].id}`);
+
+    // For single verse, navigate to individual practice screen
+    if (verses.length === 1) {
+      router.push(`/practice/${verses[0].id}`);
+      return;
+    }
+
+    // For multiple verses, navigate to session screen
+    const verseIds = verses.map(v => v.id).join(',');
+    router.push(`/practice/session?ids=${verseIds}&index=0`);
   };
 
   return (
