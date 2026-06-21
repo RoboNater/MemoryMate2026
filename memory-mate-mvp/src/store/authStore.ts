@@ -29,6 +29,17 @@ export interface AuthStore {
 
 let unsubscribe: (() => void) | null = null;
 
+/**
+ * Kick off a sync when a session is present. Dynamic import avoids a static cycle
+ * (syncService -> verseStore; authStore -> syncService). Failures are ignored —
+ * sync is best-effort and offline-tolerant.
+ */
+function triggerSync(): void {
+  import('@/services/syncService')
+    .then((m) => m.sync())
+    .catch(() => {});
+}
+
 export const useAuthStore = create<AuthStore>()((set, get) => ({
   session: null,
   user: null,
@@ -44,11 +55,13 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
     try {
       const session = await authService.getCurrentSession();
       set({ session, user: session?.user ?? null });
+      if (session) triggerSync(); // already signed in at launch -> sync
 
       // Keep the store in sync with sign-in/out/token-refresh from anywhere.
       if (!unsubscribe) {
         unsubscribe = authService.onAuthStateChange((nextSession) => {
           set({ session: nextSession, user: nextSession?.user ?? null });
+          if (nextSession) triggerSync();
         });
       }
     } catch (e) {
@@ -67,6 +80,7 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
         return false;
       }
       set({ session, user });
+      if (session) triggerSync(); // sign-in -> first sync (push local, pull remote)
       return true;
     } finally {
       set({ isAuthLoading: false });

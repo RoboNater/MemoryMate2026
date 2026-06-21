@@ -10,6 +10,17 @@ import * as testService from '@/services/testService';
 import * as statsService from '@/services/statsService';
 import * as dataExportService from '@/services/dataExportService';
 
+/**
+ * Debounced background sync after a local write. Dynamic import keeps the store
+ * free of a static dependency on the sync engine (which imports this store).
+ * Best-effort: no-ops when signed out / unconfigured, and swallows failures.
+ */
+function syncAfterWrite(): void {
+  import('@/services/syncService')
+    .then((m) => m.scheduleSync())
+    .catch(() => {});
+}
+
 export interface VerseStore {
   // State
   verses: Verse[];
@@ -116,6 +127,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
 
       // Refresh stats
       await get().refreshStats();
+      syncAfterWrite();
       return verse;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to add verse';
@@ -137,6 +149,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
           verses: state.verses.map((v) => (v.id === id ? updatedVerse : v)),
         }));
       }
+      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to update verse';
       set({ error: errorMsg });
@@ -157,6 +170,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         ),
       }));
       await get().refreshStats();
+      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to archive verse';
       set({ error: errorMsg });
@@ -177,6 +191,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         ),
       }));
       await get().refreshStats();
+      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to unarchive verse';
       set({ error: errorMsg });
@@ -198,6 +213,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         ),
       }));
       await get().refreshStats();
+      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to remove verse';
       set({ error: errorMsg });
@@ -219,6 +235,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
           [verseId]: updatedProgress,
         },
       }));
+      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to record practice';
       set({ error: errorMsg });
@@ -241,6 +258,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         },
       }));
       await get().refreshStats();
+      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to set comfort level';
       set({ error: errorMsg });
@@ -263,6 +281,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         },
       }));
       await get().refreshStats();
+      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to reset progress';
       set({ error: errorMsg });
@@ -285,6 +304,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         },
       }));
       await get().refreshStats();
+      syncAfterWrite();
       return result;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to record test result';
@@ -402,6 +422,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         console.error('Failed to refresh UI after import:', refreshError);
       }
 
+      syncAfterWrite();
       return result;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to import data';

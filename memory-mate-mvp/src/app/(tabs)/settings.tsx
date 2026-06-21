@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { useVerseStore, useAuthStore } from '@/store';
+import { useVerseStore, useAuthStore, useSyncStore } from '@/store';
 import { isSupabaseConfigured } from '@/services/supabaseClient';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -17,6 +17,11 @@ export default function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
   const isAuthLoading = useAuthStore((state) => state.isAuthLoading);
   const signOut = useAuthStore((state) => state.signOut);
+
+  const isSyncing = useSyncStore((state) => state.isSyncing);
+  const lastSyncedAt = useSyncStore((state) => state.lastSyncedAt);
+  const syncError = useSyncStore((state) => state.syncError);
+  const syncNow = useSyncStore((state) => state.syncNow);
 
   const handleSignOut = () => {
     Alert.alert('Sign Out', 'Sign out of cloud sync on this device?', [
@@ -188,7 +193,28 @@ export default function SettingsScreen() {
               <View className="bg-gray-50 rounded-lg p-4 mb-4">
                 <Text className="text-sm font-semibold text-gray-700">Signed in as</Text>
                 <Text className="text-base text-gray-900 mt-1">{user.email}</Text>
+                <Text className="text-xs text-gray-500 mt-2">
+                  {isSyncing
+                    ? 'Syncing…'
+                    : lastSyncedAt
+                      ? `Last synced ${new Date(lastSyncedAt).toLocaleString()}`
+                      : 'Not synced yet'}
+                </Text>
+                {syncError && (
+                  <Text className="text-xs text-red-600 mt-1">Sync error: {syncError}</Text>
+                )}
               </View>
+
+              <TouchableOpacity
+                onPress={() => syncNow()}
+                disabled={isSyncing}
+                className={`bg-blue-600 rounded-lg p-4 mb-3 ${isSyncing ? 'opacity-50' : ''}`}
+              >
+                <Text className="text-white text-center font-semibold text-base">
+                  {isSyncing ? 'Syncing…' : 'Sync Now'}
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={handleSignOut}
                 disabled={isAuthLoading}
