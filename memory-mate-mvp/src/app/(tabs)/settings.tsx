@@ -1,6 +1,8 @@
 import { View, Text, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useState } from 'react';
-import { useVerseStore } from '@/store';
+import { router } from 'expo-router';
+import { useVerseStore, useAuthStore } from '@/store';
+import { isSupabaseConfigured } from '@/services/supabaseClient';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
@@ -11,6 +13,17 @@ export default function SettingsScreen() {
   const exportData = useVerseStore((state) => state.exportData);
   const importData = useVerseStore((state) => state.importData);
   const stats = useVerseStore((state) => state.stats);
+
+  const user = useAuthStore((state) => state.user);
+  const isAuthLoading = useAuthStore((state) => state.isAuthLoading);
+  const signOut = useAuthStore((state) => state.signOut);
+
+  const handleSignOut = () => {
+    Alert.alert('Sign Out', 'Sign out of cloud sync on this device?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: () => signOut() },
+    ]);
+  };
 
   /**
    * Handle export - generate JSON and trigger download/share
@@ -159,6 +172,50 @@ export default function SettingsScreen() {
       </View>
 
       <View className="p-6 -mt-6">
+        {/* Cloud Sync */}
+        <View className="bg-white rounded-lg p-6 mb-4 border border-gray-200">
+          <Text className="text-xl font-bold text-gray-900 mb-2">Cloud Sync</Text>
+          {!isSupabaseConfigured ? (
+            <Text className="text-sm text-gray-600">
+              Cloud sync isn't configured on this build. The app works offline and your data
+              stays on this device.
+            </Text>
+          ) : user ? (
+            <>
+              <Text className="text-sm text-gray-600 mb-3">
+                Signed in. Your verses can sync across your devices.
+              </Text>
+              <View className="bg-gray-50 rounded-lg p-4 mb-4">
+                <Text className="text-sm font-semibold text-gray-700">Signed in as</Text>
+                <Text className="text-base text-gray-900 mt-1">{user.email}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={handleSignOut}
+                disabled={isAuthLoading}
+                className={`bg-gray-200 rounded-lg p-4 ${isAuthLoading ? 'opacity-50' : ''}`}
+              >
+                <Text className="text-gray-800 text-center font-semibold text-base">
+                  {isAuthLoading ? 'Working...' : 'Sign Out'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text className="text-sm text-gray-600 mb-4">
+                Sign in to sync your verses and progress across all your devices.
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push('/login')}
+                className="bg-blue-600 rounded-lg p-4"
+              >
+                <Text className="text-white text-center font-semibold text-base">
+                  Sign In to Sync
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+
         {/* Data Management */}
         <View className="bg-white rounded-lg p-6 mb-4 border border-gray-200">
           <Text className="text-xl font-bold text-gray-900 mb-2">Data Management</Text>
