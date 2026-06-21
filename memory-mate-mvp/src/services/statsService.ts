@@ -17,7 +17,8 @@ export async function getOverallStats(): Promise<OverallStats> {
       COUNT(*) as total,
       SUM(CASE WHEN archived = 0 THEN 1 ELSE 0 END) as active,
       SUM(CASE WHEN archived = 1 THEN 1 ELSE 0 END) as archived
-    FROM verses`
+    FROM verses
+    WHERE deleted_at IS NULL`
   );
 
   // Get practice/test totals
@@ -30,7 +31,8 @@ export async function getOverallStats(): Promise<OverallStats> {
       COALESCE(SUM(times_practiced), 0) as total_practiced,
       COALESCE(SUM(times_tested), 0) as total_tested,
       COALESCE(SUM(times_correct), 0) as total_correct
-    FROM progress`
+    FROM progress
+    WHERE deleted_at IS NULL`
   );
 
   // Get comfort level distribution
@@ -40,6 +42,7 @@ export async function getOverallStats(): Promise<OverallStats> {
   }>(
     `SELECT comfort_level, COUNT(*) as count
     FROM progress
+    WHERE deleted_at IS NULL
     GROUP BY comfort_level`
   );
 
@@ -93,7 +96,7 @@ export async function getVerseStats(verseId: string): Promise<VerseStats | null>
   }>(
     `SELECT times_practiced, times_tested, times_correct, comfort_level, last_practiced, last_tested
     FROM progress
-    WHERE verse_id = ?`,
+    WHERE verse_id = ? AND deleted_at IS NULL`,
     [verseId]
   );
 
@@ -108,14 +111,14 @@ export async function getVerseStats(verseId: string): Promise<VerseStats | null>
   const consecutiveCorrect = await db.getFirstAsync<{ count: number }>(
     `SELECT COUNT(*) as count
     FROM test_results
-    WHERE verse_id = ?
+    WHERE verse_id = ? AND deleted_at IS NULL
       AND id IN (
         SELECT id FROM test_results
-        WHERE verse_id = ?
+        WHERE verse_id = ? AND deleted_at IS NULL
         ORDER BY timestamp DESC
         LIMIT (
           SELECT COUNT(*) FROM test_results
-          WHERE verse_id = ? AND passed = 0
+          WHERE verse_id = ? AND passed = 0 AND deleted_at IS NULL
         )
       )
       AND passed = 1`,

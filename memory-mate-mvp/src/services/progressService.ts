@@ -15,10 +15,19 @@ interface ProgressRow {
 }
 
 /**
- * Convert SQLite row to VerseProgress type
+ * Convert SQLite row to VerseProgress type.
+ * Maps fields explicitly so internal sync columns never leak into the domain object.
  */
 function rowToProgress(row: ProgressRow): VerseProgress {
-  return row as VerseProgress;
+  return {
+    verse_id: row.verse_id,
+    times_practiced: row.times_practiced,
+    times_tested: row.times_tested,
+    times_correct: row.times_correct,
+    last_practiced: row.last_practiced,
+    last_tested: row.last_tested,
+    comfort_level: row.comfort_level as 1 | 2 | 3 | 4 | 5,
+  };
 }
 
 /**
@@ -27,7 +36,7 @@ function rowToProgress(row: ProgressRow): VerseProgress {
 export async function getProgress(verseId: string): Promise<VerseProgress> {
   const db = getDatabase();
   const row = await db.getFirstAsync<ProgressRow>(
-    'SELECT * FROM progress WHERE verse_id = ?',
+    'SELECT * FROM progress WHERE verse_id = ? AND deleted_at IS NULL',
     [verseId]
   );
 
@@ -52,7 +61,9 @@ export async function getProgress(verseId: string): Promise<VerseProgress> {
  */
 export async function getAllProgress(): Promise<VerseProgress[]> {
   const db = getDatabase();
-  const rows = await db.getAllAsync<ProgressRow>('SELECT * FROM progress');
+  const rows = await db.getAllAsync<ProgressRow>(
+    'SELECT * FROM progress WHERE deleted_at IS NULL'
+  );
   return rows.map(rowToProgress);
 }
 
@@ -63,14 +74,17 @@ export async function recordPractice(verseId: string): Promise<boolean> {
   const db = getDatabase();
   const now = new Date().toISOString();
 
-  // Upsert pattern: insert if not exists, update if exists
+  // Upsert pattern: insert if not exists, update if exists.
+  // deleted_at is cleared on conflict so practicing revives a tombstoned row.
   await db.runAsync(
-    `INSERT INTO progress (verse_id, times_practiced, last_practiced, comfort_level)
-     VALUES (?, 1, ?, 1)
+    `INSERT INTO progress (verse_id, times_practiced, last_practiced, comfort_level, updated_at)
+     VALUES (?, 1, ?, 1, ?)
      ON CONFLICT(verse_id) DO UPDATE SET
        times_practiced = times_practiced + 1,
-       last_practiced = ?`,
-    [verseId, now, now]
+       last_practiced = ?,
+       updated_at = ?,
+       deleted_at = NULL`,
+    [verseId, now, now, now, now]
   );
 
   return true;
@@ -84,14 +98,18 @@ export async function setComfortLevel(
   level: 1 | 2 | 3 | 4 | 5
 ): Promise<boolean> {
   const db = getDatabase();
+  const now = new Date().toISOString();
 
-  // Upsert: create progress if doesn't exist, update comfort level
+  // Upsert: create progress if doesn't exist, update comfort level.
+  // deleted_at is cleared on conflict so setting comfort revives a tombstoned row.
   await db.runAsync(
-    `INSERT INTO progress (verse_id, comfort_level)
-     VALUES (?, ?)
+    `INSERT INTO progress (verse_id, comfort_level, updated_at)
+     VALUES (?, ?, ?)
      ON CONFLICT(verse_id) DO UPDATE SET
-       comfort_level = ?`,
-    [verseId, level, level]
+       comfort_level = ?,
+       updated_at = ?,
+       deleted_at = NULL`,
+    [verseId, level, now, level, now]
   );
 
   return true;
@@ -102,10 +120,29 @@ export async function setComfortLevel(
  */
 export async function resetProgress(verseId: string): Promise<boolean> {
   const db = getDatabase();
+  const now = new Date().toISOString();
 
-  // Delete progress and all associated test results
-  await db.runAsync('DELETE FROM test_results WHERE verse_id = ?', [verseId]);
-  await db.runAsync('DELETE FROM progress WHERE verse_id = ?', [verseId]);
+  // Soft-delete the test history (tombstones propagate on sync), and reset the
+  // progress row in place to its zero state rather than deleting it. Resetting in
+  // place (instead of tombstoning) avoids a future practice reviving the row and
+  // adding to stale counts via the ON CONFLICT upsert.
+  await db.runAsync(
+    'UPDATE test_results SET deleted_at = ?, updated_at = ? WHERE verse_id = ? AND deleted_at IS NULL',
+    [now, now, verseId]
+  );
+  await db.runAsync(
+    `UPDATE progress SET
+       times_practiced = 0,
+       times_tested = 0,
+       times_correct = 0,
+       last_practiced = NULL,
+       last_tested = NULL,
+       comfort_level = 1,
+       updated_at = ?,
+       deleted_at = NULL
+     WHERE verse_id = ?`,
+    [now, verseId]
+  );
 
   return true;
 }

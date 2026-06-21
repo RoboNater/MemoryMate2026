@@ -181,8 +181,11 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
     const db = getDatabase();
 
     try {
+      const importedAt = new Date().toISOString();
       await db.withTransactionAsync(async () => {
-        // Delete in reverse dependency order
+        // Import is a deliberate, local, full replace, so existing rows are hard-
+        // deleted here (not tombstoned). Inserted rows are stamped with updated_at
+        // so they remain sync-ready for a later push.
         await db.runAsync('DELETE FROM test_results');
         await db.runAsync('DELETE FROM progress');
         await db.runAsync('DELETE FROM verses');
@@ -190,15 +193,15 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
         // Insert new data
         for (const verse of versesData) {
           await db.runAsync(
-            'INSERT INTO verses (id, reference, text, translation, created_at, archived) VALUES (?, ?, ?, ?, ?, ?)',
-            [verse.id, verse.reference, verse.text, verse.translation, verse.created_at, verse.archived ? 1 : 0]
+            'INSERT INTO verses (id, reference, text, translation, created_at, archived, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [verse.id, verse.reference, verse.text, verse.translation, verse.created_at, verse.archived ? 1 : 0, verse.created_at]
           );
         }
 
         // Insert only VALID progress records
         for (const progress of validProgress) {
           await db.runAsync(
-            'INSERT INTO progress (verse_id, times_practiced, times_tested, times_correct, last_practiced, last_tested, comfort_level) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO progress (verse_id, times_practiced, times_tested, times_correct, last_practiced, last_tested, comfort_level, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
               progress.verse_id,
               progress.times_practiced,
@@ -207,6 +210,7 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
               progress.last_practiced,
               progress.last_tested,
               progress.comfort_level,
+              progress.last_tested ?? progress.last_practiced ?? importedAt,
             ]
           );
         }
@@ -214,8 +218,8 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
         // Insert only VALID test results
         for (const result of validTestResults) {
           await db.runAsync(
-            'INSERT INTO test_results (id, verse_id, timestamp, passed, score) VALUES (?, ?, ?, ?, ?)',
-            [result.id, result.verse_id, result.timestamp, result.passed ? 1 : 0, result.score ?? null]
+            'INSERT INTO test_results (id, verse_id, timestamp, passed, score, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [result.id, result.verse_id, result.timestamp, result.passed ? 1 : 0, result.score ?? null, result.timestamp]
           );
         }
       });

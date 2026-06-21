@@ -59,7 +59,14 @@ export async function initDatabase(): Promise<void> {
   // Reference: https://www.sqlite.org/pragma.html#pragma_foreign_keys
   await db.execAsync('PRAGMA foreign_keys = ON;');
 
-  // Create tables (one statement per execAsync for sql.js compatibility)
+  // Create tables (one statement per execAsync for sql.js compatibility).
+  //
+  // Sync columns (user_id / updated_at / deleted_at) are part of the fresh-install
+  // schema here AND are added to pre-existing databases by runMigrations() below.
+  // See ccc.30 (cross-device sync plan):
+  //   - user_id    : owning Supabase auth user (NULL until sign-in, Phase 3)
+  //   - updated_at : last-write-wins change marker (drives sync push/merge)
+  //   - deleted_at : soft-delete tombstone so deletions propagate across devices
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS verses (
       id TEXT PRIMARY KEY,
@@ -67,7 +74,10 @@ export async function initDatabase(): Promise<void> {
       text TEXT NOT NULL,
       translation TEXT NOT NULL DEFAULT 'NIV',
       created_at TEXT NOT NULL,
-      archived INTEGER NOT NULL DEFAULT 0
+      archived INTEGER NOT NULL DEFAULT 0,
+      user_id TEXT,
+      updated_at TEXT,
+      deleted_at TEXT
     );
   `);
 
@@ -80,6 +90,9 @@ export async function initDatabase(): Promise<void> {
       last_practiced TEXT,
       last_tested TEXT,
       comfort_level INTEGER NOT NULL DEFAULT 1,
+      user_id TEXT,
+      updated_at TEXT,
+      deleted_at TEXT,
       FOREIGN KEY (verse_id) REFERENCES verses(id) ON DELETE CASCADE
     );
   `);
@@ -91,6 +104,9 @@ export async function initDatabase(): Promise<void> {
       timestamp TEXT NOT NULL,
       passed INTEGER NOT NULL,
       score REAL,
+      user_id TEXT,
+      updated_at TEXT,
+      deleted_at TEXT,
       FOREIGN KEY (verse_id) REFERENCES verses(id) ON DELETE CASCADE
     );
   `);
@@ -102,6 +118,74 @@ export async function initDatabase(): Promise<void> {
   await db.execAsync(
     'CREATE INDEX IF NOT EXISTS idx_test_results_timestamp ON test_results(timestamp);'
   );
+
+  // Bring pre-existing databases up to the current schema (additive, idempotent).
+  await runMigrations(db);
+}
+
+/**
+ * Return true if `column` exists on `table`.
+ * Uses PRAGMA table_info, which works on both expo-sqlite and the sql.js web adapter.
+ */
+async function columnExists(
+  db: AppDatabase,
+  table: string,
+  column: string
+): Promise<boolean> {
+  // Table name is a controlled constant (never user input), so interpolation is safe.
+  const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  return cols.some((c) => c.name === column);
+}
+
+/**
+ * Add a column to a table only if it is missing. SQLite has no
+ * "ADD COLUMN IF NOT EXISTS", so we check PRAGMA table_info first.
+ */
+async function addColumnIfMissing(
+  db: AppDatabase,
+  table: string,
+  column: string,
+  declaration: string
+): Promise<void> {
+  if (!(await columnExists(db, table, column))) {
+    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration};`);
+  }
+}
+
+/**
+ * Idempotent schema migrations.
+ *
+ * Phase 1 of the cross-device sync work (ccc.30): add the sync metadata columns
+ * to databases created before this schema existed, backfill `updated_at` for
+ * existing rows, and create the sync_state checkpoint table. Safe to run on
+ * every startup — each step is a no-op once applied.
+ */
+async function runMigrations(db: AppDatabase): Promise<void> {
+  // 1. Add sync metadata columns to the three synced tables (no-op on fresh DBs).
+  for (const table of ['verses', 'progress', 'test_results']) {
+    await addColumnIfMissing(db, table, 'user_id', 'TEXT');
+    await addColumnIfMissing(db, table, 'updated_at', 'TEXT');
+    await addColumnIfMissing(db, table, 'deleted_at', 'TEXT');
+  }
+
+  // 2. Backfill updated_at for rows that predate change-tracking, so sync has a
+  //    baseline timestamp. Uses each row's own most relevant existing timestamp.
+  const now = new Date().toISOString();
+  await db.runAsync('UPDATE verses SET updated_at = created_at WHERE updated_at IS NULL');
+  await db.runAsync('UPDATE test_results SET updated_at = timestamp WHERE updated_at IS NULL');
+  await db.runAsync(
+    'UPDATE progress SET updated_at = COALESCE(last_tested, last_practiced, ?) WHERE updated_at IS NULL',
+    [now]
+  );
+
+  // 3. Key/value table holding per-device sync checkpoints (e.g. last_pulled_at).
+  //    Created now; populated by the sync engine in a later phase.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS sync_state (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
 }
 
 /**
