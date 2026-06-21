@@ -1,3 +1,28 @@
+# How to configure Windows port proxy and firewall settings to make WSL2 server visible on local WiFi LAN
+
+## Add port proxy for the VSCode-mapped windows port 8081:
+
+This adds a forwarding port to the local WSL2 machine. The WSL2 IP Address can be queried with ifconfig in the WSL2 session.
+```powershell
+netsh interface portproxy add v4tov4 listenport=5174 listenaddress=0.0.0.0 connectport=8081 connectaddress=172.26.115.68
+netsh interface portproxy show all
+```
+
+## Display existing firewall rule if already created using commands farther below
+
+To display a rule with specific displayname and find the port and address settings, use all 3 of these commands:
+```powershell
+Get-netfirewallrule -DisplayName "WSL2 Vite Dev Server"
+Get-netfirewallrule -DisplayName "WSL2 Vite Dev Server" | Get-NetFirewallPortFilter
+Get-netfirewallrule -DisplayName "WSL2 Vite Dev Server" | Get-NetFirewallAddressFilter
+```
+
+## To add firewall rule if it does not exist
+
+```powershell
+New-NetFirewallRule -DisplayName "WSL2 Vite Dev Server" -Direction Inbound -LocalPort 5174 -Protocol TCP -Action Allow
+```
+
 > the web server is running on a wsl2 VM under Windows 11.  The port seems to be only available
  from the Windows 11 system or the wsl2 VM, but not from the network that the Windows 11 
 computer is attached to.  I assume I need to somehow open a port on 0.0.0.0:5173 on windows 
@@ -50,3 +75,5 @@ what do you recommend?
   AND 
   
   Remove-NetFirewallRule -DisplayName "WSL2 Vite Dev Server"
+
+
