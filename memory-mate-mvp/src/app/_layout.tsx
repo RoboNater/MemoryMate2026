@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { View, Text, ActivityIndicator } from 'react-native';
-import { useVerseStore } from '@/store';
+import { useVerseStore, useAuthStore } from '@/store';
 import '../../global.css';
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
   const { initialize, isLoading, error } = useVerseStore();
+  const initializeAuth = useAuthStore((s) => s.initializeAuth);
 
   useEffect(() => {
     async function init() {
       try {
-        await initialize();
+        // Local DB is required; auth is optional (offline-first) so it must never
+        // block startup — load any persisted session alongside, ignoring failures.
+        await Promise.all([initialize(), initializeAuth().catch(() => {})]);
         setIsReady(true);
       } catch (e) {
         console.error('Failed to initialize app:', e);
@@ -78,6 +81,13 @@ export default function RootLayout() {
         name="test/[id]"
         options={{
           title: 'Test Verse',
+        }}
+      />
+      <Stack.Screen
+        name="login"
+        options={{
+          title: 'Cloud Sync',
+          presentation: 'modal',
         }}
       />
     </Stack>

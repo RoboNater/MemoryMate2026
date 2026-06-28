@@ -19,7 +19,9 @@ interface TestResultRow {
  */
 function rowToTestResult(row: TestResultRow): TestResult {
   return {
-    ...row,
+    id: row.id,
+    verse_id: row.verse_id,
+    timestamp: row.timestamp,
     passed: row.passed === 1,
     score: row.score ?? undefined,
   };
@@ -39,21 +41,23 @@ export async function recordTestResult(
 
   // Start transaction
   await db.withTransactionAsync(async () => {
-    // Insert test result
+    // Insert test result (append-only log; timestamp doubles as its change marker)
     await db.runAsync(
-      'INSERT INTO test_results (id, verse_id, timestamp, passed, score) VALUES (?, ?, ?, ?, ?)',
-      [id, verseId, timestamp, passed ? 1 : 0, score ?? null]
+      'INSERT INTO test_results (id, verse_id, timestamp, passed, score, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, verseId, timestamp, passed ? 1 : 0, score ?? null, timestamp]
     );
 
-    // Update progress
+    // Update progress (deleted_at cleared on conflict to revive a tombstoned row)
     await db.runAsync(
-      `INSERT INTO progress (verse_id, times_tested, times_correct, last_tested)
-       VALUES (?, 1, ?, ?)
+      `INSERT INTO progress (verse_id, times_tested, times_correct, last_tested, updated_at)
+       VALUES (?, 1, ?, ?, ?)
        ON CONFLICT(verse_id) DO UPDATE SET
          times_tested = times_tested + 1,
          times_correct = times_correct + ?,
-         last_tested = ?`,
-      [verseId, passed ? 1 : 0, timestamp, passed ? 1 : 0, timestamp]
+         last_tested = ?,
+         updated_at = ?,
+         deleted_at = NULL`,
+      [verseId, passed ? 1 : 0, timestamp, timestamp, passed ? 1 : 0, timestamp, timestamp]
     );
   });
 
@@ -70,7 +74,7 @@ export async function getTestHistory(
   const db = getDatabase();
   const rows = await db.getAllAsync<TestResultRow>(
     `SELECT * FROM test_results
-     WHERE verse_id = ?
+     WHERE verse_id = ? AND deleted_at IS NULL
      ORDER BY timestamp DESC
      LIMIT ?`,
     [verseId, limit]
@@ -84,7 +88,7 @@ export async function getTestHistory(
 export async function getAllTestResults(limit: number = 1000): Promise<TestResult[]> {
   const db = getDatabase();
   const rows = await db.getAllAsync<TestResultRow>(
-    'SELECT * FROM test_results ORDER BY timestamp DESC LIMIT ?',
+    'SELECT * FROM test_results WHERE deleted_at IS NULL ORDER BY timestamp DESC LIMIT ?',
     [limit]
   );
   return rows.map(rowToTestResult);

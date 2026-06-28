@@ -15,11 +15,17 @@ interface VerseRow {
 }
 
 /**
- * Convert SQLite row to Verse type
+ * Convert SQLite row to Verse type.
+ * Maps fields explicitly so internal sync columns (user_id/updated_at/deleted_at)
+ * never leak into the public Verse domain object.
  */
 function rowToVerse(row: VerseRow): Verse {
   return {
-    ...row,
+    id: row.id,
+    reference: row.reference,
+    text: row.text,
+    translation: row.translation,
+    created_at: row.created_at,
     archived: row.archived === 1,
   };
 }
@@ -36,9 +42,10 @@ export async function addVerse(
   const id = generateUUID();
   const created_at = new Date().toISOString();
 
+  // New rows start their change-tracking clock at creation time.
   await db.runAsync(
-    'INSERT INTO verses (id, reference, text, translation, created_at, archived) VALUES (?, ?, ?, ?, ?, ?)',
-    [id, reference, text, translation, created_at, 0]
+    'INSERT INTO verses (id, reference, text, translation, created_at, archived, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [id, reference, text, translation, created_at, 0, created_at]
   );
 
   return { id, reference, text, translation, created_at, archived: false };
@@ -50,7 +57,7 @@ export async function addVerse(
 export async function getVerse(id: string): Promise<Verse | null> {
   const db = getDatabase();
   const row = await db.getFirstAsync<VerseRow>(
-    'SELECT * FROM verses WHERE id = ?',
+    'SELECT * FROM verses WHERE id = ? AND deleted_at IS NULL',
     [id]
   );
   return row ? rowToVerse(row) : null;
@@ -62,8 +69,8 @@ export async function getVerse(id: string): Promise<Verse | null> {
 export async function getAllVerses(includeArchived = false): Promise<Verse[]> {
   const db = getDatabase();
   const query = includeArchived
-    ? 'SELECT * FROM verses ORDER BY created_at DESC'
-    : 'SELECT * FROM verses WHERE archived = 0 ORDER BY created_at DESC';
+    ? 'SELECT * FROM verses WHERE deleted_at IS NULL ORDER BY created_at DESC'
+    : 'SELECT * FROM verses WHERE archived = 0 AND deleted_at IS NULL ORDER BY created_at DESC';
   const rows = await db.getAllAsync<VerseRow>(query);
   return rows.map(rowToVerse);
 }
@@ -102,6 +109,10 @@ export async function updateVerse(
     return getVerse(id);
   }
 
+  // Bump the change-tracking marker on every real update.
+  fields.push('updated_at = ?');
+  values.push(new Date().toISOString());
+
   values.push(id);
   const query = `UPDATE verses SET ${fields.join(', ')} WHERE id = ?`;
 
@@ -110,29 +121,42 @@ export async function updateVerse(
 }
 
 /**
- * Delete a verse and all related data (progress and test results)
- * Uses explicit deletion with transaction for reliability across all platforms
+ * Delete a verse and all related data (progress and test results).
+ *
+ * This is a SOFT delete: rows are tombstoned via deleted_at rather than removed,
+ * so the deletion can propagate to other devices on the next sync (ccc.30).
+ * All reads filter on `deleted_at IS NULL`, so tombstoned rows are invisible to
+ * the app. Wrapped in a transaction for all-or-nothing behavior across platforms.
  */
 export async function removeVerse(id: string): Promise<boolean> {
   const db = getDatabase();
+  const now = new Date().toISOString();
 
-  // Use transaction to ensure all-or-nothing deletion
-  // Delete in dependency order: test_results -> progress -> verse
   await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM test_results WHERE verse_id = ?', [id]);
-    await db.runAsync('DELETE FROM progress WHERE verse_id = ?', [id]);
-    await db.runAsync('DELETE FROM verses WHERE id = ?', [id]);
+    await db.runAsync(
+      'UPDATE test_results SET deleted_at = ?, updated_at = ? WHERE verse_id = ? AND deleted_at IS NULL',
+      [now, now, id]
+    );
+    await db.runAsync(
+      'UPDATE progress SET deleted_at = ?, updated_at = ? WHERE verse_id = ? AND deleted_at IS NULL',
+      [now, now, id]
+    );
+    await db.runAsync(
+      'UPDATE verses SET deleted_at = ?, updated_at = ? WHERE id = ?',
+      [now, now, id]
+    );
   });
 
   return true;
 }
 
 /**
- * Archive a verse (soft delete)
+ * Archive a verse (user-facing hide; distinct from the deleted_at sync tombstone)
  */
 export async function archiveVerse(id: string): Promise<boolean> {
   const db = getDatabase();
-  await db.runAsync('UPDATE verses SET archived = 1 WHERE id = ?', [id]);
+  const now = new Date().toISOString();
+  await db.runAsync('UPDATE verses SET archived = 1, updated_at = ? WHERE id = ?', [now, id]);
   return true;
 }
 
@@ -141,6 +165,7 @@ export async function archiveVerse(id: string): Promise<boolean> {
  */
 export async function unarchiveVerse(id: string): Promise<boolean> {
   const db = getDatabase();
-  await db.runAsync('UPDATE verses SET archived = 0 WHERE id = ?', [id]);
+  const now = new Date().toISOString();
+  await db.runAsync('UPDATE verses SET archived = 0, updated_at = ? WHERE id = ?', [now, id]);
   return true;
 }
