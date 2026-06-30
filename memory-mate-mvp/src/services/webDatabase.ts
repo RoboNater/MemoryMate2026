@@ -52,7 +52,7 @@ export async function openWebDatabase(
   sqlDb.run('PRAGMA foreign_keys = ON;');
 
   // Debounce timer for save operations (prevent hammering IndexedDB)
-  let saveTimeout: NodeJS.Timeout | null = null;
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Schedule a debounced save to IndexedDB.
