@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useState } from 'react';
 import { router } from 'expo-router';
+import { ConfirmDialog } from '@/components';
 import { useVerseStore, useAuthStore, useSyncStore } from '@/store';
 import { isSupabaseConfigured } from '@/services/supabaseClient';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -10,6 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 export default function SettingsScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const exportData = useVerseStore((state) => state.exportData);
   const importData = useVerseStore((state) => state.importData);
   const stats = useVerseStore((state) => state.stats);
@@ -23,11 +25,16 @@ export default function SettingsScreen() {
   const syncError = useSyncStore((state) => state.syncError);
   const syncNow = useSyncStore((state) => state.syncNow);
 
+  // Use the in-app ConfirmDialog rather than Alert.alert: on React Native Web
+  // the multi-button Alert renders but never invokes button onPress handlers,
+  // so the sign-out action silently did nothing in the browser.
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Sign out of cloud sync on this device?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => signOut() },
-    ]);
+    setShowSignOutDialog(true);
+  };
+
+  const confirmSignOut = () => {
+    setShowSignOutDialog(false);
+    signOut();
   };
 
   /**
@@ -170,6 +177,17 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView className="flex-1 bg-gray-50">
+      <ConfirmDialog
+        visible={showSignOutDialog}
+        title="Sign Out"
+        message="Sign out of cloud sync on this device?"
+        confirmText="Sign Out"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        onConfirm={confirmSignOut}
+        onCancel={() => setShowSignOutDialog(false)}
+      />
+
       {/* Header */}
       <View className="bg-gray-700 p-6 pb-8">
         <Text className="text-3xl font-bold text-white mb-2">Settings</Text>

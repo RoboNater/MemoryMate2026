@@ -10,16 +10,11 @@ export default function AddVerseScreen() {
   const handleSave = async (verse: { reference: string; text: string; translation: string }) => {
     try {
       await addVerse(verse.reference, verse.text, verse.translation);
-      Alert.alert(
-        'Verse Added',
-        `${verse.reference} added successfully`,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      // Navigate back immediately. We used to show a success Alert and navigate
+      // from its OK onPress, but that handler never fires on React Native Web,
+      // leaving the user stuck on the form. Returning to the list is the
+      // confirmation.
+      router.back();
     } catch (error) {
       Alert.alert(
         'Error',

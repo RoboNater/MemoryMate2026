@@ -24,16 +24,9 @@ export default function EditVerseScreen() {
   const handleSave = async (updatedVerse: { reference: string; text: string; translation: string }) => {
     try {
       await updateVerse(verse.id, updatedVerse);
-      Alert.alert(
-        'Verse Updated',
-        `${updatedVerse.reference} updated successfully`,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      // Navigate back immediately; the success Alert's OK onPress never fired on
+      // React Native Web, so the user was stranded on the edit form in a browser.
+      router.back();
     } catch (error) {
       Alert.alert('Error', 'Failed to update verse. Please try again.', [
         {

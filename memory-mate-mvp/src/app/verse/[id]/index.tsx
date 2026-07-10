@@ -96,12 +96,10 @@ export default function VerseDetailScreen() {
 
     try {
       await removeVerse(verse.id);
-      Alert.alert('Success', 'Verse deleted successfully', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      // Navigate back immediately. The prior success Alert navigated from its OK
+      // onPress, which never fires on React Native Web, leaving the user on the
+      // detail page of a now-deleted verse.
+      router.back();
     } catch (error) {
       Alert.alert('Error', 'Failed to delete verse', [{ text: 'OK' }]);
     }
