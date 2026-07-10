@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ComfortLevelPicker, ErrorDisplay } from '@/components';
+import { ComfortLevelPicker, ConfirmDialog, ErrorDisplay } from '@/components';
 import { useVerseStore } from '@/store';
 
 export default function PracticeSessionScreen() {
@@ -25,6 +25,7 @@ export default function PracticeSessionScreen() {
     verseProgress?.comfort_level || 1
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
 
   // Validation: Check for valid session
   if (!ids || verseIds.length === 0) {
@@ -91,23 +92,31 @@ export default function PracticeSessionScreen() {
     }
   };
 
+  // ConfirmDialog rather than a multi-button Alert.alert, whose button
+  // onPress handlers never fire on React Native Web (the exit was a no-op
+  // in the browser).
   const handleExitSession = () => {
-    Alert.alert(
-      'Exit Practice Session?',
-      'Your progress has been saved for verses you completed.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Exit',
-          style: 'destructive',
-          onPress: () => router.push('/(tabs)/practice')
-        }
-      ]
-    );
+    setShowExitDialog(true);
+  };
+
+  const confirmExitSession = () => {
+    setShowExitDialog(false);
+    router.push('/(tabs)/practice');
   };
 
   return (
     <ScrollView className="flex-1 bg-white">
+      <ConfirmDialog
+        visible={showExitDialog}
+        title="Exit Practice Session?"
+        message="Your progress has been saved for verses you completed."
+        confirmText="Exit"
+        cancelText="Cancel"
+        confirmVariant="danger"
+        onConfirm={confirmExitSession}
+        onCancel={() => setShowExitDialog(false)}
+      />
+
       {/* Session Progress Indicator */}
       <View className="bg-white p-4 border-b border-gray-200">
         <View className="flex-row items-center justify-between mb-2">

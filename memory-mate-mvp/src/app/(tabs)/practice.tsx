@@ -1,13 +1,19 @@
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { LoadingSpinner } from '@/components';
 import { useVerseStore } from '@/store';
+
+// How many verses to show in the "choose a specific verse" list before
+// collapsing behind a "show more" toggle.
+const INITIAL_VISIBLE_VERSES = 15;
 
 export default function PracticeScreen() {
   const router = useRouter();
   const { isLoading, getActiveVerses, getVersesNeedingPractice, progress } = useVerseStore();
   const activeVerses = getActiveVerses();
   const versesNeedingWork = getVersesNeedingPractice();
+  const [showAllVerses, setShowAllVerses] = useState(false);
 
   if (isLoading) {
     return <LoadingSpinner message="Loading verses..." />;
@@ -101,7 +107,10 @@ export default function PracticeScreen() {
                 Or choose a specific verse
               </Text>
               <View className="gap-2">
-                {activeVerses.slice(0, 5).map((verse) => {
+                {(showAllVerses
+                  ? activeVerses
+                  : activeVerses.slice(0, INITIAL_VISIBLE_VERSES)
+                ).map((verse) => {
                   const prog = progress[verse.id];
                   const comfortLevel = prog?.comfort_level || 1;
                   const comfortColors = {
@@ -141,10 +150,17 @@ export default function PracticeScreen() {
                     </TouchableOpacity>
                   );
                 })}
-                {activeVerses.length > 5 && (
-                  <Text className="text-xs text-gray-500 text-center mt-2">
-                    + {activeVerses.length - 5} more verses
-                  </Text>
+                {activeVerses.length > INITIAL_VISIBLE_VERSES && (
+                  <TouchableOpacity
+                    onPress={() => setShowAllVerses((v) => !v)}
+                    className="mt-2 py-2"
+                  >
+                    <Text className="text-sm text-green-600 text-center font-semibold">
+                      {showAllVerses
+                        ? 'Show less'
+                        : `+ ${activeVerses.length - INITIAL_VISIBLE_VERSES} more verses`}
+                    </Text>
+                  </TouchableOpacity>
                 )}
               </View>
             </View>
