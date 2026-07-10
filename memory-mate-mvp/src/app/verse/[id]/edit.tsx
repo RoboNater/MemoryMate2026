@@ -24,9 +24,16 @@ export default function EditVerseScreen() {
   const handleSave = async (updatedVerse: { reference: string; text: string; translation: string }) => {
     try {
       await updateVerse(verse.id, updatedVerse);
-      // Navigate back immediately; the success Alert's OK onPress never fired on
-      // React Native Web, so the user was stranded on the edit form in a browser.
-      router.back();
+      // Return to the verse. The old success Alert's OK onPress never fired on
+      // React Native Web, stranding the user on the edit form. router.back()
+      // fixes that, but on web there's frequently no back-stack entry to pop
+      // (it warns and lands on the root), so fall back to the verse detail so an
+      // edit always returns to the verse the user was viewing.
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace(`/verse/${verse.id}`);
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to update verse. Please try again.', [
         {

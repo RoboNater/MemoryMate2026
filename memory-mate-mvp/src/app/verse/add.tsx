@@ -10,11 +10,16 @@ export default function AddVerseScreen() {
   const handleSave = async (verse: { reference: string; text: string; translation: string }) => {
     try {
       await addVerse(verse.reference, verse.text, verse.translation);
-      // Navigate back immediately. We used to show a success Alert and navigate
-      // from its OK onPress, but that handler never fires on React Native Web,
-      // leaving the user stuck on the form. Returning to the list is the
-      // confirmation.
-      router.back();
+      // Leave the form once the verse is saved; returning to the list is the
+      // confirmation. (We used to navigate from a success Alert's OK onPress,
+      // which never fires on React Native Web, leaving the user stuck here.)
+      // On web there's often no back-stack entry to pop, so router.back() warns
+      // and dumps the user at the root — fall back to an explicit destination.
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)/verses');
+      }
     } catch (error) {
       Alert.alert(
         'Error',
