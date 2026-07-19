@@ -67,6 +67,20 @@ export async function initDatabase(): Promise<void> {
   //   - user_id    : owning Supabase auth user (NULL until sign-in, Phase 3)
   //   - updated_at : last-write-wins change marker (drives sync push/merge)
   //   - deleted_at : soft-delete tombstone so deletions propagate across devices
+  // Shelves are named verse groups (issue #5). No FK from verses.shelf_id:
+  // pre-shelf databases gain the column via ALTER TABLE (which can't add FKs
+  // in SQLite), so integrity is service-managed on both fresh and migrated DBs.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS shelves (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      user_id TEXT,
+      updated_at TEXT,
+      deleted_at TEXT
+    );
+  `);
+
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS verses (
       id TEXT PRIMARY KEY,
@@ -75,6 +89,7 @@ export async function initDatabase(): Promise<void> {
       translation TEXT NOT NULL DEFAULT 'NIV',
       created_at TEXT NOT NULL,
       archived INTEGER NOT NULL DEFAULT 0,
+      shelf_id TEXT,
       user_id TEXT,
       updated_at TEXT,
       deleted_at TEXT
@@ -186,6 +201,12 @@ async function runMigrations(db: AppDatabase): Promise<void> {
       value TEXT
     );
   `);
+
+  // 4. Shelves (issue #5): give pre-shelf databases the verses.shelf_id column.
+  //    NULL means unshelved, which is also the backfill default for existing
+  //    verses, so no data rewrite is needed. The shelves table itself is created
+  //    by the IF NOT EXISTS DDL in initDatabase.
+  await addColumnIfMissing(db, 'verses', 'shelf_id', 'TEXT');
 }
 
 /**

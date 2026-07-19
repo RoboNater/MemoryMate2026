@@ -5,11 +5,16 @@ import { useVerseStore } from '@/store';
 
 export default function AddVerseScreen() {
   const router = useRouter();
-  const { addVerse } = useVerseStore();
+  const { addVerse, shelves } = useVerseStore();
 
-  const handleSave = async (verse: { reference: string; text: string; translation: string }) => {
+  const handleSave = async (verse: {
+    reference: string;
+    text: string;
+    translation: string;
+    shelf_id: string | null;
+  }) => {
     try {
-      await addVerse(verse.reference, verse.text, verse.translation);
+      await addVerse(verse.reference, verse.text, verse.translation, verse.shelf_id);
       // Leave the form once the verse is saved; returning to the list is the
       // confirmation. (We used to navigate from a success Alert's OK onPress,
       // which never fires on React Native Web, leaving the user stuck here.)
@@ -40,6 +45,7 @@ export default function AddVerseScreen() {
   return (
     <VerseForm
       mode="add"
+      shelves={shelves}
       onSave={handleSave}
       onCancel={handleCancel}
     />

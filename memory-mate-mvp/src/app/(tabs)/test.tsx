@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { LoadingSpinner } from '@/components';
+import { LoadingSpinner, ShelfPicker } from '@/components';
 import { useVerseStore } from '@/store';
 
 // How many verses to show in the "choose a specific verse" list before
@@ -10,8 +10,16 @@ const INITIAL_VISIBLE_VERSES = 15;
 
 export default function TestScreen() {
   const router = useRouter();
-  const { isLoading, getActiveVerses, getVersesReadyForTest, progress } = useVerseStore();
-  const activeVerses = getActiveVerses();
+  const {
+    isLoading,
+    getActiveSetVerses,
+    getActiveShelf,
+    getVersesReadyForTest,
+    progress,
+  } = useVerseStore();
+  // The active set: all non-archived verses, or just the active shelf (issue #5).
+  const activeVerses = getActiveSetVerses();
+  const activeShelf = getActiveShelf();
   const versesReady = getVersesReadyForTest();
   const [showAllVerses, setShowAllVerses] = useState(false);
 
@@ -34,18 +42,27 @@ export default function TestScreen() {
         <Text className="text-purple-100">Evaluate your memorization progress</Text>
       </View>
 
-      <View className="p-6 -mt-6">
+      <View className="p-6 -mt-6 gap-4">
+        {/* Active set picker (issue #5) */}
+        <ShelfPicker accent="purple" />
+
         {activeVerses.length === 0 ? (
           <View className="bg-white rounded-lg p-8 items-center border border-gray-200">
-            <Text className="text-xl font-bold text-gray-900 mb-2">No Verses Yet</Text>
+            <Text className="text-xl font-bold text-gray-900 mb-2">
+              {activeShelf ? 'Empty Shelf' : 'No Verses Yet'}
+            </Text>
             <Text className="text-gray-600 text-center mb-6">
-              Add some verses to your collection to start testing
+              {activeShelf
+                ? `No verses on "${activeShelf.name}" yet. Assign verses to this shelf from the verse form, or pick a different set above.`
+                : 'Add some verses to your collection to start testing'}
             </Text>
             <TouchableOpacity
               onPress={() => router.push('/verse/add')}
               className="bg-blue-500 px-6 py-3 rounded-lg"
             >
-              <Text className="text-white font-semibold">Add Your First Verse</Text>
+              <Text className="text-white font-semibold">
+                {activeShelf ? 'Add a Verse' : 'Add Your First Verse'}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -56,7 +73,9 @@ export default function TestScreen() {
               className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm"
             >
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-xl font-bold text-gray-900">Test All</Text>
+                <Text className="text-xl font-bold text-gray-900">
+                  {activeShelf ? `Test "${activeShelf.name}"` : 'Test All'}
+                </Text>
                 <View className="bg-purple-100 px-3 py-1 rounded-full">
                   <Text className="text-purple-700 font-semibold">
                     {activeVerses.length} verses
@@ -64,7 +83,9 @@ export default function TestScreen() {
                 </View>
               </View>
               <Text className="text-gray-600 mb-4">
-                Test all active verses in your collection
+                {activeShelf
+                  ? `Test the verses on the "${activeShelf.name}" shelf`
+                  : 'Test all active verses in your collection'}
               </Text>
               <View className="bg-purple-500 py-3 rounded-lg items-center">
                 <Text className="text-white font-semibold">Start Test</Text>

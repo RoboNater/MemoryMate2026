@@ -1,18 +1,25 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import { Verse, TRANSLATIONS } from '../types';
+import { Verse, Shelf, TRANSLATIONS } from '../types';
 
 interface VerseFormProps {
   initialVerse?: Partial<Verse>;
-  onSave: (verse: { reference: string; text: string; translation: string }) => void;
+  shelves?: Shelf[];
+  onSave: (verse: {
+    reference: string;
+    text: string;
+    translation: string;
+    shelf_id: string | null;
+  }) => void;
   onCancel: () => void;
   mode: 'add' | 'edit';
 }
 
-export function VerseForm({ initialVerse, onSave, onCancel, mode }: VerseFormProps) {
+export function VerseForm({ initialVerse, shelves = [], onSave, onCancel, mode }: VerseFormProps) {
   const [reference, setReference] = useState(initialVerse?.reference || '');
   const [text, setText] = useState(initialVerse?.text || '');
   const [translation, setTranslation] = useState(initialVerse?.translation || 'NIV');
+  const [shelfId, setShelfId] = useState<string | null>(initialVerse?.shelf_id ?? null);
   const [errors, setErrors] = useState<{ reference?: string; text?: string }>({});
 
   const validate = () => {
@@ -36,6 +43,7 @@ export function VerseForm({ initialVerse, onSave, onCancel, mode }: VerseFormPro
         reference: reference.trim(),
         text: text.trim(),
         translation,
+        shelf_id: shelfId,
       });
     }
   };
@@ -92,6 +100,50 @@ export function VerseForm({ initialVerse, onSave, onCancel, mode }: VerseFormPro
             ))}
           </View>
         </View>
+
+        {/* Shelf Picker (only when the user has created shelves) */}
+        {shelves.length > 0 && (
+          <View className="mb-4">
+            <Text className="text-sm font-medium text-gray-700 mb-2">Shelf</Text>
+            <View className="flex-row flex-wrap gap-2">
+              <TouchableOpacity
+                onPress={() => setShelfId(null)}
+                className={`px-4 py-2 rounded-full border ${
+                  shelfId === null
+                    ? 'bg-blue-500 border-blue-500'
+                    : 'bg-white border-gray-300'
+                }`}
+              >
+                <Text
+                  className={`text-sm font-medium ${
+                    shelfId === null ? 'text-white' : 'text-gray-700'
+                  }`}
+                >
+                  None
+                </Text>
+              </TouchableOpacity>
+              {shelves.map((shelf) => (
+                <TouchableOpacity
+                  key={shelf.id}
+                  onPress={() => setShelfId(shelf.id)}
+                  className={`px-4 py-2 rounded-full border ${
+                    shelfId === shelf.id
+                      ? 'bg-blue-500 border-blue-500'
+                      : 'bg-white border-gray-300'
+                  }`}
+                >
+                  <Text
+                    className={`text-sm font-medium ${
+                      shelfId === shelf.id ? 'text-white' : 'text-gray-700'
+                    }`}
+                  >
+                    {shelf.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Verse Text Input */}
         <View className="mb-6">

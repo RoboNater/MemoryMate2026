@@ -25,6 +25,20 @@
 -- Tables
 -- =========================================================================
 
+-- Shelves: named verse groups (issue #5). A verse points at most one shelf via
+-- verses.shelf_id. No FK on shelf_id (here or locally): shelf deletion is a
+-- soft delete and the client clears member assignments itself, so the column
+-- stays a plain text reference and the idempotent migration below can add it
+-- to pre-shelf deployments with a simple ADD COLUMN IF NOT EXISTS.
+create table if not exists public.shelves (
+  id          text primary key,
+  name        text not null,
+  created_at  text not null,
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  updated_at  text,
+  deleted_at  text
+);
+
 create table if not exists public.verses (
   id          text primary key,
   reference   text not null,
@@ -32,10 +46,14 @@ create table if not exists public.verses (
   translation text not null default 'NIV',
   created_at  text not null,
   archived    boolean not null default false,
+  shelf_id    text,
   user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
   updated_at  text,
   deleted_at  text
 );
+
+-- Migration for deployments that created public.verses before shelves existed.
+alter table public.verses add column if not exists shelf_id text;
 
 create table if not exists public.progress (
   verse_id        text primary key
@@ -69,6 +87,7 @@ create table if not exists public.test_results (
 -- Indexes (support sync pull by `updated_at` and verse lookups)
 -- =========================================================================
 
+create index if not exists idx_shelves_user_updated      on public.shelves(user_id, updated_at);
 create index if not exists idx_verses_user_updated       on public.verses(user_id, updated_at);
 create index if not exists idx_progress_user_updated      on public.progress(user_id, updated_at);
 create index if not exists idx_test_results_user_updated  on public.test_results(user_id, updated_at);
@@ -80,6 +99,7 @@ create index if not exists idx_test_results_verse         on public.test_results
 -- =========================================================================
 
 grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.shelves      to authenticated;
 grant select, insert, update, delete on public.verses       to authenticated;
 grant select, insert, update, delete on public.progress     to authenticated;
 grant select, insert, update, delete on public.test_results to authenticated;
@@ -89,9 +109,16 @@ grant select, insert, update, delete on public.test_results to authenticated;
 -- (The project's auto-RLS trigger likely enabled these already; explicit anyway.)
 -- =========================================================================
 
+alter table public.shelves      enable row level security;
 alter table public.verses       enable row level security;
 alter table public.progress     enable row level security;
 alter table public.test_results enable row level security;
+
+drop policy if exists "own_shelves" on public.shelves;
+create policy "own_shelves" on public.shelves
+  for all
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "own_verses" on public.verses;
 create policy "own_verses" on public.verses

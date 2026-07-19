@@ -3,11 +3,12 @@
  *
  * Strategy (offline-first, last-write-wins):
  *   - PUSH local rows changed since the last push watermark, in dependency order
- *     (verses -> progress -> test_results), upserting to Supabase.
+ *     (shelves -> verses -> progress -> test_results), upserting to Supabase.
  *   - PULL remote rows changed since the last pull watermark and merge them in:
  *       * test_results : append-only; insert if absent, else take the newer row
  *                        (carries deleted_at tombstones).
- *       * verses       : last-write-wins by updated_at (incl. archived/deleted_at).
+ *       * shelves      : last-write-wins by updated_at (incl. deleted_at).
+ *       * verses       : last-write-wins by updated_at (incl. archived/shelf_id/deleted_at).
  *       * progress     : counters reconciled via max(); comfort, last-practiced,
  *                        last-tested and deleted_at follow the newer updated_at.
  *
@@ -82,7 +83,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 // ---------------------------------------------------------------------------
 
 async function pushTable(
-  table: 'verses' | 'progress' | 'test_results',
+  table: 'shelves' | 'verses' | 'progress' | 'test_results',
   since: string,
   userId: string,
   toPayload: (row: any) => Record<string, unknown>,
@@ -107,6 +108,19 @@ async function pushAll(since: string, userId: string): Promise<number> {
   let n = 0;
   // Dependency order so server-side FKs are always satisfied.
   n += await pushTable(
+    'shelves',
+    since,
+    userId,
+    (r) => ({
+      id: r.id,
+      name: r.name,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      deleted_at: r.deleted_at ?? null,
+    }),
+    'id'
+  );
+  n += await pushTable(
     'verses',
     since,
     userId,
@@ -117,6 +131,7 @@ async function pushAll(since: string, userId: string): Promise<number> {
       translation: r.translation,
       created_at: r.created_at,
       archived: r.archived === 1,
+      shelf_id: r.shelf_id ?? null,
       updated_at: r.updated_at,
       deleted_at: r.deleted_at ?? null,
     }),
@@ -162,7 +177,7 @@ async function pushAll(since: string, userId: string): Promise<number> {
 // ---------------------------------------------------------------------------
 
 async function fetchRemote(
-  table: 'verses' | 'progress' | 'test_results',
+  table: 'shelves' | 'verses' | 'progress' | 'test_results',
   since: string
 ): Promise<any[]> {
   const { data, error } = await supabase
@@ -183,6 +198,30 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
     if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
   };
 
+  // --- shelves (first: verses.shelf_id refers to them; last-write-wins) ---
+  for (const r of await fetchRemote('shelves', since)) {
+    note(r.updated_at);
+    try {
+      const local = await db.getFirstAsync<any>('SELECT * FROM shelves WHERE id = ?', [r.id]);
+      if (!local) {
+        await db.runAsync(
+          `INSERT INTO shelves (id, name, created_at, user_id, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [r.id, r.name, r.created_at, r.user_id ?? null, r.updated_at ?? null, r.deleted_at ?? null]
+        );
+        pulled++;
+      } else if (isNewer(r.updated_at, local.updated_at)) {
+        await db.runAsync(
+          `UPDATE shelves SET name = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ?`,
+          [r.name, r.created_at, r.updated_at ?? null, r.deleted_at ?? null, r.id]
+        );
+        pulled++;
+      }
+    } catch (e) {
+      console.warn('[MemoryMate] sync: skipped shelf', r.id, e);
+    }
+  }
+
   // --- verses (must come first so progress/test_results FKs resolve locally) ---
   for (const r of await fetchRemote('verses', since)) {
     note(r.updated_at);
@@ -191,16 +230,16 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       const archived = r.archived ? 1 : 0;
       if (!local) {
         await db.runAsync(
-          `INSERT INTO verses (id, reference, text, translation, created_at, archived, user_id, updated_at, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [r.id, r.reference, r.text, r.translation, r.created_at, archived, r.user_id ?? null, r.updated_at ?? null, r.deleted_at ?? null]
+          `INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, user_id, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [r.id, r.reference, r.text, r.translation, r.created_at, archived, r.shelf_id ?? null, r.user_id ?? null, r.updated_at ?? null, r.deleted_at ?? null]
         );
         pulled++;
       } else if (isNewer(r.updated_at, local.updated_at)) {
         await db.runAsync(
-          `UPDATE verses SET reference = ?, text = ?, translation = ?, archived = ?,
+          `UPDATE verses SET reference = ?, text = ?, translation = ?, archived = ?, shelf_id = ?,
              created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ?`,
-          [r.reference, r.text, r.translation, archived, r.created_at, r.updated_at ?? null, r.deleted_at ?? null, r.id]
+          [r.reference, r.text, r.translation, archived, r.shelf_id ?? null, r.created_at, r.updated_at ?? null, r.deleted_at ?? null, r.id]
         );
         pulled++;
       }
@@ -294,7 +333,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
  */
 async function adoptUnownedRows(userId: string): Promise<void> {
   const db = getDatabase();
-  for (const table of ['verses', 'progress', 'test_results']) {
+  for (const table of ['shelves', 'verses', 'progress', 'test_results']) {
     await db.runAsync(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`, [userId]);
   }
 }
@@ -308,7 +347,7 @@ async function adoptUnownedRows(userId: string): Promise<void> {
 async function purgeRowsOwnedByOthers(userId: string): Promise<boolean> {
   const db = getDatabase();
   let purged = false;
-  for (const table of ['test_results', 'progress', 'verses']) {
+  for (const table of ['test_results', 'progress', 'verses', 'shelves']) {
     const result = await db.runAsync(
       `DELETE FROM ${table} WHERE user_id IS NOT NULL AND user_id != ?`,
       [userId]
@@ -335,11 +374,13 @@ export async function clearLocalDataOnSignOut(): Promise<boolean> {
   }
   if ((await getMeta('synced_user_id')) === null) return false;
   const db = getDatabase();
-  for (const table of ['test_results', 'progress', 'verses']) {
+  for (const table of ['test_results', 'progress', 'verses', 'shelves']) {
     await db.runAsync(`DELETE FROM ${table}`);
   }
+  // active_shelf_id goes too: the shelf it points at no longer exists locally,
+  // and the next sign-in may be a different account.
   await db.runAsync(
-    `DELETE FROM sync_state WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at')`
+    `DELETE FROM sync_state WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at', 'active_shelf_id')`
   );
   return true;
 }
@@ -389,6 +430,7 @@ export async function sync(): Promise<SyncResult> {
       if (pulled > 0 || purged) {
         const store = useVerseStore.getState();
         await store.refreshVerses();
+        await store.refreshShelves();
         await store.refreshStats();
       }
 
