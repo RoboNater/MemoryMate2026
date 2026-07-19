@@ -4,11 +4,12 @@ import { Verse, VerseProgress, COMFORT_LABELS } from '../types';
 
 interface VerseCardProps {
   verse: Verse;
+  shelfName?: string | null;
   progress?: VerseProgress;
   onPress: (verseId: string) => void;
 }
 
-export function VerseCard({ verse, progress, onPress }: VerseCardProps) {
+export function VerseCard({ verse, shelfName, progress, onPress }: VerseCardProps) {
   const truncateText = (text: string, maxLength: number = 80) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
@@ -47,6 +48,13 @@ export function VerseCard({ verse, progress, onPress }: VerseCardProps) {
               {verse.translation}
             </Text>
           </View>
+          {shelfName && (
+            <View className="bg-amber-100 px-2 py-1 rounded">
+              <Text className="text-xs font-semibold text-amber-800">
+                {shelfName}
+              </Text>
+            </View>
+          )}
           {verse.archived && (
             <View className="bg-gray-200 px-2 py-1 rounded">
               <Text className="text-xs font-semibold text-gray-600">

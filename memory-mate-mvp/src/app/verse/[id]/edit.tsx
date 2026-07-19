@@ -6,7 +6,7 @@ import { useVerseStore } from '@/store';
 export default function EditVerseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { verses, updateVerse } = useVerseStore();
+  const { verses, shelves, updateVerse } = useVerseStore();
 
   const verse = verses.find((v) => v.id === id);
 
@@ -21,7 +21,12 @@ export default function EditVerseScreen() {
     );
   }
 
-  const handleSave = async (updatedVerse: { reference: string; text: string; translation: string }) => {
+  const handleSave = async (updatedVerse: {
+    reference: string;
+    text: string;
+    translation: string;
+    shelf_id: string | null;
+  }) => {
     try {
       await updateVerse(verse.id, updatedVerse);
       // Return to the verse. The old success Alert's OK onPress never fired on
@@ -51,6 +56,7 @@ export default function EditVerseScreen() {
     <VerseForm
       mode="edit"
       initialVerse={verse}
+      shelves={shelves}
       onSave={handleSave}
       onCancel={handleCancel}
     />

@@ -1,6 +1,7 @@
 import { getDatabase } from './database';
-import { Verse, VerseProgress, TestResult } from '@/types';
+import { Verse, VerseProgress, TestResult, Shelf } from '@/types';
 import * as verseService from './verseService';
+import * as shelfService from './shelfService';
 import * as progressService from './progressService';
 import * as testService from './testService';
 
@@ -12,7 +13,12 @@ import * as testService from './testService';
  */
 
 /**
- * Shape of the exported JSON file
+ * Shape of the exported JSON file.
+ *
+ * Version history:
+ *   1 - verses / progress / test_results
+ *   2 - adds shelves and verses[].shelf_id (issue #5). Version-1 files still
+ *       import fine: shelves defaults to [] and shelf_id to null.
  */
 export interface ExportFile {
   version: number;
@@ -20,6 +26,7 @@ export interface ExportFile {
   app: string;
   data: {
     verses: Verse[];
+    shelves?: Shelf[];
     progress: VerseProgress[];
     test_results: TestResult[];
   };
@@ -31,6 +38,7 @@ export interface ExportFile {
 export interface ImportResult {
   success: boolean;
   versesImported: number;
+  shelvesImported?: number;
   progressImported: number;
   testResultsImported: number;
   error?: string;
@@ -52,16 +60,18 @@ export async function exportAllDataAsJSON(): Promise<string> {
   try {
     // Query all data from database
     const verses = await verseService.getAllVerses(true); // Include archived
+    const shelves = await shelfService.getAllShelves();
     const allProgress = await progressService.getAllProgress();
     const allTestResults = await testService.getAllTestResults();
 
     // Build export object
     const exportFile: ExportFile = {
-      version: 1,
+      version: 2,
       exported_at: new Date().toISOString(),
       app: 'MemoryMate',
       data: {
         verses: verses.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+        shelves,
         progress: allProgress,
         test_results: allTestResults.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
       },
@@ -106,9 +116,28 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
     }
 
     const { verses: versesData, progress: progressData, test_results: testResultsData } = exportFile.data;
+    // Absent in version-1 files.
+    const shelvesData = exportFile.data.shelves ?? [];
 
     // Track warnings for skipped records
     const warnings: string[] = [];
+
+    // Filter shelves: collect valid ones, warn about invalid ones
+    const validShelves: Shelf[] = [];
+    const shelfIds = new Set<string>();
+    for (const shelf of shelvesData) {
+      const error = validateShelf(shelf);
+      if (error) {
+        warnings.push(`Skipped shelf ${shelf?.id ?? '(no id)'}: ${error}`);
+        continue;
+      }
+      if (shelfIds.has(shelf.id)) {
+        warnings.push(`Skipped duplicate shelf ID: ${shelf.id}`);
+        continue;
+      }
+      validShelves.push(shelf);
+      shelfIds.add(shelf.id);
+    }
 
     // Validate verses (strict - must have at least one valid verse)
     const verseIds = new Set<string>();
@@ -189,12 +218,29 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
         await db.runAsync('DELETE FROM test_results');
         await db.runAsync('DELETE FROM progress');
         await db.runAsync('DELETE FROM verses');
+        await db.runAsync('DELETE FROM shelves');
+
+        // Insert shelves first so verse shelf assignments always resolve
+        for (const shelf of validShelves) {
+          await db.runAsync(
+            'INSERT INTO shelves (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)',
+            [shelf.id, shelf.name, shelf.created_at, shelf.created_at]
+          );
+        }
 
         // Insert new data
         for (const verse of versesData) {
+          // Drop shelf assignments that point at a shelf not in this file.
+          const shelfId =
+            verse.shelf_id && shelfIds.has(verse.shelf_id) ? verse.shelf_id : null;
+          if (verse.shelf_id && !shelfId) {
+            warnings.push(
+              `Verse ${verse.id}: shelf ${verse.shelf_id} not found in file; imported unshelved`
+            );
+          }
           await db.runAsync(
-            'INSERT INTO verses (id, reference, text, translation, created_at, archived, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [verse.id, verse.reference, verse.text, verse.translation, verse.created_at, verse.archived ? 1 : 0, verse.created_at]
+            'INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [verse.id, verse.reference, verse.text, verse.translation, verse.created_at, verse.archived ? 1 : 0, shelfId, verse.created_at]
           );
         }
 
@@ -232,6 +278,7 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
     return {
       success: true,
       versesImported: versesData.length,
+      shelvesImported: validShelves.length,
       progressImported: validProgress.length,
       testResultsImported: validTestResults.length,
       warnings: warnings.length > 0 ? warnings : undefined,
@@ -258,8 +305,8 @@ function validateExportFormat(data: any): ValidationResult {
     return { valid: false, errors };
   }
 
-  if (data.version !== 1) {
-    errors.push(`Unsupported export version: ${data.version}. Expected version 1.`);
+  if (data.version !== 1 && data.version !== 2) {
+    errors.push(`Unsupported export version: ${data.version}. Expected version 1 or 2.`);
   }
 
   if (data.app !== 'MemoryMate') {
@@ -277,6 +324,11 @@ function validateExportFormat(data: any): ValidationResult {
 
   if (!Array.isArray(data.data.verses)) {
     errors.push('Missing or invalid verses array');
+  }
+
+  // shelves arrived in version 2; when present it must be an array
+  if (data.data.shelves !== undefined && !Array.isArray(data.data.shelves)) {
+    errors.push('Invalid shelves field (must be an array when present)');
   }
 
   if (!Array.isArray(data.data.progress)) {
@@ -327,6 +379,40 @@ function validateVerse(verse: any): string | null {
 
   if (typeof verse.archived !== 'boolean') {
     return 'Missing or invalid archived field (must be boolean)';
+  }
+
+  // shelf_id is optional (absent in version-1 files); when set it must be a UUID
+  if (verse.shelf_id !== undefined && verse.shelf_id !== null) {
+    if (typeof verse.shelf_id !== 'string' || !isValidUUID(verse.shelf_id)) {
+      return `Invalid shelf_id: ${verse.shelf_id}`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate a single shelf
+ */
+function validateShelf(shelf: any): string | null {
+  if (!shelf || typeof shelf !== 'object') {
+    return 'Shelf is not an object';
+  }
+
+  if (!shelf.id || typeof shelf.id !== 'string') {
+    return 'Missing or invalid id field';
+  }
+
+  if (!isValidUUID(shelf.id)) {
+    return `Invalid UUID format: ${shelf.id}`;
+  }
+
+  if (!shelf.name || typeof shelf.name !== 'string' || !shelf.name.trim()) {
+    return 'Missing or invalid name field';
+  }
+
+  if (!shelf.created_at || !isValidISO8601(shelf.created_at)) {
+    return `Invalid created_at datetime: ${shelf.created_at}`;
   }
 
   return null;
