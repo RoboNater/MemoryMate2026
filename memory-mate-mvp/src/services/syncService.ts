@@ -17,6 +17,12 @@
  * The engine is sync-agnostic to the service layer: services just maintain
  * updated_at, and this module reads/writes the DB directly. It is a no-op when
  * Supabase is unconfigured or no user is signed in (the app stays offline-capable).
+ *
+ * Account boundary (issue #2): only unowned local rows (user_id IS NULL) are
+ * adopted by a signing-in account; rows owned by a different account are never
+ * re-stamped — they are purged when the synced account changes, and sign-out
+ * clears the local cache entirely (clearLocalDataOnSignOut) so each account
+ * starts clean on a shared device.
  */
 import { getDatabase } from './database';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
@@ -279,15 +285,63 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
 let inFlight: Promise<SyncResult> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Stamp every local row with the signed-in user_id (first sync for this user). */
-async function stampUserId(userId: string): Promise<void> {
+/**
+ * Adopt genuinely-unowned local rows (user_id IS NULL) for the signed-in user.
+ * Pre-account data migrates to the first account that syncs, and rows created
+ * while signed in get owned. Rows already stamped with a different account's
+ * user_id are never re-claimed — re-stamping would push one account's data into
+ * another account's cloud on a shared device (issue #2).
+ */
+async function adoptUnownedRows(userId: string): Promise<void> {
   const db = getDatabase();
   for (const table of ['verses', 'progress', 'test_results']) {
-    await db.runAsync(
-      `UPDATE ${table} SET user_id = ? WHERE user_id IS NULL OR user_id != ?`,
-      [userId, userId]
-    );
+    await db.runAsync(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`, [userId]);
   }
+}
+
+/**
+ * Delete local rows owned by a different account (issue #2). Normally a no-op —
+ * sign-out already clears local data — but covers account switches that bypass
+ * sign-out, so another account's rows are never shown to or synced for this
+ * user. Children are deleted first so the result doesn't depend on FK cascades.
+ */
+async function purgeRowsOwnedByOthers(userId: string): Promise<boolean> {
+  const db = getDatabase();
+  let purged = false;
+  for (const table of ['test_results', 'progress', 'verses']) {
+    const result = await db.runAsync(
+      `DELETE FROM ${table} WHERE user_id IS NOT NULL AND user_id != ?`,
+      [userId]
+    );
+    if ((result?.changes ?? 0) > 0) purged = true;
+  }
+  return purged;
+}
+
+/**
+ * Wipe the local synced tables and sync checkpoints. Called on sign-out so the
+ * local DB behaves as a per-account cache: the next sign-in (possibly a
+ * different account on a shared device) starts clean and re-pulls its own data
+ * from the cloud (issue #2).
+ *
+ * No-ops when no account has ever completed a sync on this device
+ * (`synced_user_id` unset): that data was never claimed or pushed, so wiping it
+ * would destroy the only copy.
+ */
+export async function clearLocalDataOnSignOut(): Promise<boolean> {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  if ((await getMeta('synced_user_id')) === null) return false;
+  const db = getDatabase();
+  for (const table of ['test_results', 'progress', 'verses']) {
+    await db.runAsync(`DELETE FROM ${table}`);
+  }
+  await db.runAsync(
+    `DELETE FROM sync_state WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at')`
+  );
+  return true;
 }
 
 /**
@@ -306,13 +360,19 @@ export async function sync(): Promise<SyncResult> {
     const sync = useSyncStore.getState();
     sync.setSyncing(true);
     try {
-      // First sync for this user: claim local rows and force a full push/pull.
+      // First sync for this user: drop any other account's leftovers, then
+      // force a full push/pull.
+      let purged = false;
       if ((await getMeta('synced_user_id')) !== userId) {
-        await stampUserId(userId);
+        purged = await purgeRowsOwnedByOthers(userId);
         await setMeta('last_pushed_at', EPOCH);
         await setMeta('last_pulled_at', EPOCH);
         await setMeta('synced_user_id', userId);
       }
+
+      // Claim unowned rows (pre-account data on first sync; rows created while
+      // signed in on later ones). Never touches rows owned by another account.
+      await adoptUnownedRows(userId);
 
       const pushSince = (await getMeta('last_pushed_at')) ?? EPOCH;
       const pullSince = (await getMeta('last_pulled_at')) ?? EPOCH;
@@ -325,8 +385,8 @@ export async function sync(): Promise<SyncResult> {
       const { pulled, maxUpdated } = await pullAll(pullSince);
       if (isNewer(maxUpdated, pullSince)) await setMeta('last_pulled_at', maxUpdated);
 
-      // Reflect pulled changes in the UI.
-      if (pulled > 0) {
+      // Reflect pulled changes (or a purge of another account's rows) in the UI.
+      if (pulled > 0 || purged) {
         const store = useVerseStore.getState();
         await store.refreshVerses();
         await store.refreshStats();

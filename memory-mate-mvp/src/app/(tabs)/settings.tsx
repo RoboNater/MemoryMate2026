@@ -180,7 +180,7 @@ export default function SettingsScreen() {
       <ConfirmDialog
         visible={showSignOutDialog}
         title="Sign Out"
-        message="Sign out of cloud sync on this device?"
+        message="Sign out of cloud sync on this device? Synced data will be removed from this device and will download again the next time you sign in."
         confirmText="Sign Out"
         cancelText="Cancel"
         confirmVariant="danger"
