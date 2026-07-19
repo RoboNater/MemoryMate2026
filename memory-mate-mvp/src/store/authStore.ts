@@ -106,12 +106,37 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
   signOut: async () => {
     set({ isAuthLoading: true, authError: null });
     try {
+      // Best-effort flush of unpushed local changes before the wipe below —
+      // sign-out clears the local cache, so push what we can while we still
+      // have a session. Offline sign-out still proceeds.
+      try {
+        const { sync } = await import('@/services/syncService');
+        await sync();
+      } catch {}
+
       const { error } = await authService.signOut();
       if (error) {
         set({ authError: error });
         return;
       }
       set({ session: null, user: null });
+
+      // The local DB is a per-account cache once an account has synced: wipe it
+      // so a different account signing in on this device never sees or claims
+      // the previous account's data (issue #2). Signing back in re-pulls.
+      try {
+        const { clearLocalDataOnSignOut } = await import('@/services/syncService');
+        const cleared = await clearLocalDataOnSignOut();
+        if (cleared) {
+          const { useVerseStore } = await import('@/store/verseStore');
+          await useVerseStore.getState().refreshVerses();
+          await useVerseStore.getState().refreshStats();
+        }
+        const { useSyncStore } = await import('@/store/syncStore');
+        useSyncStore.getState().reset();
+      } catch (e) {
+        console.error('[MemoryMate] Failed to clear local data on sign-out:', e);
+      }
     } finally {
       set({ isAuthLoading: false });
     }

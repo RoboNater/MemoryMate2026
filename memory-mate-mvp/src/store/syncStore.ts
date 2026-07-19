@@ -15,6 +15,8 @@ export interface SyncStore {
   setSyncing: (v: boolean) => void;
   setSynced: (at: string) => void;
   setSyncError: (msg: string) => void;
+  /** Back to the signed-out baseline (used on sign-out). */
+  reset: () => void;
   /** Trigger a manual sync now. */
   syncNow: () => Promise<void>;
 }
@@ -27,6 +29,7 @@ export const useSyncStore = create<SyncStore>()((set) => ({
   setSyncing: (v) => set({ isSyncing: v, ...(v ? { syncError: null } : {}) }),
   setSynced: (at) => set({ lastSyncedAt: at, syncError: null }),
   setSyncError: (msg) => set({ syncError: msg }),
+  reset: () => set({ isSyncing: false, lastSyncedAt: null, syncError: null }),
 
   syncNow: async () => {
     const { sync } = await import('@/services/syncService');
