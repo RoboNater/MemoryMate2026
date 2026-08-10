@@ -206,29 +206,81 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
       testIds.add(result.id);
     }
 
-    // Perform transaction: delete all, then insert new data
+    // Perform the import as a SYNC-AWARE full replacement (issue #5 review,
+    // concern 3). On a device that has already synced, the old hard-delete +
+    // reinsert-with-historical-timestamps was unsafe: imported rows landed BELOW
+    // the push watermark (so they never uploaded), and rows the backup dropped
+    // left no tombstone (so they lingered in the cloud and could reappear).
+    // Instead we (1) stamp every imported row's updated_at at import time so it
+    // uploads and wins last-write-wins, (2) tombstone local rows the backup
+    // omits so their removal propagates, and (3) reset the sync watermarks so
+    // the next sync fully re-pushes the imported state and re-pulls the cloud.
     const db = getDatabase();
+
+    // Backup key sets — used both to reinsert and to tombstone the difference.
+    const backupShelfIds = new Set(validShelves.map((s) => s.id));
+    const backupVerseIds = new Set(versesData.map((v) => v.id));
+    const backupProgressIds = new Set(validProgress.map((p) => p.verse_id));
+    const backupTestIds = new Set(validTestResults.map((t) => t.id));
+
+    // Chunk id lists so `IN (...)` never exceeds SQLite's variable limit.
+    const chunkArray = <T>(arr: T[], size: number): T[][] => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
 
     try {
       const importedAt = new Date().toISOString();
       await db.withTransactionAsync(async () => {
-        // Import is a deliberate, local, full replace, so existing rows are hard-
-        // deleted here (not tombstoned). Inserted rows are stamped with updated_at
-        // so they remain sync-ready for a later push.
-        await db.runAsync('DELETE FROM test_results');
-        await db.runAsync('DELETE FROM progress');
-        await db.runAsync('DELETE FROM verses');
-        await db.runAsync('DELETE FROM shelves');
+        // (2) Tombstone live local rows the backup omits, so the deletion syncs.
+        const tombstoneAbsent = async (
+          table: string,
+          keyCol: string,
+          keep: Set<string>
+        ) => {
+          const existing = await db.getAllAsync<{ k: string }>(
+            `SELECT ${keyCol} AS k FROM ${table} WHERE deleted_at IS NULL`
+          );
+          const toRemove = existing.map((r) => r.k).filter((k) => !keep.has(k));
+          for (const part of chunkArray(toRemove, 400)) {
+            const placeholders = part.map(() => '?').join(',');
+            await db.runAsync(
+              `UPDATE ${table} SET deleted_at = ?, updated_at = ? WHERE ${keyCol} IN (${placeholders})`,
+              [importedAt, importedAt, ...part]
+            );
+          }
+        };
+        await tombstoneAbsent('test_results', 'id', backupTestIds);
+        await tombstoneAbsent('progress', 'verse_id', backupProgressIds);
+        await tombstoneAbsent('verses', 'id', backupVerseIds);
+        await tombstoneAbsent('shelves', 'id', backupShelfIds);
 
-        // Insert shelves first so verse shelf assignments always resolve
+        // Remove any existing row (live or previously tombstoned) the backup
+        // re-supplies, so the reinsert below is conflict-free and authoritative.
+        const clearForReinsert = async (table: string, keyCol: string, keys: Set<string>) => {
+          for (const part of chunkArray([...keys], 400)) {
+            const placeholders = part.map(() => '?').join(',');
+            await db.runAsync(
+              `DELETE FROM ${table} WHERE ${keyCol} IN (${placeholders})`,
+              part
+            );
+          }
+        };
+        await clearForReinsert('test_results', 'id', backupTestIds);
+        await clearForReinsert('progress', 'verse_id', backupProgressIds);
+        await clearForReinsert('verses', 'id', backupVerseIds);
+        await clearForReinsert('shelves', 'id', backupShelfIds);
+
+        // (1) Reinsert backup rows, each stamped at import time. Shelves first so
+        // verse shelf assignments always resolve.
         for (const shelf of validShelves) {
           await db.runAsync(
             'INSERT INTO shelves (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)',
-            [shelf.id, shelf.name, shelf.created_at, shelf.created_at]
+            [shelf.id, shelf.name, shelf.created_at, importedAt]
           );
         }
 
-        // Insert new data
         for (const verse of versesData) {
           // Drop shelf assignments that point at a shelf not in this file.
           const shelfId =
@@ -240,11 +292,10 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
           }
           await db.runAsync(
             'INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [verse.id, verse.reference, verse.text, verse.translation, verse.created_at, verse.archived ? 1 : 0, shelfId, verse.created_at]
+            [verse.id, verse.reference, verse.text, verse.translation, verse.created_at, verse.archived ? 1 : 0, shelfId, importedAt]
           );
         }
 
-        // Insert only VALID progress records
         for (const progress of validProgress) {
           await db.runAsync(
             'INSERT INTO progress (verse_id, times_practiced, times_tested, times_correct, last_practiced, last_tested, comfort_level, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -256,18 +307,26 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
               progress.last_practiced,
               progress.last_tested,
               progress.comfort_level,
-              progress.last_tested ?? progress.last_practiced ?? importedAt,
+              importedAt,
             ]
           );
         }
 
-        // Insert only VALID test results
         for (const result of validTestResults) {
           await db.runAsync(
             'INSERT INTO test_results (id, verse_id, timestamp, passed, score, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-            [result.id, result.verse_id, result.timestamp, result.passed ? 1 : 0, result.score ?? null, result.timestamp]
+            [result.id, result.verse_id, result.timestamp, result.passed ? 1 : 0, result.score ?? null, importedAt]
           );
         }
+
+        // (3) Reset sync watermarks so the next sync re-pushes the imported state
+        // (including the tombstones) and re-pulls/merges the cloud. synced_user_id
+        // is kept so this doesn't re-trigger the cross-account purge path.
+        await db.runAsync(
+          `DELETE FROM sync_state
+             WHERE key IN ('last_pushed_at', 'last_pulled_at')
+                OR key LIKE 'last_pulled_at:%'`
+        );
       });
     } catch (error) {
       throw new Error(

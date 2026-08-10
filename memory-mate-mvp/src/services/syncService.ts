@@ -79,6 +79,40 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 // ---------------------------------------------------------------------------
+// Per-table pull watermarks (issue #5 review, concern 1)
+//
+// A single shared `last_pulled_at` was unsafe: pulling one table could advance
+// the cursor past rows in ANOTHER table written at the same millisecond but
+// uploaded in a separate request. The classic case is a shelf deletion —
+// `removeShelf` stamps the shelf tombstone and its verse unassignments with the
+// same `updated_at`, but `pushAll` uploads shelves and verses in different
+// requests. A device that pulled between those two uploads advanced the shared
+// cursor to T on the shelf tombstone; the verse unassignments (also at T) were
+// then skipped forever by the next `> T` pull. Per-table cursors keep each
+// table's progress independent, so the verse pull still sees its rows.
+// ---------------------------------------------------------------------------
+
+async function getPullSince(table: string): Promise<string> {
+  const perTable = await getMeta(`last_pulled_at:${table}`);
+  if (perTable) return perTable;
+  // One-time migration from the legacy shared watermark, then EPOCH.
+  const legacy = await getMeta('last_pulled_at');
+  return legacy ?? EPOCH;
+}
+
+async function setPullSince(table: string, value: string): Promise<void> {
+  await setMeta(`last_pulled_at:${table}`, value);
+}
+
+/** Reset every pull cursor (legacy + per-table) to EPOCH. */
+async function clearPullWatermarks(): Promise<void> {
+  const db = getDatabase();
+  await db.runAsync(
+    `DELETE FROM sync_state WHERE key = 'last_pulled_at' OR key LIKE 'last_pulled_at:%'`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Push
 // ---------------------------------------------------------------------------
 
@@ -189,16 +223,22 @@ async function fetchRemote(
   return data ?? [];
 }
 
-/** Merge pulled rows; returns the max remote updated_at seen (for the watermark). */
-async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: string }> {
+/**
+ * Merge all pulled rows. Each table advances its OWN pull cursor (see
+ * getPullSince) so one table's progress can't skip another's same-timestamp
+ * rows. Returns how many rows were applied locally.
+ */
+async function pullAll(): Promise<{ pulled: number }> {
   const db = getDatabase();
   let pulled = 0;
+
+  // --- shelves (first: verses.shelf_id refers to them; last-write-wins) ---
+  {
+  const since = await getPullSince('shelves');
   let maxUpdated = since;
   const note = (ua: string | null) => {
     if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
   };
-
-  // --- shelves (first: verses.shelf_id refers to them; last-write-wins) ---
   for (const r of await fetchRemote('shelves', since)) {
     note(r.updated_at);
     try {
@@ -221,8 +261,16 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       console.warn('[MemoryMate] sync: skipped shelf', r.id, e);
     }
   }
+  if (isNewer(maxUpdated, since)) await setPullSince('shelves', maxUpdated);
+  }
 
-  // --- verses (must come first so progress/test_results FKs resolve locally) ---
+  // --- verses (before progress/test_results so their FKs resolve locally) ---
+  {
+  const since = await getPullSince('verses');
+  let maxUpdated = since;
+  const note = (ua: string | null) => {
+    if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
+  };
   for (const r of await fetchRemote('verses', since)) {
     note(r.updated_at);
     try {
@@ -247,8 +295,16 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       console.warn('[MemoryMate] sync: skipped verse', r.id, e);
     }
   }
+  if (isNewer(maxUpdated, since)) await setPullSince('verses', maxUpdated);
+  }
 
   // --- progress (counter reconciliation + last-write-wins) ---
+  {
+  const since = await getPullSince('progress');
+  let maxUpdated = since;
+  const note = (ua: string | null) => {
+    if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
+  };
   for (const r of await fetchRemote('progress', since)) {
     note(r.updated_at);
     try {
@@ -288,8 +344,16 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       console.warn('[MemoryMate] sync: skipped progress', r.verse_id, e);
     }
   }
+  if (isNewer(maxUpdated, since)) await setPullSince('progress', maxUpdated);
+  }
 
   // --- test_results (append-only; updates only propagate tombstones) ---
+  {
+  const since = await getPullSince('test_results');
+  let maxUpdated = since;
+  const note = (ua: string | null) => {
+    if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
+  };
   for (const r of await fetchRemote('test_results', since)) {
     note(r.updated_at);
     try {
@@ -313,8 +377,34 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       console.warn('[MemoryMate] sync: skipped test_result', r.id, e);
     }
   }
+  if (isNewer(maxUpdated, since)) await setPullSince('test_results', maxUpdated);
+  }
 
-  return { pulled, maxUpdated };
+  return { pulled };
+}
+
+/**
+ * Repair the shelf-membership invariant after a merge (issue #5 review,
+ * concern 2): a verse must never reference a shelf that is absent or tombstoned.
+ * Two cross-device races can otherwise strand a dangling shelf_id:
+ *   - a shelf deletion whose verse unassignments are skipped at a pull boundary,
+ *   - a verse assigned offline to a shelf that another device concurrently
+ *     deleted (both rows merge independently; there is deliberately no FK).
+ * Clearing the reference here — stamped so the repair itself re-syncs — makes
+ * shelf deletion authoritative over membership and lets every device self-heal
+ * on each sync, so the inconsistency can never persist. Returns rows repaired.
+ */
+async function reconcileShelfMembership(): Promise<number> {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const res = await db.runAsync(
+    `UPDATE verses SET shelf_id = NULL, updated_at = ?
+       WHERE shelf_id IS NOT NULL
+         AND deleted_at IS NULL
+         AND shelf_id NOT IN (SELECT id FROM shelves WHERE deleted_at IS NULL)`,
+    [now]
+  );
+  return res?.changes ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -378,9 +468,12 @@ export async function clearLocalDataOnSignOut(): Promise<boolean> {
     await db.runAsync(`DELETE FROM ${table}`);
   }
   // active_shelf_id goes too: the shelf it points at no longer exists locally,
-  // and the next sign-in may be a different account.
+  // and the next sign-in may be a different account. Per-table pull cursors
+  // (last_pulled_at:*) are cleared alongside the legacy single cursor.
   await db.runAsync(
-    `DELETE FROM sync_state WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at', 'active_shelf_id')`
+    `DELETE FROM sync_state
+       WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at', 'active_shelf_id')
+          OR key LIKE 'last_pulled_at:%'`
   );
   return true;
 }
@@ -407,7 +500,7 @@ export async function sync(): Promise<SyncResult> {
       if ((await getMeta('synced_user_id')) !== userId) {
         purged = await purgeRowsOwnedByOthers(userId);
         await setMeta('last_pushed_at', EPOCH);
-        await setMeta('last_pulled_at', EPOCH);
+        await clearPullWatermarks();
         await setMeta('synced_user_id', userId);
       }
 
@@ -416,18 +509,22 @@ export async function sync(): Promise<SyncResult> {
       await adoptUnownedRows(userId);
 
       const pushSince = (await getMeta('last_pushed_at')) ?? EPOCH;
-      const pullSince = (await getMeta('last_pulled_at')) ?? EPOCH;
 
       // Capture local time BEFORE pushing; rows changed mid-sync get caught next run.
       const pushWatermark = new Date().toISOString();
       const pushed = await pushAll(pushSince, userId);
       await setMeta('last_pushed_at', pushWatermark);
 
-      const { pulled, maxUpdated } = await pullAll(pullSince);
-      if (isNewer(maxUpdated, pullSince)) await setMeta('last_pulled_at', maxUpdated);
+      const { pulled } = await pullAll();
 
-      // Reflect pulled changes (or a purge of another account's rows) in the UI.
-      if (pulled > 0 || purged) {
+      // After merging, drop any verse->shelf reference whose shelf is gone or
+      // tombstoned (issue #5 review, concern 2). The repair is stamped, so it
+      // pushes on the next run and other devices converge too.
+      const reconciled = await reconcileShelfMembership();
+
+      // Reflect pulled changes, a membership repair, or a purge of another
+      // account's rows in the UI.
+      if (pulled > 0 || purged || reconciled > 0) {
         const store = useVerseStore.getState();
         await store.refreshVerses();
         await store.refreshShelves();
