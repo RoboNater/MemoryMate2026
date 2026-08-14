@@ -1,9 +1,14 @@
-# Phase 5 Addendum: Cross-Device Sync — Design & Plan
+# Cross-Device Sync — Design
 
-**Date**: 2026-06-20
-**Status**: 📝 DRAFT — for review before any code is written
+The architecture of record for the sync engine. Originally written as the Phase 5
+addendum plan; the design shipped as described, and this document has been updated
+to present tense. The phase numbering is preserved because source comments and other
+docs refer to it.
+
+**Date**: 2026-06-20 (design), revised 2026-08-14 (framing only)
+**Status**: ✅ Implemented — describes the cross-device sync engine as built
 **Decision (confirmed)**: Supabase cloud backend + offline-first local cache
-**Companion doc**: [ccc.31.supabase-overview-and-setup-guide.md](ccc.31.supabase-overview-and-setup-guide.md) — how to create/configure the Supabase account
+**Companion doc**: [the backend setup guide](../guides/backend-setup.md) — how to create/configure the Supabase account
 
 ---
 
@@ -43,7 +48,7 @@ The app currently stores all data in **local SQLite only** (expo-sqlite on nativ
 2. **Supabase is the shared "hub of record."** A new `syncService` reconciles local ↔ cloud in the background.
 3. **The sync layer sits behind the existing services** (`verseService`, `progressService`, `testService`) — the same clean abstraction we already use for the dual-platform DB and for export/import. Screens and the Zustand store are largely untouched.
 
-**Why this combination** (recap of the decision): works on any network including cellular/away-from-home, free at single-user scale, no server to maintain, and matches the existing `gem.01` hosting plan and the eventual EAS + app-store path.
+**Why this combination** (recap of the decision): works on any network including cellular/away-from-home, free at single-user scale, no server to maintain, and matches the [hosting guide](../guides/hosting.md) and the eventual EAS + app-store path.
 
 ---
 
@@ -72,11 +77,11 @@ Add to `verses`, `progress`, and `test_results`:
 - `deleted_at TEXT NULL` — soft-delete tombstone so deletes propagate instead of resurrecting on next pull.
 
 Notes:
-- **Deletes become soft-deletes.** `removeVerse()` currently hard-deletes verse + progress + test_results in a transaction (`verseService.ts:116`). It will instead set `deleted_at` on those rows. Queries (`getAllVerses`, etc.) add `WHERE deleted_at IS NULL`. (The existing `archived` flag is a *separate, user-facing* concept and stays as-is.)
+- **Deletes are soft-deletes.** `removeVerse()` sets `deleted_at` on verse + progress + test_results in a transaction (`verseService.ts:138`) instead of hard-deleting them. Queries (`getAllVerses`, etc.) add `WHERE deleted_at IS NULL`. (The existing `archived` flag is a *separate, user-facing* concept and stays as-is.)
 - **Migration must be additive and idempotent** — the same `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN` pattern already used in `database.ts`, guarded so it runs once. Must work on both expo-sqlite and the sql.js web adapter (one statement per `execAsync`, per existing convention).
 - A new tiny `sync_state` table (or a single key/value row) stores `last_pulled_at` per device so each pull only fetches changed rows.
 
-Supabase Postgres mirrors these three tables with the same columns plus a `user_id uuid` foreign key to `auth.users`, and **Row Level Security** policies `(select auth.uid()) = user_id` on every table (per the `gem.01` security rule). Details of the SQL live in ccc.31 / will be provided as a runnable migration script.
+Supabase Postgres mirrors these three tables with the same columns plus a `user_id uuid` foreign key to `auth.users`, and **Row Level Security** policies `(select auth.uid()) = user_id` on every table (per the security rule in the [hosting guide](../guides/hosting.md)). The schema is documented in the [backend setup guide](../guides/backend-setup.md) and lives as a runnable migration script at `supabase/schema.sql`.
 
 ---
 
@@ -109,13 +114,13 @@ Select remote rows where `updated_at > last_pulled_at` and merge each into local
 ## 6. Auth
 
 - One Supabase account = the user, shared across all their devices.
-- Add a minimal **login screen** and session persistence (Supabase JS stores the session; on native we back it with secure storage).
+- A minimal **login screen** and session persistence (Supabase JS stores the session; on native it's backed by secure storage).
 - Until signed in, the app still works fully offline against local SQLite; sync simply no-ops. Signing in associates local rows with `user_id` and kicks off the first sync.
-- Auth method: email/password to start (simplest); Google/Apple can be added later (relevant for the eventual iOS build).
+- Auth method: email/password. **Not yet built:** Google/Apple sign-in (relevant for the eventual iOS build).
 
 ---
 
-## 7. New / Changed Files (anticipated)
+## 7. New / Changed Files
 
 **New**
 - `src/services/supabaseClient.ts` — configured Supabase client (URL + anon key from env/`expo-constants`).
@@ -123,7 +128,7 @@ Select remote rows where `updated_at > last_pulled_at` and merge each into local
 - `src/services/authService.ts` — sign in / sign out / current session.
 - `src/store/authStore.ts` (or extend `verseStore.ts`) — auth + sync status for the UI.
 - `src/app/login.tsx` — login screen.
-- `supabase/schema.sql` — Postgres tables + RLS policies (also documented in ccc.31).
+- `supabase/schema.sql` — Postgres tables + RLS policies (also documented in the [backend setup guide](../guides/backend-setup.md)).
 
 **Changed**
 - `src/services/database.ts` — additive migration (new columns, `sync_state` table).
@@ -136,17 +141,17 @@ The existing JSON export/import (`dataExportService.ts`) stays as-is and becomes
 
 ---
 
-## 8. Implementation Phases (proposed order)
+## 8. Implementation Phases (build order)
 
 Each phase is independently testable and leaves the app working.
 
 1. **Local schema migration** — add `updated_at`/`deleted_at`/`user_id`, convert deletes to soft-deletes, add `sync_state`. *No cloud yet; app behaves identically.* Verify existing flows still pass.
-2. **Supabase project + schema + RLS** — create project, run `schema.sql`, enable RLS. *No app changes.* Verify via Supabase dashboard. (Setup steps in ccc.31.)
+2. **Supabase project + schema + RLS** — create project, run `schema.sql`, enable RLS. *No app changes.* Verify via Supabase dashboard. (Setup steps in the [backend setup guide](../guides/backend-setup.md).)
 3. **Auth in the app** — Supabase client, login screen, session persistence, sign in/out in Settings.
 4. **Sync engine** — `syncService` push/pull/merge; wire triggers (launch, reconnect, post-write debounce, manual button); "last synced" UI.
 5. **Cross-device verification** — the real proof: practice on phone, then laptop/web; confirm both converge; test offline-then-reconnect, deletes propagating, and concurrent-edit reconciliation.
 
-Recommended starting point after you approve this doc: **Phase 1**, since it is safe, cloud-independent, and required regardless.
+All five phases have shipped, in this order — Phase 1 went first since it was safe, cloud-independent, and required regardless of the rest.
 
 ---
 
@@ -171,4 +176,4 @@ Recommended starting point after you approve this doc: **Phase 1**, since it is 
 
 ---
 
-*Next: review this plan. On approval, I'll begin Phase 1 (local schema migration). Supabase account setup is documented separately in ccc.31.*
+*Supabase account setup is documented separately in the [backend setup guide](../guides/backend-setup.md). Manual two-device verification steps live in the [sync testing guide](../guides/sync-testing.md).*

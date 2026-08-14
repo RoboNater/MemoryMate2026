@@ -2,7 +2,7 @@
 
 **Date**: 2026-06-20
 **Status**: 🔍 Ready for manual two-device verification
-**Builds on**: ccc.30 (plan), ccc.31 (Supabase setup). Engine landed in commits 4116ac4 (Phase 1), b961e7b (Phase 2), 727e8be (Phase 3), 611649b (Phase 4) on branch `mvp/feature/sync-to-server`.
+**Builds on**: [the sync design](../architecture/sync.md) and [the backend setup guide](backend-setup.md). Engine landed in commits 4116ac4 (Phase 1), b961e7b (Phase 2), 727e8be (Phase 3), 611649b (Phase 4) on branch `mvp/feature/sync-to-server`.
 
 This is the one step that genuinely requires you: confirming data actually
 converges across devices. Everything else is implemented and statically validated
@@ -14,7 +14,7 @@ converges across devices. Everything else is implemented and statically validate
 
 1. Supabase schema applied (you did this — 3 tables, RLS enabled). ✅
 2. `.env` present with `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY`. ✅
-3. Run the app: `cd memory-mate-mvp && npm start`.
+3. Run the app: `npm start`.
 4. You have an account (Settings → Cloud Sync → Sign In / Create one).
 
 > Tip: keep the Supabase dashboard **Table Editor** open. It's the ground truth —
@@ -97,7 +97,7 @@ This checks the `max()` rule that prevents losing practice counts.
 - The app is fully usable offline; changes sync on reconnect with no loss.
 - No regression to existing CRUD / practice / test / export-import.
 
-## Known limitations (by design, documented in ccc.30)
+## Known limitations (by design, documented in [the sync design](../architecture/sync.md))
 
 - **Counter reconciliation is approximate** (`max()`), not an exact sum of all
   offline increments. It never loses data but can under-count in rare concurrent

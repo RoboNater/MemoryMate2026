@@ -2,7 +2,7 @@
 
 **Date**: 2026-06-20
 **Purpose**: Brief, practical guide to creating and configuring the Supabase account that will back cross-device sync.
-**Companion doc**: [ccc.30.mvp-phase-5-addendum-cross-device-sync-plan.md](ccc.30.mvp-phase-5-addendum-cross-device-sync-plan.md) — the sync design this supports.
+**Companion doc**: [the sync design](../architecture/sync.md) — the sync design this supports.
 
 ---
 
@@ -41,7 +41,7 @@ For Memory Mate it plays exactly one role: the **shared hub of record** that all
 
 ### Step 1 — Create the account & project
 1. Go to **supabase.com** → **Start your project** → sign in (GitHub login is easiest; or email).
-   - *Optional, per your `gem.01` plan:* use a dedicated admin email (e.g. a Proton address) for infrastructure logins.
+   - *Optional, per the [hosting guide](hosting.md):* use a dedicated admin email (e.g. a Proton address) for infrastructure logins.
 2. **New project**:
    - **Name**: `memory-mate` (anything).
    - **Database password**: generate a strong one and **save it in your password manager** (needed for direct DB access; not used by the app day-to-day).
@@ -72,7 +72,7 @@ create policy "Users manage their own verses"
   with check ( (select auth.uid()) = user_id );
 ```
 
-(The `(select auth.uid()) = user_id` form is the optimization called out in your `gem.01` plan — it lets Postgres cache the value per query.)
+(The `(select auth.uid()) = user_id` form is the optimization called out in the [hosting guide](hosting.md) — it lets Postgres cache the value per query.)
 
 > ⚠️ **The single most important rule:** RLS must be **enabled on every table**. With RLS off, the public anon key can read/write all rows. The setup script enables it; if you ever add a table by hand, enable RLS on it too.
 
@@ -122,8 +122,8 @@ anon key     ─┴─►  src/services/supabaseClient.ts  ──►  createClie
 
 **Me (during the sync implementation):**
 - Provide the `supabase/schema.sql` migration (tables + RLS) for you to run in the SQL Editor (Step 3).
-- Wire `supabaseClient.ts`, auth, and the sync engine per ccc.30.
+- Wire `supabaseClient.ts`, auth, and the sync engine per the [sync design](../architecture/sync.md).
 
 ---
 
-*This guide supports the plan in ccc.30. Account setup (Steps 1–2) can be done any time; the schema script (Step 3) comes with Phase 2 of the sync implementation.*
+*This guide supports the [sync design](../architecture/sync.md). Account setup (Steps 1–2) can be done any time; the schema script (Step 3) comes with Phase 2 of the sync implementation.*

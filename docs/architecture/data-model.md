@@ -15,9 +15,9 @@ stripped out) live in `src/types/index.ts`.
 
 ## Why the code, not the older design docs
 
-`ccc.02.design-prototype-data-and-class.md` describes the original Python prototype
-model. Two things have since changed and this document reflects the current code,
-not that doc:
+[`ccc.02.design-prototype-data-and-class.md`](../archive/ccc.02.design-prototype-data-and-class.md), an archived historical
+document, describes the original Python prototype model. Two things have since
+changed and this document reflects the current code, not that doc:
 
 - `TestResult.duration_seconds` was part of the prototype design but was never
   implemented in the SQLite/Supabase schema or `src/types/index.ts`. It does not
