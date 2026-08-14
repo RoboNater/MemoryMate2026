@@ -11,6 +11,19 @@ export interface Verse {
   translation: string; // e.g., "NIV", "ESV", "NKJV"
   created_at: string; // ISO 8601 datetime string
   archived: boolean;
+  shelf_id: string | null; // Shelf (verse group) this verse belongs to; null = unshelved
+}
+
+/**
+ * Shelf - A named group of verses (issue #5). A verse belongs to at most one
+ * shelf; one shelf (or "all verses") is selected as the active set for
+ * Practice and Test. Distinct from Archive: archived verses stay read-only
+ * and separate regardless of shelf.
+ */
+export interface Shelf {
+  id: string;
+  name: string;
+  created_at: string; // ISO 8601 datetime string
 }
 
 /**

@@ -7,7 +7,8 @@ import { useVerseStore } from '@/store';
 export default function VersesScreen() {
   const router = useRouter();
   const [showArchived, setShowArchived] = useState(false);
-  const { verses, progress, isLoading, getActiveVerses, getArchivedVerses } = useVerseStore();
+  const { verses, shelves, progress, isLoading, getActiveVerses, getArchivedVerses } = useVerseStore();
+  const shelfNameById = Object.fromEntries(shelves.map((s) => [s.id, s.name]));
 
   const displayVerses = showArchived ? getArchivedVerses() : getActiveVerses();
   const activeCount = getActiveVerses().length;
@@ -95,6 +96,7 @@ export default function VersesScreen() {
             <VerseCard
               key={verse.id}
               verse={verse}
+              shelfName={verse.shelf_id ? shelfNameById[verse.shelf_id] ?? null : null}
               progress={progress[verse.id]}
               onPress={handleVersePress}
             />

@@ -7,5 +7,7 @@ export { VerseCard } from './VerseCard';
 export { VerseDetail } from './VerseDetail';
 export { VerseForm } from './VerseForm';
 export { ConfirmDialog } from './ConfirmDialog';
+export { ShelfPicker } from './ShelfPicker';
+export { ManageShelvesModal } from './ManageShelvesModal';
 export { LoadingSpinner } from './LoadingSpinner';
 export { ErrorDisplay } from './ErrorDisplay';

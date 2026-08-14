@@ -6,6 +6,7 @@ import { ProgressBar } from './ProgressBar';
 
 interface VerseDetailProps {
   verse: Verse;
+  shelfName?: string | null;
   progress?: VerseProgress;
   testHistory?: TestResult[];
   onPractice: () => void;
@@ -17,6 +18,7 @@ interface VerseDetailProps {
 
 export function VerseDetail({
   verse,
+  shelfName,
   progress,
   testHistory = [],
   onPractice,
@@ -55,6 +57,13 @@ export function VerseDetail({
               {verse.translation}
             </Text>
           </View>
+          {shelfName && (
+            <View className="bg-amber-100 px-3 py-1 rounded-full">
+              <Text className="text-sm font-semibold text-amber-800">
+                {shelfName}
+              </Text>
+            </View>
+          )}
           {verse.archived && (
             <View className="bg-gray-300 px-3 py-1 rounded-full">
               <Text className="text-sm font-semibold text-gray-700">

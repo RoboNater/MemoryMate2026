@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import { Verse, VerseProgress, OverallStats, VerseStats, TestResult } from '@/types';
+import { Verse, VerseProgress, OverallStats, VerseStats, TestResult, Shelf } from '@/types';
 import {
   initDatabase,
   getDatabase,
 } from '@/services/database';
 import * as verseService from '@/services/verseService';
+import * as shelfService from '@/services/shelfService';
 import * as progressService from '@/services/progressService';
 import * as testService from '@/services/testService';
 import * as statsService from '@/services/statsService';
@@ -24,6 +25,8 @@ function syncAfterWrite(): void {
 export interface VerseStore {
   // State
   verses: Verse[];
+  shelves: Shelf[];
+  activeShelfId: string | null; // null = all verses (no shelf filter)
   progress: Record<string, VerseProgress>;
   stats: OverallStats | null;
   isLoading: boolean;
@@ -34,11 +37,24 @@ export interface VerseStore {
   initialize: () => Promise<void>;
 
   // Verse actions
-  addVerse: (reference: string, text: string, translation: string) => Promise<Verse>;
+  addVerse: (
+    reference: string,
+    text: string,
+    translation: string,
+    shelfId?: string | null
+  ) => Promise<Verse>;
   updateVerse: (id: string, updates: Partial<Verse>) => Promise<void>;
   archiveVerse: (id: string) => Promise<void>;
   unarchiveVerse: (id: string) => Promise<void>;
   removeVerse: (id: string) => Promise<void>;
+
+  // Shelf actions (issue #5)
+  createShelf: (name: string) => Promise<Shelf>;
+  renameShelf: (id: string, name: string) => Promise<void>;
+  deleteShelf: (id: string) => Promise<void>;
+  setActiveShelf: (id: string | null) => Promise<void>;
+  setVerseShelf: (verseId: string, shelfId: string | null) => Promise<void>;
+  refreshShelves: () => Promise<void>;
 
   // Practice/Test actions
   recordPractice: (verseId: string) => Promise<void>;
@@ -59,6 +75,8 @@ export interface VerseStore {
   // Computed getters (derived state)
   getActiveVerses: () => Verse[];
   getArchivedVerses: () => Verse[];
+  getActiveShelf: () => Shelf | null;
+  getActiveSetVerses: () => Verse[];
   getVersesNeedingPractice: () => Verse[];
   getVersesReadyForTest: () => Verse[];
 
@@ -70,6 +88,8 @@ export interface VerseStore {
 export const useVerseStore = create<VerseStore>()((set, get) => ({
   // Initial state
   verses: [],
+  shelves: [],
+  activeShelfId: null,
   progress: {},
   stats: null,
   isLoading: false,
@@ -84,13 +104,22 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     try {
       await initDatabase();
 
-      // Load all verses and progress
+      // Load all verses, shelves, and progress
       const verses = await verseService.getAllVerses(true);
+      const shelves = await shelfService.getAllShelves();
       const progressList = await progressService.getAllProgress();
       const progress = Object.fromEntries(progressList.map((p) => [p.verse_id, p]));
       const stats = await statsService.getOverallStats();
 
-      set({ verses, progress, stats, isInitialized: true });
+      // Restore the device-local active shelf; ignore it if the shelf is gone
+      // (deleted here or on another device).
+      const savedActiveShelfId = await shelfService.getActiveShelfId();
+      const activeShelfId =
+        savedActiveShelfId && shelves.some((s) => s.id === savedActiveShelfId)
+          ? savedActiveShelfId
+          : null;
+
+      set({ verses, shelves, activeShelfId, progress, stats, isInitialized: true });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error during initialization';
       console.error('Store initialization error:', errorMsg);
@@ -101,10 +130,10 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   },
 
   // Add a new verse
-  addVerse: async (reference, text, translation) => {
+  addVerse: async (reference, text, translation, shelfId = null) => {
     set({ isLoading: true, error: null });
     try {
-      const verse = await verseService.addVerse(reference, text, translation);
+      const verse = await verseService.addVerse(reference, text, translation, shelfId);
 
       // Create initial progress entry
       const initialProgress: VerseProgress = {
@@ -220,6 +249,89 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       throw error;
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  // --- Shelf actions (issue #5) ---
+
+  createShelf: async (name) => {
+    try {
+      const shelf = await shelfService.addShelf(name);
+      set((state) => ({ shelves: [...state.shelves, shelf] }));
+      syncAfterWrite();
+      return shelf;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to create shelf';
+      set({ error: errorMsg });
+      throw error;
+    }
+  },
+
+  renameShelf: async (id, name) => {
+    try {
+      await shelfService.renameShelf(id, name);
+      set((state) => ({
+        shelves: state.shelves.map((s) => (s.id === id ? { ...s, name } : s)),
+      }));
+      syncAfterWrite();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to rename shelf';
+      set({ error: errorMsg });
+      throw error;
+    }
+  },
+
+  deleteShelf: async (id) => {
+    try {
+      // Service un-shelves member verses and clears the active-shelf preference
+      // if it pointed at this shelf.
+      await shelfService.removeShelf(id);
+      set((state) => ({
+        shelves: state.shelves.filter((s) => s.id !== id),
+        activeShelfId: state.activeShelfId === id ? null : state.activeShelfId,
+        verses: state.verses.map((v) =>
+          v.shelf_id === id ? { ...v, shelf_id: null } : v
+        ),
+      }));
+      syncAfterWrite();
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to delete shelf';
+      set({ error: errorMsg });
+      throw error;
+    }
+  },
+
+  setActiveShelf: async (id) => {
+    try {
+      await shelfService.setActiveShelfId(id);
+      set({ activeShelfId: id });
+      // Device-local preference only — nothing to sync.
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to set active shelf';
+      set({ error: errorMsg });
+      throw error;
+    }
+  },
+
+  setVerseShelf: async (verseId, shelfId) => {
+    await get().updateVerse(verseId, { shelf_id: shelfId });
+  },
+
+  refreshShelves: async () => {
+    try {
+      const shelves = await shelfService.getAllShelves();
+      set((state) => ({
+        shelves,
+        // A pull may have deleted the shelf this device had active.
+        activeShelfId:
+          state.activeShelfId && !shelves.some((s) => s.id === state.activeShelfId)
+            ? null
+            : state.activeShelfId,
+      }));
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh shelves';
+      set({ error: errorMsg });
+      throw error;
     }
   },
 
@@ -372,19 +484,30 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     return get().verses.filter((v) => v.archived);
   },
 
+  getActiveShelf: () => {
+    const { shelves, activeShelfId } = get();
+    return shelves.find((s) => s.id === activeShelfId) ?? null;
+  },
+
+  // The active set: non-archived verses, narrowed to the active shelf when one
+  // is selected. This is what Practice and Test operate on (issue #5).
+  getActiveSetVerses: () => {
+    const { activeShelfId } = get();
+    const active = get().getActiveVerses();
+    return activeShelfId ? active.filter((v) => v.shelf_id === activeShelfId) : active;
+  },
+
   getVersesNeedingPractice: () => {
-    const { verses, progress } = get();
-    return verses.filter((v) => {
-      if (v.archived) return false;
+    const { progress } = get();
+    return get().getActiveSetVerses().filter((v) => {
       const p = progress[v.id];
       return !p || p.comfort_level <= 3;
     });
   },
 
   getVersesReadyForTest: () => {
-    const { verses, progress } = get();
-    return verses.filter((v) => {
-      if (v.archived) return false;
+    const { progress } = get();
+    return get().getActiveSetVerses().filter((v) => {
       const p = progress[v.id];
       return p && p.comfort_level >= 3;
     });
@@ -415,6 +538,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       // Refresh all state from database
       try {
         await get().refreshVerses();  // Loads verses AND progress
+        await get().refreshShelves();  // Loads shelves (and re-validates active shelf)
         await get().refreshStats();    // Loads overall statistics
       } catch (refreshError) {
         // Log refresh error but don't fail the import

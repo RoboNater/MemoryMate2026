@@ -12,6 +12,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-10T10:30:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '2',
@@ -20,6 +21,7 @@ export const mockVerses: Verse[] = [
     translation: 'NKJV',
     created_at: '2026-01-12T14:20:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '3',
@@ -28,6 +30,7 @@ export const mockVerses: Verse[] = [
     translation: 'ESV',
     created_at: '2026-01-13T09:15:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '4',
@@ -36,6 +39,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-14T16:45:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '5',
@@ -44,6 +48,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-15T11:00:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '6',
@@ -52,6 +57,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-16T08:30:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '7',
@@ -60,6 +66,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-17T13:10:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '8',
@@ -68,6 +75,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-18T10:20:00Z',
     archived: false,
+    shelf_id: null,
   },
   {
     id: '9',
@@ -76,6 +84,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-05T07:45:00Z',
     archived: true, // Archived verse
+    shelf_id: null,
   },
   {
     id: '10',
@@ -84,6 +93,7 @@ export const mockVerses: Verse[] = [
     translation: 'NIV',
     created_at: '2026-01-19T15:30:00Z',
     archived: false,
+    shelf_id: null,
   },
 ];
 

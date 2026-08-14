@@ -3,11 +3,12 @@
  *
  * Strategy (offline-first, last-write-wins):
  *   - PUSH local rows changed since the last push watermark, in dependency order
- *     (verses -> progress -> test_results), upserting to Supabase.
+ *     (shelves -> verses -> progress -> test_results), upserting to Supabase.
  *   - PULL remote rows changed since the last pull watermark and merge them in:
  *       * test_results : append-only; insert if absent, else take the newer row
  *                        (carries deleted_at tombstones).
- *       * verses       : last-write-wins by updated_at (incl. archived/deleted_at).
+ *       * shelves      : last-write-wins by updated_at (incl. deleted_at).
+ *       * verses       : last-write-wins by updated_at (incl. archived/shelf_id/deleted_at).
  *       * progress     : counters reconciled via max(); comfort, last-practiced,
  *                        last-tested and deleted_at follow the newer updated_at.
  *
@@ -78,11 +79,58 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 // ---------------------------------------------------------------------------
+// Per-table pull watermarks (issue #5 review, concerns 1 & 4)
+//
+// Two failure modes drove this design:
+//
+// (a) CROSS-TABLE (concern 1): a single shared `last_pulled_at` let pulling one
+//     table advance the cursor past rows in ANOTHER table written at the same
+//     millisecond but uploaded in a separate request — e.g. a shelf deletion,
+//     where `removeShelf` stamps the shelf tombstone and its verse
+//     unassignments with the same `updated_at` but `pushAll` uploads shelves
+//     and verses in different requests. A PER-TABLE cursor fixes this: each
+//     table's progress is independent.
+//
+// (b) SAME-TABLE (concern 4): rows within ONE table can also share an
+//     `updated_at` yet become visible across separate server writes — the
+//     sync-aware import stamps every row with one `importedAt`, and `pushTable`
+//     uploads in 500-row chunks. An EXCLUSIVE `> since` cursor advanced to T by
+//     the first chunk would skip same-T rows from a later chunk forever. So the
+//     cursor is INCLUSIVE (`>= since`, see fetchRemote): each pull re-reads the
+//     boundary timestamp. The merge is idempotent (insert-if-absent, else
+//     last-write-wins by updated_at; progress additionally short-circuits an
+//     unchanged row), so re-reading applied rows is a cheap no-op, while
+//     genuinely later-arriving same-timestamp rows always remain reachable. The
+//     re-read is self-limiting: once any row with a newer timestamp is pulled,
+//     the cursor advances past T and that bucket drops out of the window.
+// ---------------------------------------------------------------------------
+
+async function getPullSince(table: string): Promise<string> {
+  const perTable = await getMeta(`last_pulled_at:${table}`);
+  if (perTable) return perTable;
+  // One-time migration from the legacy shared watermark, then EPOCH.
+  const legacy = await getMeta('last_pulled_at');
+  return legacy ?? EPOCH;
+}
+
+async function setPullSince(table: string, value: string): Promise<void> {
+  await setMeta(`last_pulled_at:${table}`, value);
+}
+
+/** Reset every pull cursor (legacy + per-table) to EPOCH. */
+async function clearPullWatermarks(): Promise<void> {
+  const db = getDatabase();
+  await db.runAsync(
+    `DELETE FROM sync_state WHERE key = 'last_pulled_at' OR key LIKE 'last_pulled_at:%'`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Push
 // ---------------------------------------------------------------------------
 
 async function pushTable(
-  table: 'verses' | 'progress' | 'test_results',
+  table: 'shelves' | 'verses' | 'progress' | 'test_results',
   since: string,
   userId: string,
   toPayload: (row: any) => Record<string, unknown>,
@@ -107,6 +155,19 @@ async function pushAll(since: string, userId: string): Promise<number> {
   let n = 0;
   // Dependency order so server-side FKs are always satisfied.
   n += await pushTable(
+    'shelves',
+    since,
+    userId,
+    (r) => ({
+      id: r.id,
+      name: r.name,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      deleted_at: r.deleted_at ?? null,
+    }),
+    'id'
+  );
+  n += await pushTable(
     'verses',
     since,
     userId,
@@ -117,6 +178,7 @@ async function pushAll(since: string, userId: string): Promise<number> {
       translation: r.translation,
       created_at: r.created_at,
       archived: r.archived === 1,
+      shelf_id: r.shelf_id ?? null,
       updated_at: r.updated_at,
       deleted_at: r.deleted_at ?? null,
     }),
@@ -162,28 +224,69 @@ async function pushAll(since: string, userId: string): Promise<number> {
 // ---------------------------------------------------------------------------
 
 async function fetchRemote(
-  table: 'verses' | 'progress' | 'test_results',
+  table: 'shelves' | 'verses' | 'progress' | 'test_results',
   since: string
 ): Promise<any[]> {
+  // INCLUSIVE (`>=`): re-read the boundary timestamp each pull so same-timestamp
+  // rows made visible across separate server writes are never stranded (see the
+  // per-table watermark note above). Safe because the merge is idempotent.
   const { data, error } = await supabase
     .from(table)
     .select('*')
-    .gt('updated_at', since)
+    .gte('updated_at', since)
     .order('updated_at', { ascending: true });
   if (error) throw new Error(`pull ${table}: ${error.message}`);
   return data ?? [];
 }
 
-/** Merge pulled rows; returns the max remote updated_at seen (for the watermark). */
-async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: string }> {
+/**
+ * Merge all pulled rows. Each table advances its OWN pull cursor (see
+ * getPullSince) so one table's progress can't skip another's same-timestamp
+ * rows. Returns how many rows were applied locally.
+ */
+async function pullAll(): Promise<{ pulled: number }> {
   const db = getDatabase();
   let pulled = 0;
+
+  // --- shelves (first: verses.shelf_id refers to them; last-write-wins) ---
+  {
+  const since = await getPullSince('shelves');
   let maxUpdated = since;
   const note = (ua: string | null) => {
     if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
   };
+  for (const r of await fetchRemote('shelves', since)) {
+    note(r.updated_at);
+    try {
+      const local = await db.getFirstAsync<any>('SELECT * FROM shelves WHERE id = ?', [r.id]);
+      if (!local) {
+        await db.runAsync(
+          `INSERT INTO shelves (id, name, created_at, user_id, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [r.id, r.name, r.created_at, r.user_id ?? null, r.updated_at ?? null, r.deleted_at ?? null]
+        );
+        pulled++;
+      } else if (isNewer(r.updated_at, local.updated_at)) {
+        await db.runAsync(
+          `UPDATE shelves SET name = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ?`,
+          [r.name, r.created_at, r.updated_at ?? null, r.deleted_at ?? null, r.id]
+        );
+        pulled++;
+      }
+    } catch (e) {
+      console.warn('[MemoryMate] sync: skipped shelf', r.id, e);
+    }
+  }
+  if (isNewer(maxUpdated, since)) await setPullSince('shelves', maxUpdated);
+  }
 
-  // --- verses (must come first so progress/test_results FKs resolve locally) ---
+  // --- verses (before progress/test_results so their FKs resolve locally) ---
+  {
+  const since = await getPullSince('verses');
+  let maxUpdated = since;
+  const note = (ua: string | null) => {
+    if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
+  };
   for (const r of await fetchRemote('verses', since)) {
     note(r.updated_at);
     try {
@@ -191,16 +294,16 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       const archived = r.archived ? 1 : 0;
       if (!local) {
         await db.runAsync(
-          `INSERT INTO verses (id, reference, text, translation, created_at, archived, user_id, updated_at, deleted_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [r.id, r.reference, r.text, r.translation, r.created_at, archived, r.user_id ?? null, r.updated_at ?? null, r.deleted_at ?? null]
+          `INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, user_id, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [r.id, r.reference, r.text, r.translation, r.created_at, archived, r.shelf_id ?? null, r.user_id ?? null, r.updated_at ?? null, r.deleted_at ?? null]
         );
         pulled++;
       } else if (isNewer(r.updated_at, local.updated_at)) {
         await db.runAsync(
-          `UPDATE verses SET reference = ?, text = ?, translation = ?, archived = ?,
+          `UPDATE verses SET reference = ?, text = ?, translation = ?, archived = ?, shelf_id = ?,
              created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ?`,
-          [r.reference, r.text, r.translation, archived, r.created_at, r.updated_at ?? null, r.deleted_at ?? null, r.id]
+          [r.reference, r.text, r.translation, archived, r.shelf_id ?? null, r.created_at, r.updated_at ?? null, r.deleted_at ?? null, r.id]
         );
         pulled++;
       }
@@ -208,8 +311,16 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       console.warn('[MemoryMate] sync: skipped verse', r.id, e);
     }
   }
+  if (isNewer(maxUpdated, since)) await setPullSince('verses', maxUpdated);
+  }
 
   // --- progress (counter reconciliation + last-write-wins) ---
+  {
+  const since = await getPullSince('progress');
+  let maxUpdated = since;
+  const note = (ua: string | null) => {
+    if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
+  };
   for (const r of await fetchRemote('progress', since)) {
     note(r.updated_at);
     try {
@@ -231,26 +342,41 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
         const tt = Math.max(local.times_tested, r.times_tested);
         const tc = Math.max(local.times_correct, r.times_correct);
         const remoteNewer = isNewer(r.updated_at, local.updated_at);
-        // Point-in-time fields follow whichever row is newer.
-        const comfort = remoteNewer ? r.comfort_level : local.comfort_level;
-        const lp = remoteNewer ? (r.last_practiced ?? null) : local.last_practiced;
-        const lt = remoteNewer ? (r.last_tested ?? null) : local.last_tested;
-        const del = remoteNewer ? (r.deleted_at ?? null) : local.deleted_at;
-        const ua = remoteNewer ? (r.updated_at ?? null) : local.updated_at;
-        await db.runAsync(
-          `UPDATE progress SET times_practiced = ?, times_tested = ?, times_correct = ?,
-             comfort_level = ?, last_practiced = ?, last_tested = ?, deleted_at = ?, updated_at = ?
-           WHERE verse_id = ?`,
-          [tp, tt, tc, comfort, lp, lt, del, ua, r.verse_id]
-        );
-        pulled++;
+        const countersChanged =
+          tp !== local.times_practiced || tt !== local.times_tested || tc !== local.times_correct;
+        // The inclusive cursor re-reads the boundary timestamp; when the remote
+        // row is neither newer nor carries higher counters there is nothing to
+        // apply, so skip the write (and don't count it as a pulled change).
+        if (remoteNewer || countersChanged) {
+          // Point-in-time fields follow whichever row is newer.
+          const comfort = remoteNewer ? r.comfort_level : local.comfort_level;
+          const lp = remoteNewer ? (r.last_practiced ?? null) : local.last_practiced;
+          const lt = remoteNewer ? (r.last_tested ?? null) : local.last_tested;
+          const del = remoteNewer ? (r.deleted_at ?? null) : local.deleted_at;
+          const ua = remoteNewer ? (r.updated_at ?? null) : local.updated_at;
+          await db.runAsync(
+            `UPDATE progress SET times_practiced = ?, times_tested = ?, times_correct = ?,
+               comfort_level = ?, last_practiced = ?, last_tested = ?, deleted_at = ?, updated_at = ?
+             WHERE verse_id = ?`,
+            [tp, tt, tc, comfort, lp, lt, del, ua, r.verse_id]
+          );
+          pulled++;
+        }
       }
     } catch (e) {
       console.warn('[MemoryMate] sync: skipped progress', r.verse_id, e);
     }
   }
+  if (isNewer(maxUpdated, since)) await setPullSince('progress', maxUpdated);
+  }
 
   // --- test_results (append-only; updates only propagate tombstones) ---
+  {
+  const since = await getPullSince('test_results');
+  let maxUpdated = since;
+  const note = (ua: string | null) => {
+    if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
+  };
   for (const r of await fetchRemote('test_results', since)) {
     note(r.updated_at);
     try {
@@ -274,8 +400,34 @@ async function pullAll(since: string): Promise<{ pulled: number; maxUpdated: str
       console.warn('[MemoryMate] sync: skipped test_result', r.id, e);
     }
   }
+  if (isNewer(maxUpdated, since)) await setPullSince('test_results', maxUpdated);
+  }
 
-  return { pulled, maxUpdated };
+  return { pulled };
+}
+
+/**
+ * Repair the shelf-membership invariant after a merge (issue #5 review,
+ * concern 2): a verse must never reference a shelf that is absent or tombstoned.
+ * Two cross-device races can otherwise strand a dangling shelf_id:
+ *   - a shelf deletion whose verse unassignments are skipped at a pull boundary,
+ *   - a verse assigned offline to a shelf that another device concurrently
+ *     deleted (both rows merge independently; there is deliberately no FK).
+ * Clearing the reference here — stamped so the repair itself re-syncs — makes
+ * shelf deletion authoritative over membership and lets every device self-heal
+ * on each sync, so the inconsistency can never persist. Returns rows repaired.
+ */
+async function reconcileShelfMembership(): Promise<number> {
+  const db = getDatabase();
+  const now = new Date().toISOString();
+  const res = await db.runAsync(
+    `UPDATE verses SET shelf_id = NULL, updated_at = ?
+       WHERE shelf_id IS NOT NULL
+         AND deleted_at IS NULL
+         AND shelf_id NOT IN (SELECT id FROM shelves WHERE deleted_at IS NULL)`,
+    [now]
+  );
+  return res?.changes ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,7 +446,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
  */
 async function adoptUnownedRows(userId: string): Promise<void> {
   const db = getDatabase();
-  for (const table of ['verses', 'progress', 'test_results']) {
+  for (const table of ['shelves', 'verses', 'progress', 'test_results']) {
     await db.runAsync(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`, [userId]);
   }
 }
@@ -308,7 +460,7 @@ async function adoptUnownedRows(userId: string): Promise<void> {
 async function purgeRowsOwnedByOthers(userId: string): Promise<boolean> {
   const db = getDatabase();
   let purged = false;
-  for (const table of ['test_results', 'progress', 'verses']) {
+  for (const table of ['test_results', 'progress', 'verses', 'shelves']) {
     const result = await db.runAsync(
       `DELETE FROM ${table} WHERE user_id IS NOT NULL AND user_id != ?`,
       [userId]
@@ -335,11 +487,16 @@ export async function clearLocalDataOnSignOut(): Promise<boolean> {
   }
   if ((await getMeta('synced_user_id')) === null) return false;
   const db = getDatabase();
-  for (const table of ['test_results', 'progress', 'verses']) {
+  for (const table of ['test_results', 'progress', 'verses', 'shelves']) {
     await db.runAsync(`DELETE FROM ${table}`);
   }
+  // active_shelf_id goes too: the shelf it points at no longer exists locally,
+  // and the next sign-in may be a different account. Per-table pull cursors
+  // (last_pulled_at:*) are cleared alongside the legacy single cursor.
   await db.runAsync(
-    `DELETE FROM sync_state WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at')`
+    `DELETE FROM sync_state
+       WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at', 'active_shelf_id')
+          OR key LIKE 'last_pulled_at:%'`
   );
   return true;
 }
@@ -366,7 +523,7 @@ export async function sync(): Promise<SyncResult> {
       if ((await getMeta('synced_user_id')) !== userId) {
         purged = await purgeRowsOwnedByOthers(userId);
         await setMeta('last_pushed_at', EPOCH);
-        await setMeta('last_pulled_at', EPOCH);
+        await clearPullWatermarks();
         await setMeta('synced_user_id', userId);
       }
 
@@ -375,20 +532,25 @@ export async function sync(): Promise<SyncResult> {
       await adoptUnownedRows(userId);
 
       const pushSince = (await getMeta('last_pushed_at')) ?? EPOCH;
-      const pullSince = (await getMeta('last_pulled_at')) ?? EPOCH;
 
       // Capture local time BEFORE pushing; rows changed mid-sync get caught next run.
       const pushWatermark = new Date().toISOString();
       const pushed = await pushAll(pushSince, userId);
       await setMeta('last_pushed_at', pushWatermark);
 
-      const { pulled, maxUpdated } = await pullAll(pullSince);
-      if (isNewer(maxUpdated, pullSince)) await setMeta('last_pulled_at', maxUpdated);
+      const { pulled } = await pullAll();
 
-      // Reflect pulled changes (or a purge of another account's rows) in the UI.
-      if (pulled > 0 || purged) {
+      // After merging, drop any verse->shelf reference whose shelf is gone or
+      // tombstoned (issue #5 review, concern 2). The repair is stamped, so it
+      // pushes on the next run and other devices converge too.
+      const reconciled = await reconcileShelfMembership();
+
+      // Reflect pulled changes, a membership repair, or a purge of another
+      // account's rows in the UI.
+      if (pulled > 0 || purged || reconciled > 0) {
         const store = useVerseStore.getState();
         await store.refreshVerses();
+        await store.refreshShelves();
         await store.refreshStats();
       }
 

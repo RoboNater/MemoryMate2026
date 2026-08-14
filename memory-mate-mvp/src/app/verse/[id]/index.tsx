@@ -13,8 +13,9 @@ export default function VerseDetailScreen() {
   const [testHistory, setTestHistory] = useState<TestResult[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 
-  const { verses, progress, archiveVerse, unarchiveVerse, removeVerse, getTestHistory } = useVerseStore();
+  const { verses, shelves, progress, archiveVerse, unarchiveVerse, removeVerse, getTestHistory } = useVerseStore();
   const verse = verses.find((v) => v.id === id);
+  const shelfName = shelves.find((s) => s.id === verse?.shelf_id)?.name ?? null;
 
   useEffect(() => {
     const loadTestHistory = async () => {
@@ -115,6 +116,7 @@ export default function VerseDetailScreen() {
     <>
       <VerseDetail
         verse={verse}
+        shelfName={shelfName}
         progress={verseProgress}
         testHistory={testHistory}
         onPractice={handlePractice}

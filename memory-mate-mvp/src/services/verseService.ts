@@ -12,6 +12,7 @@ interface VerseRow {
   translation: string;
   created_at: string;
   archived: number; // 0 or 1
+  shelf_id: string | null;
 }
 
 /**
@@ -27,6 +28,7 @@ function rowToVerse(row: VerseRow): Verse {
     translation: row.translation,
     created_at: row.created_at,
     archived: row.archived === 1,
+    shelf_id: row.shelf_id ?? null,
   };
 }
 
@@ -36,7 +38,8 @@ function rowToVerse(row: VerseRow): Verse {
 export async function addVerse(
   reference: string,
   text: string,
-  translation: string = 'NIV'
+  translation: string = 'NIV',
+  shelfId: string | null = null
 ): Promise<Verse> {
   const db = getDatabase();
   const id = generateUUID();
@@ -44,11 +47,11 @@ export async function addVerse(
 
   // New rows start their change-tracking clock at creation time.
   await db.runAsync(
-    'INSERT INTO verses (id, reference, text, translation, created_at, archived, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, reference, text, translation, created_at, 0, created_at]
+    'INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, reference, text, translation, created_at, 0, shelfId, created_at]
   );
 
-  return { id, reference, text, translation, created_at, archived: false };
+  return { id, reference, text, translation, created_at, archived: false, shelf_id: shelfId };
 }
 
 /**
@@ -103,6 +106,10 @@ export async function updateVerse(
   if ('archived' in updates) {
     fields.push('archived = ?');
     values.push(updates.archived ? 1 : 0);
+  }
+  if ('shelf_id' in updates) {
+    fields.push('shelf_id = ?');
+    values.push(updates.shelf_id ?? null);
   }
 
   if (fields.length === 0) {
