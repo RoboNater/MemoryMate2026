@@ -1,98 +1,117 @@
-# Memory Mate 2026
+# Memory Mate
 
-This is the 2026 prototype for Memory Mate, a mobile and web-app to help people memorize Bible verses and other information.
+A mobile and web app to help you memorize Bible verses, with progress tracking and
+cross-device sync. Runs on iOS, Android, and the web from a single Expo codebase.
 
-# Capabilities
+## Features
 
-## Capabilities of this Prototype
-- A python class to prototype the capabilities that will be included in the MVP
-  - This will focus on the "backend" architecture including simple data model and storage
-  - Will also provide methods to add, remove, retrieve verses, and get/set test results / stats
-- Practice Verse(s) and Test on Verse(s) will not be implemented in this first prototype
-  - These are user-interface centric
-  - The python class capabilties related to practice/test are the 'retrieve verses' and 'get/set test results/stats' methods
+- **Verse library** — add, edit, archive, and organize verses (reference, text, translation).
+- **Practice** — guided practice sessions to work through verses you're learning.
+- **Testing** — test recall and record results over time.
+- **Progress & stats** — per-verse comfort levels, last-practiced / last-tested tracking,
+  and summary statistics.
+- **Accounts** — email/password auth via Supabase.
+- **Offline-first with cross-device sync** — all data is stored locally (SQLite on native,
+  sql.js on web) and syncs to Supabase in the background. Works fully offline; changes
+  reconcile when you're back online.
+- **Data export** — export your data from Settings.
 
-## Capabilities of the Memory Mate MVP (Minimum Viable Product)
-- Manage verses: Add, remove, archive, reset progress
-- Review Verses and see stats/progress
-- Practice Verse(s)
-- Test on Verse(s)
+## Tech Stack
 
-## Future Capabilities
-- Organize - Shelf/Book system
-- Backup/Sync
-- Multi user, sharing, social
-- AI augmented learning / test
-  - Pictures, sounds/music/songs
-  - Coach through memorization techniques and aids
-  - Voice interface
+- **Framework**: Expo `~56.0` + React Native `0.85`
+- **Language**: TypeScript `~6.0`
+- **Navigation**: Expo Router `~56.2`
+- **Styling**: NativeWind `4.2` (Tailwind CSS for React Native)
+- **State**: Zustand `5.0`
+- **Local storage**: expo-sqlite `~56.0` (native) / sql.js `1.13` (web)
+- **Backend & sync**: Supabase (`@supabase/supabase-js` `2.x`) — Postgres + Auth with
+  Row Level Security
 
+## Development
 
-# Architecture
+### Prerequisites
 
-## Design Principles
+- Node.js v24+ (tested with v24.11.1)
+- npm 11+ (tested with 11.6.4)
+- A Supabase project (for auth + sync) — see [Backend setup](#backend-setup)
 
-The MVP architecture prioritizes:
+### Getting Started
 
-1. **Rapid Implementation** - Choose proven, well-documented technologies that enable fast development
-2. **Ease of Iteration** - Favor simplicity over sophistication to allow quick pivots and changes
-3. **Cross-Platform Deployment** - Support both mobile and web from a single codebase
-4. **Minimal Complexity** - Avoid over-engineering for future capabilities that may change
+```bash
+# Install dependencies
+npm install
 
-The future capabilities (multi-user, AI features, etc.) are intentionally given minimal weight in MVP architecture decisions, as those requirements are subject to change. The MVP should ship quickly and validate core functionality first.
+# Configure environment (see Backend setup below)
+cp .env.example .env   # then fill in your Supabase URL + anon key
 
-## Prototype → MVP Relationship
+# Start the dev server
+npm start           # or: npx expo start
 
-The Python prototype class serves as:
-- A **functionality specification** defining the core operations and data model
-- A **reference implementation** that the MVP backend will mirror
-- A **test harness** for validating business logic before frontend integration
+# Run on a specific platform
+npm run web         # Web browser
+npm run ios         # iOS simulator (macOS only)
+npm run android     # Android emulator
+```
 
-This approach separates concern: Python for rapid prototyping and specification, TypeScript/React for the production app.
+### Backend setup
 
-## MVP Tech Stack
+Auth and sync require a Supabase project:
 
-| Layer | Technology | Rationale |
-|-------|------------|-----------|
-| **Frontend Framework** | React Native + Expo | Single codebase for iOS, Android, and Web |
-| **Language** | TypeScript | Type safety, excellent tooling |
-| **Build/Dev Tool** | Expo | Simplified build pipeline, OTA updates |
-| **Styling** | NativeWind (Tailwind for RN) | Familiar utility-first CSS, cross-platform |
-| **Navigation** | Expo Router | File-based routing, works on all platforms |
-| **State Management** | Zustand | Lightweight, simple API, no boilerplate |
-| **Local Storage** | expo-sqlite | Structured data, offline-first capability |
-| **Backend (MVP)** | None (local-only) | Simplify MVP, add backend when needed |
+1. Create a project at [supabase.com](https://supabase.com).
+2. Apply the database schema in [`supabase/schema.sql`](supabase/schema.sql) — it creates
+   the `verses`, `progress`, and `test_results` tables and their Row Level Security
+   policies (each user can only read/write their own rows).
+3. Copy your Project URL and anon/publishable key from **Project Settings → API** into
+   `.env`:
 
-### Why React Native + Expo?
+   ```
+   EXPO_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT-ref.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxxxxxx
+   ```
 
-- **Single codebase** deploys to iOS, Android, and Web
-- **Expo Go** enables rapid development and testing on physical devices
-- **EAS Build** handles app store deployment without native toolchain setup
-- **Large ecosystem** with extensive documentation and community support
+   Both values are safe to ship in the client (the anon key is protected by RLS).
+   Never put the `service_role` key or database password in `.env`.
 
-### Why Local-Only Storage for MVP?
+### How sync works
 
-- Eliminates backend complexity and hosting costs
-- Faster iteration without API development
-- Users own their data (privacy-friendly)
-- Backend/sync can be added later without major refactoring
+The app is offline-first. Reads and writes go to the local database first; a background
+sync service reconciles with Supabase using **last-write-wins by `updated_at`**, with
+soft-delete tombstones (`deleted_at`) and a pull watermark so only changed rows move.
+See [`src/services/syncService.ts`](src/services/syncService.ts) for details.
+
+### Type checking
+
+```bash
+npm run typecheck   # tsc --noEmit
+```
 
 ## Project Structure
 
 ```
-src/
-├── app/                # Expo Router pages
-│   ├── (tabs)/         # Tab navigation screens
-│   ├── verse/[id].tsx  # Verse detail/practice screen
-│   └── _layout.tsx     # Root layout
-├── components/         # Reusable UI components
-├── store/              # Zustand state management
-├── services/           # Data access layer (mirrors Python prototype)
-├── types/              # TypeScript type definitions
-└── utils/              # Helper functions
+memory-mate-mvp/
+├── src/
+│   ├── app/                # Expo Router screens
+│   │   ├── (tabs)/         #   Home, Verses, Practice, Test, Settings
+│   │   ├── verse/          #   Add / view / edit a verse
+│   │   ├── practice/       #   Practice sessions & summary
+│   │   ├── test/           #   Testing flow
+│   │   └── login.tsx       #   Auth screen
+│   ├── components/         # Reusable UI components
+│   ├── store/              # Zustand stores (auth, verses, sync)
+│   ├── services/           # Data access, database, Supabase, sync, export
+│   ├── types/              # TypeScript definitions
+│   ├── utils/              # Helpers
+│   └── constants/          # App constants
+├── supabase/
+│   └── schema.sql          # Tables + Row Level Security policies
+├── assets/                 # Icons, splash, fonts
+├── app.json                # Expo config
+├── metro.config.js         # Metro bundler config
+└── tailwind.config.js      # Tailwind / NativeWind config
 ```
 
-## Reference Architecture
+## Status
 
-For additional architectural patterns and structure examples, see [example.01.tmdb-movie-app-architecture.md](example.01.tmdb-movie-app-architecture.md).
-
+The MVP is functional across web, iOS, and Android, with accounts and cross-device sync
+verified live. Ongoing work focuses on polishing usability rough edges before wider
+distribution.
