@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a bug to help us improve
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please provide as much detail as possible to help us understand and fix the issue.
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the bug in detail.
+      placeholder: Explain what went wrong...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide clear steps to reproduce the issue.
+      placeholder: 1. Go to...
+                   2. Click on...
+                   3. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+      placeholder: Explain what you expected to happen...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: What platform are you using?
+      options:
+        - Web (desktop browser)
+        - Web (mobile browser)
+        - iOS
+        - Android
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sync_status
+    attributes:
+      label: Is the account signed in and syncing?
+      description: Important for sync-related issues.
+      options:
+        - Yes - signed in and syncing
+        - No - local only / signed out
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: console_output
+    attributes:
+      label: Console output or screenshots
+      description: Paste any error messages or attach screenshots that might help.
+      placeholder: Include console errors, stack traces, or screenshots...
+    validations:
+      required: false
