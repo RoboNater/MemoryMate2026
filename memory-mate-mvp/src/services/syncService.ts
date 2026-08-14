@@ -79,17 +79,30 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 // ---------------------------------------------------------------------------
-// Per-table pull watermarks (issue #5 review, concern 1)
+// Per-table pull watermarks (issue #5 review, concerns 1 & 4)
 //
-// A single shared `last_pulled_at` was unsafe: pulling one table could advance
-// the cursor past rows in ANOTHER table written at the same millisecond but
-// uploaded in a separate request. The classic case is a shelf deletion —
-// `removeShelf` stamps the shelf tombstone and its verse unassignments with the
-// same `updated_at`, but `pushAll` uploads shelves and verses in different
-// requests. A device that pulled between those two uploads advanced the shared
-// cursor to T on the shelf tombstone; the verse unassignments (also at T) were
-// then skipped forever by the next `> T` pull. Per-table cursors keep each
-// table's progress independent, so the verse pull still sees its rows.
+// Two failure modes drove this design:
+//
+// (a) CROSS-TABLE (concern 1): a single shared `last_pulled_at` let pulling one
+//     table advance the cursor past rows in ANOTHER table written at the same
+//     millisecond but uploaded in a separate request — e.g. a shelf deletion,
+//     where `removeShelf` stamps the shelf tombstone and its verse
+//     unassignments with the same `updated_at` but `pushAll` uploads shelves
+//     and verses in different requests. A PER-TABLE cursor fixes this: each
+//     table's progress is independent.
+//
+// (b) SAME-TABLE (concern 4): rows within ONE table can also share an
+//     `updated_at` yet become visible across separate server writes — the
+//     sync-aware import stamps every row with one `importedAt`, and `pushTable`
+//     uploads in 500-row chunks. An EXCLUSIVE `> since` cursor advanced to T by
+//     the first chunk would skip same-T rows from a later chunk forever. So the
+//     cursor is INCLUSIVE (`>= since`, see fetchRemote): each pull re-reads the
+//     boundary timestamp. The merge is idempotent (insert-if-absent, else
+//     last-write-wins by updated_at; progress additionally short-circuits an
+//     unchanged row), so re-reading applied rows is a cheap no-op, while
+//     genuinely later-arriving same-timestamp rows always remain reachable. The
+//     re-read is self-limiting: once any row with a newer timestamp is pulled,
+//     the cursor advances past T and that bucket drops out of the window.
 // ---------------------------------------------------------------------------
 
 async function getPullSince(table: string): Promise<string> {
@@ -214,10 +227,13 @@ async function fetchRemote(
   table: 'shelves' | 'verses' | 'progress' | 'test_results',
   since: string
 ): Promise<any[]> {
+  // INCLUSIVE (`>=`): re-read the boundary timestamp each pull so same-timestamp
+  // rows made visible across separate server writes are never stranded (see the
+  // per-table watermark note above). Safe because the merge is idempotent.
   const { data, error } = await supabase
     .from(table)
     .select('*')
-    .gt('updated_at', since)
+    .gte('updated_at', since)
     .order('updated_at', { ascending: true });
   if (error) throw new Error(`pull ${table}: ${error.message}`);
   return data ?? [];
@@ -326,19 +342,26 @@ async function pullAll(): Promise<{ pulled: number }> {
         const tt = Math.max(local.times_tested, r.times_tested);
         const tc = Math.max(local.times_correct, r.times_correct);
         const remoteNewer = isNewer(r.updated_at, local.updated_at);
-        // Point-in-time fields follow whichever row is newer.
-        const comfort = remoteNewer ? r.comfort_level : local.comfort_level;
-        const lp = remoteNewer ? (r.last_practiced ?? null) : local.last_practiced;
-        const lt = remoteNewer ? (r.last_tested ?? null) : local.last_tested;
-        const del = remoteNewer ? (r.deleted_at ?? null) : local.deleted_at;
-        const ua = remoteNewer ? (r.updated_at ?? null) : local.updated_at;
-        await db.runAsync(
-          `UPDATE progress SET times_practiced = ?, times_tested = ?, times_correct = ?,
-             comfort_level = ?, last_practiced = ?, last_tested = ?, deleted_at = ?, updated_at = ?
-           WHERE verse_id = ?`,
-          [tp, tt, tc, comfort, lp, lt, del, ua, r.verse_id]
-        );
-        pulled++;
+        const countersChanged =
+          tp !== local.times_practiced || tt !== local.times_tested || tc !== local.times_correct;
+        // The inclusive cursor re-reads the boundary timestamp; when the remote
+        // row is neither newer nor carries higher counters there is nothing to
+        // apply, so skip the write (and don't count it as a pulled change).
+        if (remoteNewer || countersChanged) {
+          // Point-in-time fields follow whichever row is newer.
+          const comfort = remoteNewer ? r.comfort_level : local.comfort_level;
+          const lp = remoteNewer ? (r.last_practiced ?? null) : local.last_practiced;
+          const lt = remoteNewer ? (r.last_tested ?? null) : local.last_tested;
+          const del = remoteNewer ? (r.deleted_at ?? null) : local.deleted_at;
+          const ua = remoteNewer ? (r.updated_at ?? null) : local.updated_at;
+          await db.runAsync(
+            `UPDATE progress SET times_practiced = ?, times_tested = ?, times_correct = ?,
+               comfort_level = ?, last_practiced = ?, last_tested = ?, deleted_at = ?, updated_at = ?
+             WHERE verse_id = ?`,
+            [tp, tt, tc, comfort, lp, lt, del, ua, r.verse_id]
+          );
+          pulled++;
+        }
       }
     } catch (e) {
       console.warn('[MemoryMate] sync: skipped progress', r.verse_id, e);
