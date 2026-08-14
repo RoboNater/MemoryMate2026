@@ -256,27 +256,21 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
         await tombstoneAbsent('verses', 'id', backupVerseIds);
         await tombstoneAbsent('shelves', 'id', backupShelfIds);
 
-        // Remove any existing row (live or previously tombstoned) the backup
-        // re-supplies, so the reinsert below is conflict-free and authoritative.
-        const clearForReinsert = async (table: string, keyCol: string, keys: Set<string>) => {
-          for (const part of chunkArray([...keys], 400)) {
-            const placeholders = part.map(() => '?').join(',');
-            await db.runAsync(
-              `DELETE FROM ${table} WHERE ${keyCol} IN (${placeholders})`,
-              part
-            );
-          }
-        };
-        await clearForReinsert('test_results', 'id', backupTestIds);
-        await clearForReinsert('progress', 'verse_id', backupProgressIds);
-        await clearForReinsert('verses', 'id', backupVerseIds);
-        await clearForReinsert('shelves', 'id', backupShelfIds);
-
-        // (1) Reinsert backup rows, each stamped at import time. Shelves first so
-        // verse shelf assignments always resolve.
+        // (1) Write backup rows, each stamped at import time. These are UPSERTs,
+        // NOT delete-then-insert: hard-deleting a retained parent verse would
+        // cascade (progress/test_results use ON DELETE CASCADE with FKs on) and
+        // wipe the tombstones we just created for that verse's omitted children
+        // before they ever sync (issue #5 follow-up review). Upserting the parent
+        // in place leaves those child tombstones intact. deleted_at is forced to
+        // NULL so a row that was tombstoned locally but is present in the backup
+        // is resurrected. Shelves first so verse shelf assignments resolve.
         for (const shelf of validShelves) {
           await db.runAsync(
-            'INSERT INTO shelves (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)',
+            `INSERT INTO shelves (id, name, created_at, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, NULL)
+             ON CONFLICT(id) DO UPDATE SET
+               name = excluded.name, created_at = excluded.created_at,
+               updated_at = excluded.updated_at, deleted_at = NULL`,
             [shelf.id, shelf.name, shelf.created_at, importedAt]
           );
         }
@@ -291,14 +285,26 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
             );
           }
           await db.runAsync(
-            'INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            `INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+             ON CONFLICT(id) DO UPDATE SET
+               reference = excluded.reference, text = excluded.text,
+               translation = excluded.translation, created_at = excluded.created_at,
+               archived = excluded.archived, shelf_id = excluded.shelf_id,
+               updated_at = excluded.updated_at, deleted_at = NULL`,
             [verse.id, verse.reference, verse.text, verse.translation, verse.created_at, verse.archived ? 1 : 0, shelfId, importedAt]
           );
         }
 
         for (const progress of validProgress) {
           await db.runAsync(
-            'INSERT INTO progress (verse_id, times_practiced, times_tested, times_correct, last_practiced, last_tested, comfort_level, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            `INSERT INTO progress (verse_id, times_practiced, times_tested, times_correct, last_practiced, last_tested, comfort_level, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+             ON CONFLICT(verse_id) DO UPDATE SET
+               times_practiced = excluded.times_practiced, times_tested = excluded.times_tested,
+               times_correct = excluded.times_correct, last_practiced = excluded.last_practiced,
+               last_tested = excluded.last_tested, comfort_level = excluded.comfort_level,
+               updated_at = excluded.updated_at, deleted_at = NULL`,
             [
               progress.verse_id,
               progress.times_practiced,
@@ -314,7 +320,12 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
 
         for (const result of validTestResults) {
           await db.runAsync(
-            'INSERT INTO test_results (id, verse_id, timestamp, passed, score, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+            `INSERT INTO test_results (id, verse_id, timestamp, passed, score, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, NULL)
+             ON CONFLICT(id) DO UPDATE SET
+               verse_id = excluded.verse_id, timestamp = excluded.timestamp,
+               passed = excluded.passed, score = excluded.score,
+               updated_at = excluded.updated_at, deleted_at = NULL`,
             [result.id, result.verse_id, result.timestamp, result.passed ? 1 : 0, result.score ?? null, importedAt]
           );
         }
