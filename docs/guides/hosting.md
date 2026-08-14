@@ -1,51 +1,96 @@
-The Master Setup Plan: Expo to Enterprise (2026)
-Here is your comprehensive "Project Bible." You can copy and paste this into a README.md or a Notion page.
+# Hosting and Infrastructure
 
-Project Infrastructure & Growth Plan
-Phase 1: Identity & Security (The Vault)
-Email: Proton Mail
+How Memory Mate's infrastructure — identity, deployment, DNS, backend, and basic
+compliance — is set up and why. This is operational guidance for whoever owns the
+account, not application documentation.
 
-Purpose: Use a dedicated address (e.g., admin.projectname@proton.me) for registrar and hosting logins only.
+## Identity and registrar security
 
-Security: Enable Passkeys or Hardware 2FA.
+Use a dedicated email address for all registrar and hosting logins (for example
+`admin.projectname@proton.me` on Proton Mail), separate from any personal
+account. Its only purpose is infrastructure logins — keep it out of mailing
+lists, sign-ups, or anything user-facing. Protect it with a passkey or hardware
+2FA key, not SMS.
 
-Domain Registrar: Cloudflare Registrar
+Register the domain through Cloudflare Registrar, and on the domain:
 
-Task: Register domain. Enable WHOIS Privacy (Redaction).
+- Enable WHOIS privacy (redaction) so the registration doesn't expose personal
+  contact details.
+- Enable DNSSEC in the Cloudflare dashboard. This prevents DNS responses for the
+  domain from being spoofed or hijacked in transit.
 
-Task: Enable DNSSEC in the Cloudflare dashboard (prevents "man-in-the-middle" hijacking).
+## Deployment: EAS Hosting
 
-Phase 2: Deployment & Hosting (The Engine)
-Platform: EAS Hosting
+Web and mobile both deploy through Expo Application Services (EAS):
 
-Web Deployment: npx expo export --platform web followed by eas deploy.
+- **Web** — build a static export and deploy it:
+  ```bash
+  npx expo export --platform web
+  eas deploy
+  ```
+- **Mobile** — the same EAS project and dashboard produce native builds (`.ipa`
+  for iOS, `.apk`/`.aab` for Android) when the app is ready for TestFlight or an
+  app store submission. No separate hosting setup is needed for this.
 
-Mobile Ready: You can use the same dashboard to build .ipa or .apk files when you're ready for the App Store.
+### DNS
 
-Domain Connection:
+Point the domain at the EAS-provided endpoint using a Cloudflare CNAME record.
+Set the TTL to `Auto` (or `3600` if a fixed value is required) — there's no
+benefit to a shorter TTL for a record that isn't expected to change often.
 
-Point your Cloudflare CNAME records to the EAS provided endpoint.
+## Backend: Supabase
 
-Set TTL to Auto or 3600.
+Supabase provides the database, auth, and file storage:
 
-Phase 3: Data & Storage (The Memory)
-Backend: Supabase
+- **Database** — PostgreSQL. See `docs/architecture/data-model.md` for the actual
+  schema (`verses`, `shelves`, `progress`, `test_results`) and
+  `supabase/schema.sql` for the DDL.
+- **Storage** — Supabase Storage, for any large files (the app doesn't currently
+  store any, but this is the intended place for them if that changes).
+- **Auth** — Supabase Auth handles sign-in. The app currently uses email/password;
+  Supabase also supports Google and Apple sign-in if that's added later.
 
-Database: PostgreSQL.
+### Row Level Security is mandatory
 
-Storage: Use "Supabase Storage" for large files (Gigabytes).
+**Every table must have Row Level Security enabled.** This is not optional for
+any table that holds user data — RLS is the actual security boundary, since the
+Supabase anon key is publishable and tables are not auto-exposed. Every table in
+this project is enabled and policy-scoped to its owner:
 
-Auth: Use "Supabase Auth" to handle user logins (Google, Apple, or Email/Password).
+```sql
+alter table public.<table> enable row level security;
 
-Critical Security Rule: * Always Enable Row Level Security (RLS) on every table.
+create policy "own_<table>" on public.<table>
+  for all
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+```
 
-Optimization: Use ((select auth.uid()) = user_id) in your policies to speed up queries.
+**Performance tip:** write the check as `(select auth.uid()) = user_id`, not the
+more obvious `auth.uid() = user_id`. Wrapping the call in a `select` lets
+Postgres's planner evaluate it once per query instead of re-evaluating it for
+every row scanned — this makes a measurable difference on any table that grows
+past a trivial size. `supabase/schema.sql` follows this pattern on all four
+tables; use the same form for any table added later.
 
-Phase 4: Compliance & Growth (3–5 Year Horizon)
-Analytics: Use Plausible or Vercel Web Analytics.
+Also grant table access explicitly and only to `authenticated`, never `anon`, so
+an unauthenticated client can't read or write anything regardless of RLS:
 
-Why: These are privacy-first and don't require annoying cookie banners for 20-50 people.
+```sql
+grant select, insert, update, delete on public.<table> to authenticated;
+```
 
-Legal: Create a simple Privacy Policy. Even for 50 friends, if you store their data, you must legally state what you store and how they can ask you to delete it (GDPR/CCPA compliance).
+## Privacy, analytics, and compliance
 
-Business Email: Use Zoho Mail (Free Tier) or iCloud+ Custom Domains to receive mail at webadmin@yourdomain.com.
+- **Analytics** — use a privacy-first tool such as Plausible or Vercel Web
+  Analytics. These avoid the cookie-consent-banner requirement that
+  tracking-cookie-based analytics (e.g. Google Analytics) trigger, which matters
+  even at small scale.
+- **Privacy policy** — write a simple, accurate privacy policy stating what data
+  is stored and how a user can request deletion. This applies under GDPR/CCPA
+  even for a small, informal user base — the obligation is based on what data is
+  collected, not how many people use the app.
+- **Business email** — for a domain-based contact address (e.g.
+  `webadmin@yourdomain.com`), use Zoho Mail's free tier or iCloud+ Custom Domains
+  rather than routing it through the dedicated infrastructure-login address
+  above; keep the two separate.
