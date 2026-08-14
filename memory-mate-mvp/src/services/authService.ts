@@ -1,5 +1,5 @@
 /**
- * Auth service — thin wrapper over Supabase Auth for cross-device sync (ccc.30).
+ * Auth service — thin wrapper over Supabase Auth for cross-device sync (docs/architecture/sync.md).
  *
  * Sign-in is OPTIONAL: the app works fully offline against local SQLite without an
  * account. Signing in identifies the user so their data can sync across devices.

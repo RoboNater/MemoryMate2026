@@ -63,7 +63,7 @@ export async function initDatabase(): Promise<void> {
   //
   // Sync columns (user_id / updated_at / deleted_at) are part of the fresh-install
   // schema here AND are added to pre-existing databases by runMigrations() below.
-  // See ccc.30 (cross-device sync plan):
+  // See docs/architecture/sync.md (cross-device sync plan):
   //   - user_id    : owning Supabase auth user (NULL until sign-in, Phase 3)
   //   - updated_at : last-write-wins change marker (drives sync push/merge)
   //   - deleted_at : soft-delete tombstone so deletions propagate across devices
@@ -170,7 +170,7 @@ async function addColumnIfMissing(
 /**
  * Idempotent schema migrations.
  *
- * Phase 1 of the cross-device sync work (ccc.30): add the sync metadata columns
+ * Phase 1 of the cross-device sync work (docs/architecture/sync.md): add the sync metadata columns
  * to databases created before this schema existed, backfill `updated_at` for
  * existing rows, and create the sync_state checkpoint table. Safe to run on
  * every startup — each step is a no-op once applied.

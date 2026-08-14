@@ -14,7 +14,7 @@ import { useAuthStore } from '@/store';
 import { isSupabaseConfigured } from '@/services/supabaseClient';
 
 /**
- * Login screen (ccc.30, Phase 3).
+ * Login screen (docs/architecture/sync.md, Phase 3).
  *
  * Optional sign-in to enable cross-device sync. The same form toggles between
  * "Sign In" and "Create Account". On success it returns to the previous screen

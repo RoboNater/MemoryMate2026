@@ -1,5 +1,5 @@
 /**
- * Supabase client — the shared cloud backend for cross-device sync (ccc.30).
+ * Supabase client — the shared cloud backend for cross-device sync (docs/architecture/sync.md).
  *
  * Configuration comes from EXPO_PUBLIC_* env vars (see .env / .env.example), which
  * Expo inlines into the bundle at build time. The anon/publishable key is meant to

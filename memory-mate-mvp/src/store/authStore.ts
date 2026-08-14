@@ -4,7 +4,7 @@ import { isSupabaseConfigured } from '@/services/supabaseClient';
 import * as authService from '@/services/authService';
 
 /**
- * Auth state for the UI (ccc.30, Phase 3).
+ * Auth state for the UI (docs/architecture/sync.md, Phase 3).
  *
  * Separate from the verse store: auth is a cross-cutting concern and sign-in is
  * optional (the app runs offline without it). When sync lands (Phase 4) it will

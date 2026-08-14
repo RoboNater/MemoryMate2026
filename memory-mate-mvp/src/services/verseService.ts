@@ -131,7 +131,7 @@ export async function updateVerse(
  * Delete a verse and all related data (progress and test results).
  *
  * This is a SOFT delete: rows are tombstoned via deleted_at rather than removed,
- * so the deletion can propagate to other devices on the next sync (ccc.30).
+ * so the deletion can propagate to other devices on the next sync (docs/architecture/sync.md).
  * All reads filter on `deleted_at IS NULL`, so tombstoned rows are invisible to
  * the app. Wrapped in a transaction for all-or-nothing behavior across platforms.
  */

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 /**
- * Sync status for the UI (ccc.30, Phase 4).
+ * Sync status for the UI (docs/architecture/sync.md, Phase 4).
  *
  * Holds presentation state only. The engine (services/syncService) writes status
  * here one-way; `syncNow` calls the engine via dynamic import so there is no static

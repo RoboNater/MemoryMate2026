@@ -1,5 +1,5 @@
 /**
- * Sync engine — reconciles the local SQLite cache with Supabase (ccc.30, Phase 4).
+ * Sync engine — reconciles the local SQLite cache with Supabase (docs/architecture/sync.md, Phase 4).
  *
  * Strategy (offline-first, last-write-wins):
  *   - PUSH local rows changed since the last push watermark, in dependency order
