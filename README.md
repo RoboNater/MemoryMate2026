@@ -88,7 +88,7 @@ npm run typecheck   # tsc --noEmit
 ## Project Structure
 
 ```
-memory-mate-mvp/
+.
 ├── src/
 │   ├── app/                # Expo Router screens
 │   │   ├── (tabs)/         #   Home, Verses, Practice, Test, Settings
@@ -105,10 +105,27 @@ memory-mate-mvp/
 ├── supabase/
 │   └── schema.sql          # Tables + Row Level Security policies
 ├── assets/                 # Icons, splash, fonts
+├── docs/                   # Documentation (see below)
 ├── app.json                # Expo config
 ├── metro.config.js         # Metro bundler config
 └── tailwind.config.js      # Tailwind / NativeWind config
 ```
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [`docs/architecture/sync.md`](docs/architecture/sync.md) | Offline-first cross-device sync design |
+| [`docs/architecture/data-model.md`](docs/architecture/data-model.md) | Tables, fields, tombstones, RLS |
+| [`docs/notes/data-format.md`](docs/notes/data-format.md) | Export/import JSON contract |
+| [`docs/notes/expo-sqlite-web.md`](docs/notes/expo-sqlite-web.md) | Why the web build uses sql.js |
+| [`docs/guides/backend-setup.md`](docs/guides/backend-setup.md) | Creating and configuring Supabase |
+| [`docs/guides/sync-testing.md`](docs/guides/sync-testing.md) | Manually testing cross-device sync |
+| [`docs/guides/ios-deployment.md`](docs/guides/ios-deployment.md) | Building and shipping to iOS |
+| [`docs/guides/hosting.md`](docs/guides/hosting.md) | Domains, hosting, and compliance |
+| [`docs/guides/windows-network.md`](docs/guides/windows-network.md) | Testing on a device against a WSL2 host |
+| [`docs/product/use-cases.md`](docs/product/use-cases.md) | What the app is meant to do |
+| [`docs/archive/`](docs/archive/) | Frozen MVP development record — historical only |
 
 ## Status
 

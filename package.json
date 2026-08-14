@@ -1,5 +1,5 @@
 {
-  "name": "memory-mate-mvp",
+  "name": "memory-mate",
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
