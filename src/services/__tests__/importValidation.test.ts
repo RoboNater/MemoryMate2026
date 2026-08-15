@@ -85,6 +85,40 @@ describe('validateExportFormat', () => {
     expect(result.errors.some((e) => e.includes('Expected app "MemoryMate"'))).toBe(true);
   });
 
+  // docs/notes/data-format.md specifies exported_at as ISO 8601, and defines
+  // that for this format as round-tripping exactly through toISOString() -- the
+  // same rule every other datetime field in the file follows.
+  describe('exported_at must be a valid ISO 8601 timestamp', () => {
+    it.each([
+      ['missing', undefined],
+      ['null', null],
+      ['empty string', ''],
+      ['a non-string', 12345],
+    ])('rejects a %s exported_at', (_label, exported_at) => {
+      const result = validateExportFormat({ ...validExportFile(), exported_at });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('exported_at'))).toBe(true);
+    });
+
+    it.each([
+      'not-a-date',
+      '2026-13-45T99:00:00.000Z',
+      '01/26/2026',
+      '2026-01-26',
+      '2026-01-26T12:00:00.000+00:00', // same instant, but not toISOString() form
+      '2026-01-26T12:00:00Z', // no milliseconds
+    ])('rejects the malformed/non-canonical timestamp %p', (exported_at) => {
+      const result = validateExportFormat({ ...validExportFile(), exported_at });
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.includes('Invalid exported_at datetime'))).toBe(true);
+    });
+
+    it('accepts the canonical form this app actually writes', () => {
+      const exported_at = new Date().toISOString();
+      expect(validateExportFormat({ ...validExportFile(), exported_at }).valid).toBe(true);
+    });
+  });
+
   it.each([
     [1, true],
     [2, true],
@@ -194,6 +228,44 @@ describe('validateProgress', () => {
     (field) => {
       const p: any = { ...validProgress(), [field]: -1 };
       expect(validateProgress(p, verseIds)).toMatch(new RegExp(field));
+    }
+  );
+
+  // docs/notes/data-format.md specifies all three counters as "integer, >= 0",
+  // and the error strings say "must be non-negative integer" -- so a fractional
+  // count must be rejected, not silently imported.
+  //
+  // The base records below keep the cross-field constraint
+  // (times_correct <= times_tested) satisfied, so each case fails for the one
+  // reason under test rather than incidentally.
+  describe.each(['times_practiced', 'times_tested', 'times_correct'])(
+    '%s must be a non-negative integer',
+    (field) => {
+      const roomy = { ...validProgress(), times_practiced: 4, times_tested: 10, times_correct: 2 };
+      const zeroed = { ...validProgress(), times_practiced: 0, times_tested: 0, times_correct: 0 };
+
+      it.each([1.5, 0.1, -0.5, 2.0000001])('rejects the fractional value %p', (value) => {
+        expect(validateProgress({ ...roomy, [field]: value }, verseIds)).toMatch(
+          new RegExp(field)
+        );
+      });
+
+      it.each([NaN, Infinity, -Infinity])('rejects the non-finite value %p', (value) => {
+        expect(validateProgress({ ...roomy, [field]: value }, verseIds)).toMatch(
+          new RegExp(field)
+        );
+      });
+
+      it.each(['3', null, undefined, true, {}])('rejects the non-number value %p', (value) => {
+        expect(validateProgress({ ...roomy, [field]: value }, verseIds)).toMatch(
+          new RegExp(field)
+        );
+      });
+
+      it('still accepts 0 and a positive integer', () => {
+        expect(validateProgress({ ...zeroed, [field]: 0 }, verseIds)).toBeNull();
+        expect(validateProgress({ ...roomy, [field]: 3 }, verseIds)).toBeNull();
+      });
     }
   );
 

@@ -58,12 +58,33 @@ describe('calculateScore', () => {
       const correct = 'one two three four five six seven eight nine ten';
       const user = 'zero one two three four five six seven eight nine ten'; // "zero" inserted
       const result = calculateScore(correct, user);
-      expect(result).toEqual({ matches: 10, total: 10, percentage: 100 });
+      expect(result.matches).toBe(10);
+      expect(result.total).toBe(10);
 
       const correctWords = correct.split(' ');
       const userWords = user.split(' ');
       const positionalMatches = correctWords.filter((w, i) => w === userWords[i]).length;
       expect(positionalMatches).toBe(0);
+    });
+  });
+
+  // CHARACTERIZATION, NOT SPECIFICATION -- see issue #23.
+  //
+  // `total` is the *correct* verse's word count, so words the user adds are
+  // never counted against them: a correct verse plus arbitrary extra text still
+  // scores 100%. These tests exist to make that behavior visible and to catch it
+  // changing silently. They are NOT an assertion that it is the desired product
+  // semantic, and they should be rewritten (not deleted) if #23 decides
+  // insertions ought to cost something.
+  describe('insertions are not penalized [characterization]', () => {
+    const verse = 'For God so loved the world';
+
+    it('trailing junk after a perfect answer still scores 100%', () => {
+      expect(calculateScore(verse, `${verse} and then some nonsense`).percentage).toBe(100);
+    });
+
+    it('the whole verse typed twice still scores 100%', () => {
+      expect(calculateScore(verse, `${verse} ${verse}`).percentage).toBe(100);
     });
   });
 

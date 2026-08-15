@@ -31,8 +31,13 @@ export function validateExportFormat(data: any): ValidationResult {
     errors.push(`Invalid file. Expected app "MemoryMate", got "${data.app}".`);
   }
 
+  // exported_at is specified as ISO 8601 in docs/notes/data-format.md, and that
+  // doc defines "ISO 8601" for this format as round-tripping exactly through
+  // Date.toISOString() — the same check every other datetime field uses.
   if (!data.exported_at || typeof data.exported_at !== 'string') {
     errors.push('Missing or invalid exported_at field');
+  } else if (!isValidISO8601(data.exported_at)) {
+    errors.push(`Invalid exported_at datetime: ${data.exported_at}`);
   }
 
   if (!data.data || typeof data.data !== 'object') {
@@ -156,15 +161,15 @@ export function validateProgress(progress: any, verseIds: Set<string>): string |
     return `Invalid UUID format for verse_id: ${progress.verse_id}`;
   }
 
-  if (typeof progress.times_practiced !== 'number' || progress.times_practiced < 0) {
+  if (!Number.isInteger(progress.times_practiced) || progress.times_practiced < 0) {
     return `Invalid times_practiced: ${progress.times_practiced} (must be non-negative integer)`;
   }
 
-  if (typeof progress.times_tested !== 'number' || progress.times_tested < 0) {
+  if (!Number.isInteger(progress.times_tested) || progress.times_tested < 0) {
     return `Invalid times_tested: ${progress.times_tested} (must be non-negative integer)`;
   }
 
-  if (typeof progress.times_correct !== 'number' || progress.times_correct < 0) {
+  if (!Number.isInteger(progress.times_correct) || progress.times_correct < 0) {
     return `Invalid times_correct: ${progress.times_correct} (must be non-negative integer)`;
   }
 
