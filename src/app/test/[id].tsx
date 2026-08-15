@@ -11,10 +11,13 @@ export default function TestVerseScreen() {
   const verse = verses.find((v) => v.id === id);
   const verseProgress = verse ? progress[verse.id] : undefined;
 
-  // Whether a pass/fail choice has actually been recorded -- VerseTest owns
-  // the in-progress typing/checking state, so this is the one bit of it the
-  // screen needs to gate the Done button.
-  const [resultMarked, setResultMarked] = useState(false);
+  // How the user graded the verse. VerseTest owns the in-progress
+  // typing/checking state; this is the one piece of it the screen needs, to
+  // gate the Done button and to write on the way out.
+  const [outcome, setOutcome] = useState<{ passed: boolean; score: number | null } | null>(
+    null
+  );
+  const [isSaving, setIsSaving] = useState(false);
 
   if (!verse) {
     return (
@@ -27,22 +30,42 @@ export default function TestVerseScreen() {
     );
   }
 
-  const handleMarkResult = async (passed: boolean, score: number | null) => {
-    setResultMarked(true);
-    try {
-      // TestResult.score and TestResultBadge are both 0.0-1.0; VerseTest
-      // reports the 0-100 word-match percentage, so convert here.
-      await recordTestResult(verse.id, passed, score === null ? undefined : score / 100);
-    } catch {
-      Alert.alert('Error', 'Failed to record test result. Please try again.', [{ text: 'OK' }]);
-    }
+  // Marking only records the grade; the write happens on the way out, as it
+  // does in test/session.tsx. That keeps one row per test however many times
+  // the user changes their mind, and lets Give Up stand as a fail here
+  // without a second tap writing the same result twice.
+  const handleMarkResult = (passed: boolean, score: number | null) => {
+    setOutcome({ passed, score });
   };
 
-  const handleDone = () => {
-    if (!resultMarked) {
+  const handleDone = async () => {
+    if (!outcome) {
       Alert.alert('Please mark as Pass or Fail', 'Did you pass this test?');
       return;
     }
+
+    try {
+      setIsSaving(true);
+      // TestResult.score and TestResultBadge are both 0.0-1.0; VerseTest
+      // reports the 0-100 word-match percentage, so convert here.
+      await recordTestResult(
+        verse.id,
+        outcome.passed,
+        outcome.score === null ? undefined : outcome.score / 100
+      );
+    } catch {
+      // Say plainly that it didn't count, rather than leaving with a
+      // "Save & Finish" that saved nothing. There is no session left to
+      // carry the failure into here, so the user is not held on the screen.
+      Alert.alert(
+        'Not recorded',
+        "This result couldn't be saved to your device, so it won't count towards this verse's history.",
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSaving(false);
+    }
+
     router.push('/(tabs)/test');
   };
 
@@ -52,14 +75,16 @@ export default function TestVerseScreen() {
         verse={verse}
         verseProgress={verseProgress}
         onMarkResult={handleMarkResult}
+        onGiveUp={() => handleMarkResult(false, null)}
         onCancel={() => router.back()}
         footer={
           <TouchableOpacity
             onPress={handleDone}
+            disabled={isSaving}
             className="bg-purple-500 py-4 rounded-lg items-center"
           >
             <Text className="text-white font-semibold text-base">
-              {resultMarked ? 'Save & Finish' : 'Finish Test'}
+              {outcome ? 'Save & Finish' : 'Finish Test'}
             </Text>
           </TouchableOpacity>
         }

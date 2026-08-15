@@ -79,6 +79,12 @@ export default function TestSummaryScreen() {
                 <Text className="text-lg font-bold text-gray-600">{summary.skipped}</Text>
               </View>
             )}
+            {summary.unsaved > 0 && (
+              <View className="flex-row items-center justify-between py-2 border-b border-gray-100">
+                <Text className="text-gray-700">Not recorded</Text>
+                <Text className="text-lg font-bold text-amber-600">{summary.unsaved}</Text>
+              </View>
+            )}
             {summary.accuracy !== null && (
               <View className="flex-row items-center justify-between py-2 border-b border-gray-100">
                 <Text className="text-gray-700">Accuracy</Text>
@@ -93,6 +99,19 @@ export default function TestSummaryScreen() {
             )}
           </View>
         </View>
+
+        {summary.unsaved > 0 && (
+          <View className="mb-6 bg-amber-50 p-4 rounded-lg border border-amber-200">
+            <Text className="text-amber-900 font-medium mb-1">
+              Some results couldn't be saved
+            </Text>
+            <Text className="text-amber-700 text-sm">
+              {summary.unsaved} result{summary.unsaved !== 1 ? 's' : ''} could not be saved to
+              this device and {summary.unsaved !== 1 ? "weren't" : "wasn't"} added to those
+              verses' history. They're excluded from the stats above.
+            </Text>
+          </View>
+        )}
 
         {/* Verse Summary Cards */}
         <View className="mb-6">
@@ -117,10 +136,19 @@ export default function TestSummaryScreen() {
                       </Text>
                     </View>
                     {graded ? (
-                      <TestResultBadge
-                        passed={outcome.outcome === 'pass'}
-                        score={outcome.score !== null ? outcome.score / 100 : undefined}
-                      />
+                      <View className="flex-row items-center gap-2">
+                        <TestResultBadge
+                          passed={outcome.outcome === 'pass'}
+                          score={outcome.score !== null ? outcome.score / 100 : undefined}
+                        />
+                        {!outcome.saved && (
+                          <View className="bg-amber-100 px-2 py-0.5 rounded-full">
+                            <Text className="text-amber-700 font-semibold text-xs">
+                              Not recorded
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     ) : (
                       <View className="bg-gray-100 px-3 py-1 rounded-full">
                         <Text className="text-gray-600 font-semibold text-xs">Skipped</Text>

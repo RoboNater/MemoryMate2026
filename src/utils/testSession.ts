@@ -25,6 +25,15 @@ export interface VerseTestOutcome {
   outcome: TestOutcome;
   /** Word-match percentage 0-100, or null when not scored (gave up / skipped). */
   score: number | null;
+  /**
+   * Whether the graded result actually reached the database. A local write can
+   * fail, and the session lets the user carry on when it does -- but the
+   * summary must not then report a verse as tested when neither its history
+   * nor its progress was updated, so the failure travels with the outcome
+   * instead of being swallowed. Always true for a skipped verse: there is
+   * nothing to write.
+   */
+  saved: boolean;
 }
 
 const OUTCOME_LETTERS: Record<TestOutcome, string> = {
@@ -39,11 +48,15 @@ const LETTER_OUTCOMES: Record<string, TestOutcome> = {
   s: 'skipped',
 };
 
+/** Marks an outcome whose database write failed; see `VerseTestOutcome.saved`. */
+const UNSAVED_MARKER = '!';
+
 /**
- * Encode one token per session index: the outcome letter optionally followed
- * by an integer score (`p85`, `f40`, `s`), or the empty string for a verse
- * not yet reached. Comma-separated so the whole thing drops into a query
- * string alongside `ids` the same way `mode` does.
+ * Encode one token per session index: the outcome letter, optionally followed
+ * by an integer score and by `!` when the write failed (`p85`, `f40!`, `s`),
+ * or the empty string for a verse not yet reached. Comma-separated so the
+ * whole thing drops into a query string alongside `ids` the same way `mode`
+ * does.
  */
 export function encodeTestOutcomes(outcomes: (VerseTestOutcome | null)[]): string {
   return outcomes
@@ -54,7 +67,9 @@ export function encodeTestOutcomes(outcomes: (VerseTestOutcome | null)[]): strin
         entry.score !== null && Number.isInteger(entry.score) && entry.score >= 0 && entry.score <= 100
           ? String(entry.score)
           : '';
-      return `${letter}${score}`;
+      // Skipped never carries the marker, so decoding it back is symmetric.
+      const unsaved = entry.saved || entry.outcome === 'skipped' ? '' : UNSAVED_MARKER;
+      return `${letter}${score}${unsaved}`;
     })
     .join(',');
 }
@@ -82,18 +97,20 @@ export function decodeTestOutcomes(
 function parseToken(token: string | undefined): VerseTestOutcome | null {
   if (!token) return null;
 
-  const match = /^([pfs])(\d*)$/.exec(token);
+  const match = /^([pfs])(\d*)(!?)$/.exec(token);
   if (!match) return null;
 
   const outcome = LETTER_OUTCOMES[match[1]];
   const scoreText = match[2];
+  // A skipped verse has nothing to write, so it is never "unsaved".
+  const saved = match[3] !== UNSAVED_MARKER || outcome === 'skipped';
   if (scoreText === '') {
-    return { outcome, score: null };
+    return { outcome, score: null, saved };
   }
 
   const parsedScore = Number(scoreText);
   const score = parsedScore >= 0 && parsedScore <= 100 ? parsedScore : null;
-  return { outcome, score };
+  return { outcome, score, saved };
 }
 
 /**
@@ -116,6 +133,12 @@ export interface TestSessionSummary {
   passed: number;
   failed: number;
   skipped: number;
+  /**
+   * Verses the user graded whose result never reached the database. Counted
+   * on their own and left out of every other figure here, so the summary
+   * agrees with what the verse's history and progress will actually show.
+   */
+  unsaved: number;
   /** passed/tested as a 0-100 integer percentage, or null when nothing was tested. */
   accuracy: number | null;
   /** Rounded mean of the non-null scores, or null when there are none. */
@@ -129,13 +152,21 @@ export function summarizeTestOutcomes(
   let passed = 0;
   let failed = 0;
   let skipped = 0;
+  let unsaved = 0;
   const scores: number[] = [];
 
   for (const entry of outcomes) {
     if (!entry) continue;
+    if (entry.outcome === 'skipped') {
+      skipped++;
+      continue;
+    }
+    if (!entry.saved) {
+      unsaved++;
+      continue;
+    }
     if (entry.outcome === 'pass') passed++;
-    else if (entry.outcome === 'fail') failed++;
-    else if (entry.outcome === 'skipped') skipped++;
+    else failed++;
 
     if (entry.score !== null) scores.push(entry.score);
   }
@@ -147,6 +178,7 @@ export function summarizeTestOutcomes(
     passed,
     failed,
     skipped,
+    unsaved,
     accuracy: tested > 0 ? Math.round((passed / tested) * 100) : null,
     averageScore:
       scores.length > 0

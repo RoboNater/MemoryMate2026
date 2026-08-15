@@ -73,11 +73,27 @@ export default function TestSessionScreen() {
   // would append a second `test_results` row each time the user changed
   // their mind between Pass and Fail, or gave up and then confirmed the Fail.
   const handleMarkResult = (passed: boolean, score: number | null) => {
-    setCurrentOutcome({ outcome: passed ? 'pass' : 'fail', score });
+    // `saved` is settled by the write in commitCurrentVerse(), not here.
+    setCurrentOutcome({ outcome: passed ? 'pass' : 'fail', score, saved: true });
   };
 
-  const saveCurrentOutcome = async () => {
-    if (!currentOutcome || currentOutcome.outcome === 'skipped') return;
+  /**
+   * Write this visit's mark, if there is one, and report what the session
+   * should now believe about the verse.
+   *
+   * Every path out of a verse goes through here -- Next, Previous and Exit
+   * alike -- because a graded verse the user navigates away from has been
+   * tested, and dropping it on the floor would contradict the exit dialog.
+   * An outcome carried over from an earlier visit was written then, so it is
+   * returned untouched rather than recorded twice.
+   *
+   * A failed write does not block the session: the user can keep testing.
+   * The failure is carried in the outcome instead, so the summary can leave
+   * that verse out of its totals rather than claiming it was recorded.
+   */
+  const commitCurrentVerse = async (): Promise<VerseTestOutcome | null> => {
+    if (!currentOutcome) return markedOutcome;
+
     try {
       setIsSaving(true);
       // TestResult.score and TestResultBadge are both 0.0-1.0; VerseTest
@@ -87,24 +103,33 @@ export default function TestSessionScreen() {
         currentOutcome.outcome === 'pass',
         currentOutcome.score === null ? undefined : currentOutcome.score / 100
       );
+      return currentOutcome;
     } catch {
-      Alert.alert('Error', 'Failed to record test result. Please try again.', [{ text: 'OK' }]);
+      Alert.alert(
+        'Not recorded',
+        "This result couldn't be saved to your device, so it won't count towards this verse's history. You can carry on testing.",
+        [{ text: 'OK' }]
+      );
+      return { ...currentOutcome, saved: false };
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Fold an exit path's committed outcome into the encoded results. Nothing
+  // marked, on this visit or an earlier one -> the verse was skipped, not
+  // tested; distinct from a verse the session never reached at all (still
+  // `null` past this index).
+  const resultsAfterCommit = (committed: VerseTestOutcome | null) =>
+    setTestOutcomeAt(
+      results,
+      currentIndex,
+      committed ?? { outcome: 'skipped', score: null, saved: true },
+      validVerseIds.length
+    );
+
   const handleNext = async () => {
-    // Only this visit's mark is written to the database; an outcome carried
-    // over from an earlier visit is already recorded.
-    await saveCurrentOutcome();
-
-    // Nothing marked, on this visit or an earlier one -> the verse was
-    // skipped, not tested; distinct from a verse the session never reached
-    // at all (still `null` past this index).
-    const outcome: VerseTestOutcome = markedOutcome ?? { outcome: 'skipped', score: null };
-    const nextResults = setTestOutcomeAt(results, currentIndex, outcome, validVerseIds.length);
-
+    const nextResults = resultsAfterCommit(await commitCurrentVerse());
     const nextIndex = currentIndex + 1;
 
     if (nextIndex >= validVerseIds.length) {
@@ -116,13 +141,13 @@ export default function TestSessionScreen() {
     }
   };
 
-  const handlePrevious = () => {
+  const handlePrevious = async () => {
     const prevIndex = currentIndex - 1;
-    if (prevIndex >= 0) {
-      setCurrentOutcome(null);
-      const resultsQuery = results ? `&results=${results}` : '';
-      router.push(`/test/session?${sessionQuery}${resultsQuery}&index=${prevIndex}`);
-    }
+    if (prevIndex < 0) return;
+
+    const nextResults = resultsAfterCommit(await commitCurrentVerse());
+    setCurrentOutcome(null);
+    router.push(`/test/session?${sessionQuery}&results=${nextResults}&index=${prevIndex}`);
   };
 
   // ConfirmDialog rather than a multi-button Alert.alert, whose button
@@ -132,8 +157,11 @@ export default function TestSessionScreen() {
     setShowExitDialog(true);
   };
 
-  const confirmExitSession = () => {
+  // Leaving mid-session still counts the verse the user has already graded,
+  // which is what the dialog promises.
+  const confirmExitSession = async () => {
     setShowExitDialog(false);
+    await commitCurrentVerse();
     router.push('/(tabs)/test');
   };
 
@@ -184,7 +212,7 @@ export default function TestSessionScreen() {
         {/* Previous */}
         <TouchableOpacity
           onPress={handlePrevious}
-          disabled={currentIndex === 0}
+          disabled={isSaving || currentIndex === 0}
           className={`flex-1 py-3 rounded-lg items-center ${
             currentIndex === 0 ? 'bg-gray-300' : 'bg-purple-500'
           }`}
