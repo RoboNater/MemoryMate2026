@@ -88,6 +88,18 @@ export default function RootLayout() {
         }}
       />
       <Stack.Screen
+        name="test/session"
+        options={{
+          title: 'Test Session',
+        }}
+      />
+      <Stack.Screen
+        name="test/summary"
+        options={{
+          title: 'Test Results',
+        }}
+      />
+      <Stack.Screen
         name="login"
         options={{
           title: 'Cloud Sync',

@@ -27,11 +27,18 @@ export default function TestScreen() {
     return <LoadingSpinner message="Loading verses..." />;
   }
 
-  // For multi-verse tests, we'll just navigate to the first verse
-  // In Phase 4, we can implement a proper test session manager
   const startTest = (verses: typeof activeVerses) => {
     if (verses.length === 0) return;
-    router.push(`/test/${verses[0].id}`);
+
+    // For a single verse, navigate straight to the individual test screen.
+    if (verses.length === 1) {
+      router.push(`/test/${verses[0].id}`);
+      return;
+    }
+
+    // For multiple verses, navigate to the session screen.
+    const verseIds = verses.map((v) => v.id).join(',');
+    router.push(`/test/session?ids=${verseIds}&index=0`);
   };
 
   return (
