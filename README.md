@@ -113,12 +113,17 @@ npm run typecheck   # tsc --noEmit
 
 ## Documentation
 
+Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) if you're going to change
+anything — it covers the pre-push checks, the invariants, and how to recover
+files from before the August 2026 cleanup.
+
 | Document | What it covers |
 |---|---|
 | [`docs/architecture/sync.md`](docs/architecture/sync.md) | Offline-first cross-device sync design |
 | [`docs/architecture/data-model.md`](docs/architecture/data-model.md) | Tables, fields, tombstones, RLS |
 | [`docs/notes/data-format.md`](docs/notes/data-format.md) | Export/import JSON contract |
 | [`docs/notes/expo-sqlite-web.md`](docs/notes/expo-sqlite-web.md) | Why the web build uses sql.js |
+| [`docs/notes/repo-cleanup-2026-08.md`](docs/notes/repo-cleanup-2026-08.md) | Why the lint/test config looks the way it does |
 | [`docs/guides/backend-setup.md`](docs/guides/backend-setup.md) | Creating and configuring Supabase |
 | [`docs/guides/sync-testing.md`](docs/guides/sync-testing.md) | Manually testing cross-device sync |
 | [`docs/guides/ios-deployment.md`](docs/guides/ios-deployment.md) | Building and shipping to iOS |
@@ -132,3 +137,8 @@ npm run typecheck   # tsc --noEmit
 The MVP is functional across web, iOS, and Android, with accounts and cross-device sync
 verified live. Ongoing work focuses on polishing usability rough edges before wider
 distribution.
+
+For what's actually being worked on and in what order, see the pinned
+[Roadmap issue](https://github.com/RoboNater/MemoryMate2026/issues/27). Project
+status lives in GitHub issues rather than in this repo, so it can't go stale
+here.
