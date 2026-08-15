@@ -23,26 +23,76 @@ across their own devices via Supabase; there is no multi-user sharing.
   Supabase client, auth. Screens and the store should go through here, not
   straight to the database.
 - `src/store/` — Zustand stores
+- `src/components/` — shared presentational components
+- `src/utils/` — pure helpers with no I/O (e.g. `scoring.ts`). Logic that can
+  live here usually should: it's the code that's cheap to test.
+- `src/types/` — shared types and ambient declarations
+- `**/__tests__/` — tests, co-located next to the code they cover
 - `supabase/schema.sql` — the Postgres schema (RLS policies, indexes)
 - `docs/` — durable documentation (architecture, guides, notes, product)
 - `docs/archive/` — frozen MVP-era history (old planning/status docs). Read for
   context if needed; do not edit it going forward and do not add new files to it.
-
-For "what's the state of the project / what's being worked on," use GitHub
-issues, not a doc in this repo — this file and `docs/` describe how the app
-works now, not a running status log.
+- `CONTRIBUTING.md` — contributor-facing summary of the below, plus how to
+  recover files from before the August 2026 cleanup
 
 ## Running it
 
 ```bash
 npm install
 npm run web       # or: npm run ios / npm run android
+```
+
+All three of these run in CI on every PR and push to `main`. Run them before
+declaring work finished:
+
+```bash
 npm run typecheck
+npm run lint
+npm test
 ```
 
 A Supabase project is required for auth + sync (see `docs/guides/backend-setup.md`
 and `docs/guides/hosting.md`); the app still runs and is usable fully offline
 without one configured.
+
+## Project status lives in GitHub issues
+
+Not in this file, and not in a document in this repo. This file and `docs/`
+describe how the app works *now*; a status doc committed here goes stale within a
+week of the next merge. The entry point is the pinned **Roadmap issue (#27)**,
+which holds ordering and rationale.
+
+Keeping that mechanism current is part of the work, not a separate chore:
+
+- **The Roadmap references issues; it never copies them.** Write `- [ ] #29` and
+  let GitHub render the title and state. Don't paste issue titles, status, or
+  counts into it — that's the thing that drifts.
+- **Defer a decision, file an issue.** If you consciously don't do something, it
+  belongs in the tracker, not in a comment or a summary message that scrolls away.
+- **Build one slice of an epic, break that slice out** into its own issue and
+  check it off in the epic (see #29 out of #18). Don't schedule a whole epic.
+- **When work changes the order of what's next, update #27's ordering** — that
+  narrative is the one thing it holds that isn't derivable from the issue list.
+- **Durable "why" goes to `docs/`, not the Roadmap.** Rationale that outlives the
+  work (e.g. `docs/notes/repo-cleanup-2026-08.md`) shouldn't live in an issue
+  body that nobody re-reads.
+
+## Tests
+
+Pure logic is expected to be tested; `jest-expo` is configured and `npm test` is
+CI-enforced. Currently covered: `syncCompare.ts`, `utils/scoring.ts`,
+`importValidation.ts`. Anything requiring a database is not yet covered — see
+`docs/notes/repo-cleanup-2026-08.md` for the open design question there.
+
+Two conventions worth following:
+
+- **Extract to test.** All three covered modules exist because the logic was
+  unreachable where it sat (inside a component body, or in a module that imports
+  the database at load time). Prefer a verbatim extraction over mocking the world.
+- **Label characterization tests.** A test that pins existing behavior you are
+  *not* endorsing must say `[characterization]` and link the issue tracking the
+  real decision (see `src/utils/__tests__/scoring.test.ts` and #23). An unlabelled
+  one will eventually be mistaken for a specification.
 
 ## Invariants
 
