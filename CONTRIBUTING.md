@@ -7,7 +7,7 @@
 ordering and rationale, referencing other issues rather than copying them — so it
 can't drift.
 
-`CLAUDE.md` and `docs/` describe how the app works *now*, not what's being worked
+`AGENTS.md` and `docs/` describe how the app works *now*, not what's being worked
 on. Please don't add a status document to the repo; it will be out of date within
 a week of the next merge.
 
@@ -37,7 +37,7 @@ remembering: **offline-first is an invariant, not a feature.**
 
 ## Invariants
 
-`CLAUDE.md` carries the full list, and changes must not break them. In short:
+`AGENTS.md` carries the full list, and changes must not break them. In short:
 
 - **Offline-first.** Every write goes to local SQLite first; sync happens
   afterward in the background.
