@@ -64,9 +64,12 @@ which holds ordering and rationale.
 
 Keeping that mechanism current is part of the work, not a separate chore:
 
-- **The Roadmap references issues; it never copies them.** Write `- [ ] #29` and
-  let GitHub render the title and state. Don't paste issue titles, status, or
-  counts into it — that's the thing that drifts.
+- **The Roadmap references issues rather than restating them.** Write `- [ ] #29`
+  and let GitHub render the title and state. A short line of *rationale* after a
+  reference is the point of the Roadmap and should stay — "settle the scoring
+  question first", "needs a live repro". What must not be written down is
+  anything GitHub already derives: restated titles, open/closed status, and
+  counts like "3 of 5 done". Those are the parts that go quietly wrong.
 - **Defer a decision, file an issue.** If you consciously don't do something, it
   belongs in the tracker, not in a comment or a summary message that scrolls away.
 - **Build one slice of an epic, break that slice out** into its own issue and
