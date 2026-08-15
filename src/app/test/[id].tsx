@@ -188,7 +188,7 @@ export default function TestVerseScreen() {
                   }`}
                 >
                   <Text className="text-white font-semibold text-base">
-                    {testPassed === false ? '✓ Fail' : 'Fail'}
+                    {testPassed === false ? '✗ Fail' : 'Fail'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
