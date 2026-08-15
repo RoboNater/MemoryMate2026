@@ -87,7 +87,8 @@ export default function PracticeSessionScreen() {
 
     if (nextIndex >= validVerseIds.length) {
       // End of session - go to summary
-      router.push(`/practice/summary?ids=${ids}`);
+      // Carries the mode so "Practice Again" restarts in the same one.
+      router.push(`/practice/summary?${sessionQuery}`);
     } else {
       // Navigate to next verse
       setRevealed(false);

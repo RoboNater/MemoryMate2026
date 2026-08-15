@@ -218,9 +218,40 @@ describe('calculateFirstLetterScore', () => {
     expect(Number.isNaN(result.percentage)).toBe(false);
   });
 
-  it('counts tokens typed past the end of the verse as extra, not as matches', () => {
-    const result = calculateFirstLetterScore(verse, 'fgsltwxyz');
-    expect(result).toMatchObject({ matches: 6, total: 6, percentage: 100, extra: 3 });
+  describe('tokens typed past the end of the verse', () => {
+    // NOT the same question as #23. There, insertions in free prose are
+    // ambiguous (synonym? typo? restart?), so the penalty is undefined and the
+    // behavior is only pinned. Here the slot count is on screen before the
+    // user types a letter, so an extra token is unambiguously wrong -- and
+    // leaving it free would be asymmetric, since typing too few letters is
+    // already punished by the unfilled slots.
+
+    it('costs something rather than scoring a perfect 100%', () => {
+      const result = calculateFirstLetterScore(verse, 'fgsltwxyz');
+      // 6 right, 3 stray -> 6/9.
+      expect(result).toMatchObject({ matches: 6, total: 6, percentage: 67, extra: 3 });
+    });
+
+    it('leaves matches, total and the slot row alone -- only percentage moves', () => {
+      const clean = calculateFirstLetterScore(verse, 'fgsltw');
+      const overshot = calculateFirstLetterScore(verse, 'fgsltwxyz');
+      expect(overshot.matches).toBe(clean.matches);
+      expect(overshot.total).toBe(clean.total);
+      expect(overshot.slots).toEqual(clean.slots);
+      expect(overshot.percentage).toBeLessThan(clean.percentage);
+    });
+
+    it('penalizes proportionally, so a little overshoot costs a little', () => {
+      expect(calculateFirstLetterScore(verse, 'fgsltwx').percentage).toBe(86); // 6/7
+      expect(calculateFirstLetterScore(verse, 'fgsltwxy').percentage).toBe(75); // 6/8
+    });
+
+    it('does not penalize an answer that stops exactly at the last word', () => {
+      expect(calculateFirstLetterScore(verse, 'fgsltw')).toMatchObject({
+        percentage: 100,
+        extra: 0,
+      });
+    });
   });
 
   it('is case-insensitive on both sides', () => {

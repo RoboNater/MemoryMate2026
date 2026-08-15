@@ -153,9 +153,9 @@ export function FirstLetterPractice({
               {result.matches} of {result.total} words
             </Text>
             {result.extra > 0 && (
-              <Text className="text-xs text-gray-500 mt-1">
-                plus {result.extra} extra{' '}
-                {result.extra === 1 ? 'letter' : 'letters'} past the end
+              <Text className="text-xs text-amber-700 mt-1">
+                {result.extra} extra {result.extra === 1 ? 'letter' : 'letters'} past
+                the end of the verse, counted against the score
               </Text>
             )}
           </View>

@@ -41,6 +41,31 @@ the mode. It's mitigated in the UI instead: the answer is shown as one slot per
 word, so a cascade is visible as "everything from here is red", which is the
 information the user needs to spot that they dropped a word.
 
+### Typing past the end of the verse is penalized
+
+Extra tokens beyond the last word leave `matches` and `total` alone — `total`
+is the verse's word count, which is what the slot row renders — but they are
+charged to the denominator, so a perfect sequence plus three stray letters
+reads "6 of 6 words, 3 extra, 67%".
+
+This deliberately does *not* match `calculateScore`, where insertions cost
+nothing and the question is still open (#23). The two aren't the same question:
+
+- In free prose an insertion is **ambiguous** — synonym, typo, false start,
+  a restart of the whole verse. The penalty is undefined because the event is,
+  which is why #23 is a decision rather than a bug.
+- Here the slot count is on screen *before* the user types a letter. An extra
+  token is unambiguously a mistake, against a rule they could see.
+
+There's also an asymmetry argument that settles it independently of #23:
+typing too *few* letters is already punished, because the unfilled slots score
+wrong. Leaving overshoot free would treat the same error differently depending
+on which side of the slot count it fell on.
+
+Note the exposure was always narrower than "insertions are free": an extra
+token *inside* the verse is punished hard by the cascade. Only overflow past
+the last word ever scored for free.
+
 ## What counts as a word
 
 `firstLetterTokens` splits on whitespace — the same boundary `calculateScore`

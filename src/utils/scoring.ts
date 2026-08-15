@@ -74,7 +74,11 @@ export interface FirstLetterSlot {
 
 export interface FirstLetterScoreResult extends ScoreResult {
   slots: FirstLetterSlot[];
-  /** Tokens typed beyond the end of the verse. Not counted against `matches`. */
+  /**
+   * Tokens typed beyond the end of the verse. These leave `matches` and
+   * `total` alone but are charged to `percentage`, so overshooting costs
+   * something -- see `calculateFirstLetterScore`.
+   */
   extra: number;
 }
 
@@ -123,6 +127,14 @@ export function parseFirstLetterInput(input: string): string[] {
  * A dropped token therefore cascades: every later slot reads as wrong. That is
  * accepted, and is why the UI shows the slots. The cascade is legible on
  * screen ("everything from here is red") in a way a bare score would not be.
+ *
+ * Tokens typed past the end of the verse are penalized, unlike the insertions
+ * `calculateScore` ignores (#23). That is not the same open question: there,
+ * free prose makes an insertion ambiguous -- synonym, typo, restart -- so the
+ * penalty is undefined. Here the slot count is on screen before the user
+ * types, so an extra token is unambiguously a mistake against a rule they
+ * could see. Leaving it free would also be asymmetric: typing too *few*
+ * letters is already punished by the unfilled slots.
  */
 export function calculateFirstLetterScore(
   correctText: string,
@@ -142,12 +154,19 @@ export function calculateFirstLetterScore(
 
   const matches = slots.filter((slot) => slot.correct).length;
   const total = expected.length;
+  const extra = Math.max(0, typed.length - total);
+
+  // `total` stays the verse's word count -- it is what the slot row renders
+  // and what "N of M words" means. Extras are charged to the denominator only,
+  // so a perfect answer with three stray letters reads "6 of 6 words, 3 extra,
+  // 67%" rather than silently scoring 100%.
+  const denominator = total + extra;
 
   return {
     matches,
     total,
-    percentage: total > 0 ? Math.round((matches / total) * 100) : 0,
+    percentage: denominator > 0 ? Math.round((matches / denominator) * 100) : 0,
     slots,
-    extra: Math.max(0, typed.length - total),
+    extra,
   };
 }
