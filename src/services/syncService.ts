@@ -30,6 +30,7 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { getCurrentSession } from './authService';
 import { useVerseStore } from '@/store/verseStore';
 import { useSyncStore } from '@/store/syncStore';
+import { isNewer } from './syncCompare';
 
 const EPOCH = '1970-01-01T00:00:00.000Z';
 const UPSERT_CHUNK = 500;
@@ -63,13 +64,6 @@ async function setMeta(key: string, value: string): Promise<void> {
      ON CONFLICT(key) DO UPDATE SET value = ?`,
     [key, value, value]
   );
-}
-
-/** True if ISO string `a` is strictly newer than `b` (null/empty treated as oldest). */
-function isNewer(a: string | null | undefined, b: string | null | undefined): boolean {
-  const ta = a ? Date.parse(a) : 0;
-  const tb = b ? Date.parse(b) : 0;
-  return ta > tb;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {

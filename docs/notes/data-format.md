@@ -1,7 +1,8 @@
 # Export/Import JSON Format
 
 This is the file format produced by Settings -> Export and read by Settings ->
-Import (`src/services/dataExportService.ts`). It is a stable, versioned contract:
+Import (`src/services/dataExportService.ts`; the validation rules below live in
+`src/services/importValidation.ts`). It is a stable, versioned contract:
 files a user already has on disk from an older version of the app must keep
 importing correctly. If you change this format, bump `version` and keep the
 importer accepting the older version(s) too.
@@ -83,9 +84,12 @@ importer accepting the older version(s) too.
 | `score` | `number` or `null`/absent | 0.0-1.0 |
 
 UUIDs are checked against the standard 8-4-4-4-12 hex pattern
-(`isValidUUID` in `dataExportService.ts`); ISO 8601 datetimes are checked by
+(`isValidUUID` in `importValidation.ts`); ISO 8601 datetimes are checked by
 round-tripping through `Date` and requiring an exact string match to
-`toISOString()`.
+`toISOString()` — including `exported_at`. That is stricter than ISO 8601 in
+general: an equivalent-instant spelling such as `...T12:00:00.000+00:00`, or one
+without milliseconds, is rejected. Everything the app itself writes uses
+`Date.toISOString()`, so this only affects hand-written or third-party files.
 
 ## Validation and tolerance behavior
 
