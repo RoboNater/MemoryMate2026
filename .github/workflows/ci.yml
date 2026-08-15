@@ -23,5 +23,4 @@ jobs:
 
       - run: npm run lint
 
-      # - run: npm test
-      #   Enabled once test script is added to package.json
+      - run: npm test
