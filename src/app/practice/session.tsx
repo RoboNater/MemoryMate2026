@@ -1,17 +1,30 @@
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ComfortLevelPicker, ConfirmDialog, ErrorDisplay } from '@/components';
+import {
+  ComfortLevelPicker,
+  ConfirmDialog,
+  ErrorDisplay,
+  FirstLetterPractice,
+} from '@/components';
 import { useVerseStore } from '@/store';
+import { parsePracticeMode } from '@/types';
 
 export default function PracticeSessionScreen() {
-  const { ids, index } = useLocalSearchParams<{ ids: string; index: string }>();
+  const { ids, index, mode } = useLocalSearchParams<{
+    ids: string;
+    index: string;
+    mode?: string;
+  }>();
   const router = useRouter();
   const { verses, progress, recordPractice, setComfortLevel: setComfortLevelAction } = useVerseStore();
 
   // Parse session parameters
   const verseIds = ids ? ids.split(',') : [];
   const currentIndex = parseInt(index || '0', 10);
+  const practiceMode = parsePracticeMode(mode);
+  // Preserved across every navigation within the session.
+  const sessionQuery = `ids=${ids}&mode=${practiceMode}`;
 
   // Filter to only valid verses (handles deleted verses during session)
   const validVerseIds = verseIds.filter(id => verses.find(v => v.id === id));
@@ -79,7 +92,7 @@ export default function PracticeSessionScreen() {
       // Navigate to next verse
       setRevealed(false);
       setComfortLevel(1);
-      router.push(`/practice/session?ids=${ids}&index=${nextIndex}`);
+      router.push(`/practice/session?${sessionQuery}&index=${nextIndex}`);
     }
   };
 
@@ -88,7 +101,7 @@ export default function PracticeSessionScreen() {
     if (prevIndex >= 0) {
       setRevealed(false);
       setComfortLevel(1);
-      router.push(`/practice/session?ids=${ids}&index=${prevIndex}`);
+      router.push(`/practice/session?${sessionQuery}&index=${prevIndex}`);
     }
   };
 
@@ -153,7 +166,7 @@ export default function PracticeSessionScreen() {
         {/* Verse Reference */}
         <View className="bg-gradient-to-r from-blue-50 to-blue-100 p-8 rounded-2xl mb-6 items-center border-2 border-blue-200 shadow-sm">
           <Text className="text-sm text-gray-600 mb-2 uppercase tracking-wide">
-            Practice This Verse
+            {practiceMode === 'letters' ? 'First Letters' : 'Practice This Verse'}
           </Text>
           <Text className="text-3xl font-bold text-blue-700 text-center mb-1">
             {verse.reference}
@@ -161,42 +174,56 @@ export default function PracticeSessionScreen() {
           <Text className="text-sm text-blue-600">{verse.translation}</Text>
         </View>
 
-        {/* Instructions */}
-        {!revealed && (
-          <View className="mb-6 bg-amber-50 p-4 rounded-lg border border-amber-200">
-            <Text className="text-amber-900 font-medium mb-2">
-              Try to recall the verse from memory
-            </Text>
-            <Text className="text-amber-700 text-sm">
-              Take a moment to think about it, then tap "Reveal" to check your recall.
-            </Text>
-          </View>
-        )}
-
-        {/* Reveal Button or Verse Text */}
-        {!revealed ? (
-          <View className="mb-6">
-            <TouchableOpacity
-              onPress={() => setRevealed(true)}
-              className="bg-green-500 p-6 rounded-xl items-center shadow-md active:bg-green-600"
-            >
-              <Text className="text-white font-bold text-lg">Reveal Verse</Text>
-            </TouchableOpacity>
-          </View>
+        {practiceMode === 'letters' ? (
+          // The score is feedback, not data: it is shown by the component and
+          // deliberately not persisted (issue #29). Submitting an attempt is
+          // what "revealed" means in this mode -- it gates the same save.
+          <FirstLetterPractice
+            key={verse.id}
+            verseText={verse.text}
+            translation={verse.translation}
+            onSubmit={() => setRevealed(true)}
+          />
         ) : (
-          <View className="mb-6 bg-green-50 p-6 rounded-xl border-2 border-green-200">
-            <Text className="text-gray-800 text-lg leading-8 mb-4">
-              {verse.text}
-            </Text>
-            <View className="flex-row items-center justify-between pt-4 border-t border-green-200">
-              <Text className="text-sm text-green-700 font-medium">
-                {verse.translation}
-              </Text>
-              <Text className="text-xs text-gray-500">
-                {verse.text.split(' ').length} words
-              </Text>
-            </View>
-          </View>
+          <>
+            {/* Instructions */}
+            {!revealed && (
+              <View className="mb-6 bg-amber-50 p-4 rounded-lg border border-amber-200">
+                <Text className="text-amber-900 font-medium mb-2">
+                  Try to recall the verse from memory
+                </Text>
+                <Text className="text-amber-700 text-sm">
+                  Take a moment to think about it, then tap "Reveal" to check your recall.
+                </Text>
+              </View>
+            )}
+
+            {/* Reveal Button or Verse Text */}
+            {!revealed ? (
+              <View className="mb-6">
+                <TouchableOpacity
+                  onPress={() => setRevealed(true)}
+                  className="bg-green-500 p-6 rounded-xl items-center shadow-md active:bg-green-600"
+                >
+                  <Text className="text-white font-bold text-lg">Reveal Verse</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View className="mb-6 bg-green-50 p-6 rounded-xl border-2 border-green-200">
+                <Text className="text-gray-800 text-lg leading-8 mb-4">
+                  {verse.text}
+                </Text>
+                <View className="flex-row items-center justify-between pt-4 border-t border-green-200">
+                  <Text className="text-sm text-green-700 font-medium">
+                    {verse.translation}
+                  </Text>
+                  <Text className="text-xs text-gray-500">
+                    {verse.text.split(' ').length} words
+                  </Text>
+                </View>
+              </View>
+            )}
+          </>
         )}
 
         {/* Comfort Level Picker */}

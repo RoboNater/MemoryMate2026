@@ -3,10 +3,27 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { LoadingSpinner, ShelfPicker } from '@/components';
 import { useVerseStore } from '@/store';
+import { DEFAULT_PRACTICE_MODE, type PracticeMode } from '@/types';
 
 // How many verses to show in the "choose a specific verse" list before
 // collapsing behind a "show more" toggle.
 const INITIAL_VISIBLE_VERSES = 15;
+
+// Practice modes (epic #18). The mode is chosen here and carried into every
+// practice route as a `mode` param, so all three entry points below --
+// practice all, needs work, and a single verse -- honour the same choice.
+const MODE_OPTIONS: { value: PracticeMode; label: string; description: string }[] = [
+  {
+    value: 'reveal',
+    label: 'Reveal',
+    description: 'Recall the verse in your head, then reveal it and rate yourself.',
+  },
+  {
+    value: 'letters',
+    label: 'First letters',
+    description: 'Type the first letter of each word and see how many you got.',
+  },
+];
 
 export default function PracticeScreen() {
   const router = useRouter();
@@ -22,6 +39,7 @@ export default function PracticeScreen() {
   const activeShelf = getActiveShelf();
   const versesNeedingWork = getVersesNeedingPractice();
   const [showAllVerses, setShowAllVerses] = useState(false);
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>(DEFAULT_PRACTICE_MODE);
 
   if (isLoading) {
     return <LoadingSpinner message="Loading verses..." />;
@@ -32,13 +50,13 @@ export default function PracticeScreen() {
 
     // For single verse, navigate to individual practice screen
     if (verses.length === 1) {
-      router.push(`/practice/${verses[0].id}`);
+      router.push(`/practice/${verses[0].id}?mode=${practiceMode}`);
       return;
     }
 
     // For multiple verses, navigate to session screen
     const verseIds = verses.map(v => v.id).join(',');
-    router.push(`/practice/session?ids=${verseIds}&index=0`);
+    router.push(`/practice/session?ids=${verseIds}&mode=${practiceMode}&index=0`);
   };
 
   return (
@@ -52,6 +70,42 @@ export default function PracticeScreen() {
       <View className="p-6 -mt-6 gap-4">
         {/* Active set picker (issue #5) */}
         <ShelfPicker accent="green" />
+
+        {/* Practice mode picker (issue #29) */}
+        {activeVerses.length > 0 && (
+          <View className="bg-white rounded-lg p-4 border border-gray-200">
+            <Text className="text-sm font-medium text-gray-700 mb-2">
+              How do you want to practice?
+            </Text>
+            <View className="flex-row gap-2">
+              {MODE_OPTIONS.map((option) => {
+                const isSelected = practiceMode === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() => setPracticeMode(option.value)}
+                    className={`flex-1 py-2 rounded-lg items-center border ${
+                      isSelected
+                        ? 'bg-green-500 border-green-500'
+                        : 'bg-white border-gray-300'
+                    }`}
+                  >
+                    <Text
+                      className={`font-semibold ${
+                        isSelected ? 'text-white' : 'text-gray-700'
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text className="text-xs text-gray-500 mt-2">
+              {MODE_OPTIONS.find((o) => o.value === practiceMode)?.description}
+            </Text>
+          </View>
+        )}
 
         {activeVerses.length === 0 ? (
           <View className="bg-white rounded-lg p-8 items-center border border-gray-200">
@@ -145,7 +199,9 @@ export default function PracticeScreen() {
                   return (
                     <TouchableOpacity
                       key={verse.id}
-                      onPress={() => router.push(`/practice/${verse.id}`)}
+                      onPress={() =>
+                        router.push(`/practice/${verse.id}?mode=${practiceMode}`)
+                      }
                       className="flex-row items-center justify-between py-3 border-b border-gray-100"
                     >
                       <View className="flex-1">
