@@ -82,7 +82,7 @@ export default function VerseDetailScreen() {
         `Verse ${verse.archived ? 'unarchived' : 'archived'} successfully`,
         [{ text: 'OK' }]
       );
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to update verse', [{ text: 'OK' }]);
     }
   };
@@ -107,7 +107,7 @@ export default function VerseDetailScreen() {
       } else {
         router.replace('/(tabs)/verses');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to delete verse', [{ text: 'OK' }]);
     }
   };

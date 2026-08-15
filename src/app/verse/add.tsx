@@ -25,7 +25,7 @@ export default function AddVerseScreen() {
       } else {
         router.replace('/(tabs)/verses');
       }
-    } catch (error) {
+    } catch {
       Alert.alert(
         'Error',
         'Failed to add verse. Please try again.',

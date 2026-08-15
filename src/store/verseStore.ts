@@ -1,9 +1,6 @@
 import { create } from 'zustand';
 import { Verse, VerseProgress, OverallStats, VerseStats, TestResult, Shelf } from '@/types';
-import {
-  initDatabase,
-  getDatabase,
-} from '@/services/database';
+import { initDatabase } from '@/services/database';
 import * as verseService from '@/services/verseService';
 import * as shelfService from '@/services/shelfService';
 import * as progressService from '@/services/progressService';

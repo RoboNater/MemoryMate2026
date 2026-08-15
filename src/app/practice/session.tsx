@@ -57,7 +57,7 @@ export default function PracticeSessionScreen() {
       setIsSaving(true);
       await recordPractice(verse.id);
       await setComfortLevelAction(verse.id, comfortLevel);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to save progress. Please try again.', [{ text: 'OK' }]);
     } finally {
       setIsSaving(false);

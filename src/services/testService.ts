@@ -1,7 +1,6 @@
 import { getDatabase } from './database';
 import { TestResult } from '@/types';
 import { generateUUID } from '@/utils/uuid';
-import * as progressService from './progressService';
 
 /**
  * SQLite row type for test results (uses number for boolean)

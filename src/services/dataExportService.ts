@@ -93,7 +93,7 @@ export async function importAllDataFromJSON(json: string): Promise<ImportResult>
     let exportFile: ExportFile;
     try {
       exportFile = JSON.parse(json);
-    } catch (error) {
+    } catch {
       return {
         success: false,
         versesImported: 0,
