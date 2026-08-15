@@ -113,3 +113,25 @@ export const TRANSLATIONS = [
 ] as const;
 
 export type Translation = typeof TRANSLATIONS[number];
+
+/**
+ * How a practice session presents the verse (issue #29, epic #18).
+ *
+ * - `reveal`  — the original flow: recall it in your head, reveal, self-rate.
+ * - `letters` — type the first letter of each word, graded on submit.
+ *
+ * Carried through the practice routes as a `mode` query param so the session
+ * manager in `src/app/practice/session.tsx` is reused rather than forked.
+ */
+export const PRACTICE_MODES = ['reveal', 'letters'] as const;
+
+export type PracticeMode = typeof PRACTICE_MODES[number];
+
+export const DEFAULT_PRACTICE_MODE: PracticeMode = 'reveal';
+
+/** Read a `mode` route param, falling back to the original reveal flow. */
+export function parsePracticeMode(value: string | undefined): PracticeMode {
+  return PRACTICE_MODES.includes(value as PracticeMode)
+    ? (value as PracticeMode)
+    : DEFAULT_PRACTICE_MODE;
+}
