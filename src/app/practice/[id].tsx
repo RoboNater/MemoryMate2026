@@ -32,7 +32,7 @@ export default function PracticeVerseScreen() {
       await recordPractice(verse.id);
       await setComfortLevelAction(verse.id, comfortLevel);
       Alert.alert('Success', `Comfort level ${comfortLevel} saved`, [{ text: 'OK' }]);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to save progress. Please try again.', [{ text: 'OK' }]);
     }
   };

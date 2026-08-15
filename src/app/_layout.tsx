@@ -22,6 +22,10 @@ export default function RootLayout() {
       }
     }
     init();
+    // Startup must run exactly once. `initialize` and `initializeAuth` are
+    // deliberately omitted: re-running them would re-open the database and
+    // reload the session on any store change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!isReady || isLoading) {

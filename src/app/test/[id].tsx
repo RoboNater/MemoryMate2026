@@ -82,7 +82,7 @@ export default function TestVerseScreen() {
     try {
       await recordTestResult(verse.id, passed);
       Alert.alert('Success', `Test result: ${passed ? 'PASS' : 'FAIL'}`, [{ text: 'OK' }]);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to record test result. Please try again.', [{ text: 'OK' }]);
     }
   };

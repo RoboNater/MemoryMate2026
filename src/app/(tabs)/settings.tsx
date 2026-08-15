@@ -166,7 +166,7 @@ export default function SettingsScreen() {
         try {
           const text = await file.text();
           resolve(text);
-        } catch (error) {
+        } catch {
           reject(new Error('Failed to read file'));
         }
       };

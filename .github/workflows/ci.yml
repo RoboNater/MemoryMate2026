@@ -21,8 +21,7 @@ jobs:
 
       - run: npm run typecheck
 
-      # - run: npm run lint
-      #   Enabled once lint script is added to package.json
+      - run: npm run lint
 
       # - run: npm test
       #   Enabled once test script is added to package.json

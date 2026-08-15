@@ -39,7 +39,7 @@ export default function EditVerseScreen() {
       } else {
         router.replace(`/verse/${verse.id}`);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to update verse. Please try again.', [
         {
           text: 'OK',
