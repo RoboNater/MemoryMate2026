@@ -401,24 +401,49 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   },
 
   // Record test result
+  //
+  // This action rejects only when the durable write itself failed, because
+  // that is the question its callers are asking: the Test session treats a
+  // rejection as "this verse was not recorded", tells the user so, and leaves
+  // it out of the session summary (`src/app/test/session.tsx`).
+  //
+  // Refreshing the cached progress and stats afterwards is a separate
+  // concern. The row is already committed by then, so failing there leaves
+  // the counts stale until the next load -- while reporting it as unrecorded
+  // would be actively worse: `test_results` is an append-only log, so a user
+  // who re-tests the verse on that advice writes a second row for one test.
+  //
+  // It also leaves the store's `error` alone; the caller surfaces the failure
+  // itself, and a non-null `error` currently makes RootLayout replace the
+  // whole app with its "Failed to load" screen (#39), which would strand the
+  // user mid-session instead of letting them carry on.
   recordTestResult: async (verseId, passed, score) => {
     set({ isLoading: true, error: null });
     try {
       const result = await testService.recordTestResult(verseId, passed, score);
-      const updatedProgress = await progressService.getProgress(verseId);
-      set((state) => ({
-        progress: {
-          ...state.progress,
-          [verseId]: updatedProgress,
-        },
-      }));
-      await get().refreshStats();
+
+      try {
+        const updatedProgress = await progressService.getProgress(verseId);
+        set((state) => ({
+          progress: {
+            ...state.progress,
+            [verseId]: updatedProgress,
+          },
+        }));
+        await get().refreshStats();
+      } catch (refreshError) {
+        console.error(
+          'Recorded the test result but could not refresh cached progress:',
+          refreshError
+        );
+        // refreshStats() sets `error` on its way out, and RootLayout treats a
+        // non-null `error` as fatal (#39). The test itself was recorded, so
+        // this must not take the app down.
+        set({ error: null });
+      }
+
       syncAfterWrite();
       return result;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to record test result';
-      set({ error: errorMsg });
-      throw error;
     } finally {
       set({ isLoading: false });
     }
