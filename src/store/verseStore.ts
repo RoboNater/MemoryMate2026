@@ -19,6 +19,33 @@ function syncAfterWrite(): void {
     .catch(() => {});
 }
 
+/**
+ * Refresh cached state (`progress`, `stats`, ...) after a durable write that
+ * has already committed.
+ *
+ * A failure here is not a failed write and must never be reported to the
+ * caller as one (#39): the caller would tell the user the change was lost and
+ * invite them to redo it -- which, for the append-only `test_results` log,
+ * writes a second row for one test. It is logged and swallowed instead,
+ * leaving the cached copy stale until the next load.
+ *
+ * Note what this does *not* do: touch `error`. Writes overlap, so a refresh
+ * that reported (or cleared) the shared write-error field would let a slow
+ * refresh belonging to write A overwrite the failure of a later write B. The
+ * `refresh*` actions it calls keep their hands off `error` for the same
+ * reason -- see the comment above them.
+ */
+async function refreshAfterWrite(action: string, refresh: () => Promise<void>): Promise<void> {
+  try {
+    await refresh();
+  } catch (refreshError) {
+    console.error(
+      `${action} was written, but refreshing the cached copy afterwards failed:`,
+      refreshError
+    );
+  }
+}
+
 export interface VerseStore {
   // State
   verses: Verse[];
@@ -26,8 +53,29 @@ export interface VerseStore {
   activeShelfId: string | null; // null = all verses (no shelf filter)
   progress: Record<string, VerseProgress>;
   stats: OverallStats | null;
+  /**
+   * The store is loading its data: `initialize()`, or an import that replaces
+   * everything. Screens gate their full-screen spinner on this, so ordinary
+   * writes deliberately leave it alone -- flipping it for a save flashed that
+   * spinner over whatever screen the user was on (#39).
+   */
   isLoading: boolean;
+  /**
+   * Last write failure, or null. Written by the write actions and by nothing
+   * else -- reads and refreshes reject on failure but leave this alone, so
+   * that a background refresh can't overwrite or clear a real write's error.
+   *
+   * Non-fatal and advisory: the action that failed also rejects, and the
+   * calling screen is what reports it to the user. Cleared at the start of the
+   * next write. For a failure that leaves the app unusable, see `initError`.
+   */
   error: string | null;
+  /**
+   * Initialization failed and there is no local database to work with --
+   * fatal, and the only error `RootLayout` replaces the app with. Set by
+   * `initialize()` and by nothing else (#39).
+   */
+  initError: string | null;
   isInitialized: boolean;
 
   // Initialization
@@ -65,6 +113,7 @@ export interface VerseStore {
 
   // Data fetching
   refreshVerses: () => Promise<void>;
+  refreshProgress: (verseId: string) => Promise<void>;
   refreshStats: () => Promise<void>;
   getVerseStats: (verseId: string) => Promise<VerseStats | null>;
   getTestHistory: (verseId: string) => Promise<TestResult[]>;
@@ -91,13 +140,14 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   stats: null,
   isLoading: false,
   error: null,
+  initError: null,
   isInitialized: false,
 
   // Initialize database and load data
   initialize: async () => {
     if (get().isInitialized) return;
 
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, initError: null });
     try {
       await initDatabase();
 
@@ -120,53 +170,58 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error during initialization';
       console.error('Store initialization error:', errorMsg);
-      set({ error: errorMsg });
+      set({ initError: errorMsg });
     } finally {
       set({ isLoading: false });
     }
   },
 
+  // --- Write actions ---
+  //
+  // They all follow the same shape (#39): a write action rejects if and only
+  // if the durable service call rejects, and hands the post-write cache
+  // refresh to `refreshAfterWrite`. None of them touch `isLoading` -- that
+  // flag means "the store is loading its data", not "a save is in flight".
+
   // Add a new verse
   addVerse: async (reference, text, translation, shelfId = null) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
+    let verse: Verse;
     try {
-      const verse = await verseService.addVerse(reference, text, translation, shelfId);
-
-      // Create initial progress entry
-      const initialProgress: VerseProgress = {
-        verse_id: verse.id,
-        times_practiced: 0,
-        times_tested: 0,
-        times_correct: 0,
-        last_practiced: null,
-        last_tested: null,
-        comfort_level: 1,
-      };
-
-      set((state) => ({
-        verses: [verse, ...state.verses],
-        progress: {
-          ...state.progress,
-          [verse.id]: initialProgress,
-        },
-      }));
-
-      // Refresh stats
-      await get().refreshStats();
-      syncAfterWrite();
-      return verse;
+      verse = await verseService.addVerse(reference, text, translation, shelfId);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to add verse';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
+
+    // Create initial progress entry
+    const initialProgress: VerseProgress = {
+      verse_id: verse.id,
+      times_practiced: 0,
+      times_tested: 0,
+      times_correct: 0,
+      last_practiced: null,
+      last_tested: null,
+      comfort_level: 1,
+    };
+
+    set((state) => ({
+      verses: [verse, ...state.verses],
+      progress: {
+        ...state.progress,
+        [verse.id]: initialProgress,
+      },
+    }));
+
+    await refreshAfterWrite('addVerse', () => get().refreshStats());
+    syncAfterWrite();
+    return verse;
   },
 
   // Update verse
   updateVerse: async (id, updates) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       const updatedVerse = await verseService.updateVerse(id, updates);
 
@@ -180,78 +235,74 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       const errorMsg = error instanceof Error ? error.message : 'Failed to update verse';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
   },
 
   // Archive verse
   archiveVerse: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       await verseService.archiveVerse(id);
-      set((state) => ({
-        verses: state.verses.map((v) =>
-          v.id === id ? { ...v, archived: true } : v
-        ),
-      }));
-      await get().refreshStats();
-      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to archive verse';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
+
+    set((state) => ({
+      verses: state.verses.map((v) =>
+        v.id === id ? { ...v, archived: true } : v
+      ),
+    }));
+    await refreshAfterWrite('archiveVerse', () => get().refreshStats());
+    syncAfterWrite();
   },
 
   // Unarchive verse
   unarchiveVerse: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       await verseService.unarchiveVerse(id);
-      set((state) => ({
-        verses: state.verses.map((v) =>
-          v.id === id ? { ...v, archived: false } : v
-        ),
-      }));
-      await get().refreshStats();
-      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to unarchive verse';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
+
+    set((state) => ({
+      verses: state.verses.map((v) =>
+        v.id === id ? { ...v, archived: false } : v
+      ),
+    }));
+    await refreshAfterWrite('unarchiveVerse', () => get().refreshStats());
+    syncAfterWrite();
   },
 
   // Remove verse
   removeVerse: async (id) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       await verseService.removeVerse(id);
-      set((state) => ({
-        verses: state.verses.filter((v) => v.id !== id),
-        progress: Object.fromEntries(
-          Object.entries(state.progress).filter(([key]) => key !== id)
-        ),
-      }));
-      await get().refreshStats();
-      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to remove verse';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
+
+    set((state) => ({
+      verses: state.verses.filter((v) => v.id !== id),
+      progress: Object.fromEntries(
+        Object.entries(state.progress).filter(([key]) => key !== id)
+      ),
+    }));
+    await refreshAfterWrite('removeVerse', () => get().refreshStats());
+    syncAfterWrite();
   },
 
   // --- Shelf actions (issue #5) ---
 
   createShelf: async (name) => {
+    set({ error: null });
     try {
       const shelf = await shelfService.addShelf(name);
       set((state) => ({ shelves: [...state.shelves, shelf] }));
@@ -265,6 +316,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   },
 
   renameShelf: async (id, name) => {
+    set({ error: null });
     try {
       await shelfService.renameShelf(id, name);
       set((state) => ({
@@ -279,6 +331,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   },
 
   deleteShelf: async (id) => {
+    set({ error: null });
     try {
       // Service un-shelves member verses and clears the active-shelf preference
       // if it pointed at this shelf.
@@ -299,6 +352,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   },
 
   setActiveShelf: async (id) => {
+    set({ error: null });
     try {
       await shelfService.setActiveShelfId(id);
       set({ activeShelfId: id });
@@ -315,89 +369,70 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   },
 
   refreshShelves: async () => {
-    try {
-      const shelves = await shelfService.getAllShelves();
-      set((state) => ({
-        shelves,
-        // A pull may have deleted the shelf this device had active.
-        activeShelfId:
-          state.activeShelfId && !shelves.some((s) => s.id === state.activeShelfId)
-            ? null
-            : state.activeShelfId,
-      }));
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh shelves';
-      set({ error: errorMsg });
-      throw error;
-    }
+    const shelves = await shelfService.getAllShelves();
+    set((state) => ({
+      shelves,
+      // A pull may have deleted the shelf this device had active.
+      activeShelfId:
+        state.activeShelfId && !shelves.some((s) => s.id === state.activeShelfId)
+          ? null
+          : state.activeShelfId,
+    }));
   },
 
   // Record practice
+  //
+  // The Practice screens report a rejection as "Failed to save progress.
+  // Please try again." over the verse they just saved, so this must reject
+  // only for the durable write -- see `refreshAfterWrite` (#39).
   recordPractice: async (verseId) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       await progressService.recordPractice(verseId);
-      const updatedProgress = await progressService.getProgress(verseId);
-      set((state) => ({
-        progress: {
-          ...state.progress,
-          [verseId]: updatedProgress,
-        },
-      }));
-      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to record practice';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
+
+    await refreshAfterWrite('recordPractice', () => get().refreshProgress(verseId));
+    syncAfterWrite();
   },
 
   // Set comfort level
   setComfortLevel: async (verseId, level) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       await progressService.setComfortLevel(verseId, level);
-      const updatedProgress = await progressService.getProgress(verseId);
-      set((state) => ({
-        progress: {
-          ...state.progress,
-          [verseId]: updatedProgress,
-        },
-      }));
-      await get().refreshStats();
-      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to set comfort level';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
+
+    await refreshAfterWrite('setComfortLevel', async () => {
+      await get().refreshProgress(verseId);
+      await get().refreshStats();
+    });
+    syncAfterWrite();
   },
 
   // Reset progress
   resetProgress: async (verseId) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       await progressService.resetProgress(verseId);
-      const updatedProgress = await progressService.getProgress(verseId);
-      set((state) => ({
-        progress: {
-          ...state.progress,
-          [verseId]: updatedProgress,
-        },
-      }));
-      await get().refreshStats();
-      syncAfterWrite();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to reset progress';
       set({ error: errorMsg });
       throw error;
-    } finally {
-      set({ isLoading: false });
     }
+
+    await refreshAfterWrite('resetProgress', async () => {
+      await get().refreshProgress(verseId);
+      await get().refreshStats();
+    });
+    syncAfterWrite();
   },
 
   // Record test result
@@ -408,93 +443,72 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   // it out of the session summary (`src/app/test/session.tsx`).
   //
   // Refreshing the cached progress and stats afterwards is a separate
-  // concern. The row is already committed by then, so failing there leaves
-  // the counts stale until the next load -- while reporting it as unrecorded
-  // would be actively worse: `test_results` is an append-only log, so a user
-  // who re-tests the verse on that advice writes a second row for one test.
-  //
-  // It also leaves the store's `error` alone; the caller surfaces the failure
-  // itself, and a non-null `error` currently makes RootLayout replace the
-  // whole app with its "Failed to load" screen (#39), which would strand the
-  // user mid-session instead of letting them carry on.
+  // concern -- see `refreshAfterWrite`. The row is already committed by then,
+  // so failing there leaves the counts stale until the next load, while
+  // reporting it as unrecorded would be actively worse: `test_results` is an
+  // append-only log, so a user who re-tests the verse on that advice writes a
+  // second row for one test.
   recordTestResult: async (verseId, passed, score) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
+    let result: TestResult;
     try {
-      const result = await testService.recordTestResult(verseId, passed, score);
-
-      try {
-        const updatedProgress = await progressService.getProgress(verseId);
-        set((state) => ({
-          progress: {
-            ...state.progress,
-            [verseId]: updatedProgress,
-          },
-        }));
-        await get().refreshStats();
-      } catch (refreshError) {
-        console.error(
-          'Recorded the test result but could not refresh cached progress:',
-          refreshError
-        );
-        // refreshStats() sets `error` on its way out, and RootLayout treats a
-        // non-null `error` as fatal (#39). The test itself was recorded, so
-        // this must not take the app down.
-        set({ error: null });
-      }
-
-      syncAfterWrite();
-      return result;
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  // Refresh verses from database
-  refreshVerses: async () => {
-    try {
-      const verses = await verseService.getAllVerses(true);
-      const progressList = await progressService.getAllProgress();
-      const progress = Object.fromEntries(progressList.map((p) => [p.verse_id, p]));
-      set({ verses, progress });
+      result = await testService.recordTestResult(verseId, passed, score);
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh verses';
+      const errorMsg = error instanceof Error ? error.message : 'Failed to record test result';
       set({ error: errorMsg });
       throw error;
     }
+
+    await refreshAfterWrite('recordTestResult', async () => {
+      await get().refreshProgress(verseId);
+      await get().refreshStats();
+    });
+    syncAfterWrite();
+    return result;
+  },
+
+  // --- Reads and refreshes ---
+  //
+  // These reject on failure and leave `error` to the write actions (#40
+  // review). They run as cache maintenance behind a write, behind a sync pull,
+  // and behind a screen mount, so writing the shared write-error field from
+  // here would make it depend on which of those finished last: a refresh
+  // trailing an *earlier* write could clear or overwrite a *later* write's
+  // real failure. Every caller handles the rejection itself.
+
+  // Refresh verses from database
+  refreshVerses: async () => {
+    const verses = await verseService.getAllVerses(true);
+    const progressList = await progressService.getAllProgress();
+    const progress = Object.fromEntries(progressList.map((p) => [p.verse_id, p]));
+    set({ verses, progress });
+  },
+
+  // Refresh one verse's cached progress from the database
+  refreshProgress: async (verseId) => {
+    const updatedProgress = await progressService.getProgress(verseId);
+    set((state) => ({
+      progress: {
+        ...state.progress,
+        [verseId]: updatedProgress,
+      },
+    }));
   },
 
   // Refresh stats from database
   refreshStats: async () => {
-    try {
-      const stats = await statsService.getOverallStats();
-      set({ stats });
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh stats';
-      set({ error: errorMsg });
-      throw error;
-    }
+    const stats = await statsService.getOverallStats();
+    set({ stats });
   },
 
   // Get stats for a specific verse
   getVerseStats: async (verseId) => {
-    try {
-      return await statsService.getVerseStats(verseId);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to get verse stats';
-      set({ error: errorMsg });
-      throw error;
-    }
+    return await statsService.getVerseStats(verseId);
   },
 
   // Get test history for a verse
   getTestHistory: async (verseId) => {
-    try {
-      return await testService.getTestHistory(verseId);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to get test history';
-      set({ error: errorMsg });
-      throw error;
-    }
+    return await testService.getTestHistory(verseId);
   },
 
   // Computed getters
@@ -535,16 +549,10 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     });
   },
 
-  // Export all data as JSON
+  // Export all data as JSON. A read, so it reports by rejecting only --
+  // `settings.tsx` catches it and shows the alert.
   exportData: async () => {
-    try {
-      const jsonString = await dataExportService.exportAllDataAsJSON();
-      return jsonString;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to export data';
-      set({ error: errorMsg });
-      throw error;
-    }
+    return await dataExportService.exportAllDataAsJSON();
   },
 
   // Import data from JSON
@@ -557,16 +565,14 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         throw new Error(result.error || 'Import failed');
       }
 
-      // Refresh all state from database
-      try {
+      // Refresh all state from database. The data is already committed by
+      // now, so a failure here must not fail the import; the UI updates on
+      // the next load.
+      await refreshAfterWrite('importData', async () => {
         await get().refreshVerses();  // Loads verses AND progress
         await get().refreshShelves();  // Loads shelves (and re-validates active shelf)
         await get().refreshStats();    // Loads overall statistics
-      } catch (refreshError) {
-        // Log refresh error but don't fail the import
-        // Data is already in the database, UI will update on navigation
-        console.error('Failed to refresh UI after import:', refreshError);
-      }
+      });
 
       syncAfterWrite();
       return result;
