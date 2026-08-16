@@ -12,3 +12,4 @@ export { ShelfPicker } from './ShelfPicker';
 export { ManageShelvesModal } from './ManageShelvesModal';
 export { LoadingSpinner } from './LoadingSpinner';
 export { ErrorDisplay } from './ErrorDisplay';
+export { VerseTest } from './VerseTest';

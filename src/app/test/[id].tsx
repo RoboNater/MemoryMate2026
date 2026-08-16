@@ -1,8 +1,8 @@
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
+import { VerseTest } from '@/components';
 import { useVerseStore } from '@/store';
-import { calculateScore } from '@/utils/scoring';
 
 export default function TestVerseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -11,10 +11,13 @@ export default function TestVerseScreen() {
   const verse = verses.find((v) => v.id === id);
   const verseProgress = verse ? progress[verse.id] : undefined;
 
-  const [userInput, setUserInput] = useState('');
-  const [showResult, setShowResult] = useState(false);
-  const [gaveUp, setGaveUp] = useState(false);
-  const [testPassed, setTestPassed] = useState<boolean | null>(null);
+  // How the user graded the verse. VerseTest owns the in-progress
+  // typing/checking state; this is the one piece of it the screen needs, to
+  // gate the Done button and to write on the way out.
+  const [outcome, setOutcome] = useState<{ passed: boolean; score: number | null } | null>(
+    null
+  );
+  const [isSaving, setIsSaving] = useState(false);
 
   if (!verse) {
     return (
@@ -27,207 +30,65 @@ export default function TestVerseScreen() {
     );
   }
 
-  const score = showResult ? calculateScore(verse.text, userInput) : null;
-
-  const handleCheck = () => {
-    if (userInput.trim().length === 0) {
-      Alert.alert('Input Required', 'Please type the verse before checking');
-      return;
-    }
-    setShowResult(true);
+  // Marking only records the grade; the write happens on the way out, as it
+  // does in test/session.tsx. That keeps one row per test however many times
+  // the user changes their mind, and lets Give Up stand as a fail here
+  // without a second tap writing the same result twice.
+  const handleMarkResult = (passed: boolean, score: number | null) => {
+    setOutcome({ passed, score });
   };
 
-  const handleGiveUp = () => {
-    setShowResult(true);
-    setGaveUp(true);
-    setTestPassed(false);
-  };
-
-  const handlePassFail = async (passed: boolean) => {
-    setTestPassed(passed);
-    try {
-      await recordTestResult(verse.id, passed);
-      Alert.alert('Success', `Test result: ${passed ? 'PASS' : 'FAIL'}`, [{ text: 'OK' }]);
-    } catch {
-      Alert.alert('Error', 'Failed to record test result. Please try again.', [{ text: 'OK' }]);
-    }
-  };
-
-  const handleDone = () => {
-    if (showResult && testPassed === null) {
+  const handleDone = async () => {
+    if (!outcome) {
       Alert.alert('Please mark as Pass or Fail', 'Did you pass this test?');
       return;
     }
+
+    try {
+      setIsSaving(true);
+      // TestResult.score and TestResultBadge are both 0.0-1.0; VerseTest
+      // reports the 0-100 word-match percentage, so convert here.
+      await recordTestResult(
+        verse.id,
+        outcome.passed,
+        outcome.score === null ? undefined : outcome.score / 100
+      );
+    } catch {
+      // Say plainly that it didn't count, rather than leaving with a
+      // "Save & Finish" that saved nothing. There is no session left to
+      // carry the failure into here, so the user is not held on the screen.
+      Alert.alert(
+        'Not recorded',
+        "This result couldn't be saved to your device, so it won't count towards this verse's history.",
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsSaving(false);
+    }
+
     router.push('/(tabs)/test');
   };
 
   return (
     <ScrollView className="flex-1 bg-white">
-      <View className="p-6">
-        {/* Progress Indicator */}
-        {verseProgress && (
-          <View className="mb-4 flex-row items-center justify-between">
-            <Text className="text-sm text-gray-600">
-              Tested {verseProgress.times_tested} times
+      <VerseTest
+        verse={verse}
+        verseProgress={verseProgress}
+        onMarkResult={handleMarkResult}
+        onGiveUp={() => handleMarkResult(false, null)}
+        onCancel={() => router.back()}
+        footer={
+          <TouchableOpacity
+            onPress={handleDone}
+            disabled={isSaving}
+            className="bg-purple-500 py-4 rounded-lg items-center"
+          >
+            <Text className="text-white font-semibold text-base">
+              {outcome ? 'Save & Finish' : 'Finish Test'}
             </Text>
-            {verseProgress.times_tested > 0 && (
-              <View className="bg-purple-100 px-3 py-1 rounded-full">
-                <Text className="text-purple-700 text-xs font-semibold">
-                  {Math.round((verseProgress.times_correct / verseProgress.times_tested) * 100)}% accuracy
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Verse Reference */}
-        <View className="bg-gradient-to-r from-purple-50 to-purple-100 p-8 rounded-2xl mb-6 items-center border-2 border-purple-200 shadow-sm">
-          <Text className="text-sm text-gray-600 mb-2 uppercase tracking-wide">
-            Test This Verse
-          </Text>
-          <Text className="text-3xl font-bold text-purple-700 text-center mb-1">
-            {verse.reference}
-          </Text>
-          <Text className="text-sm text-purple-600">{verse.translation}</Text>
-        </View>
-
-        {/* Instructions */}
-        {!showResult && (
-          <View className="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <Text className="text-blue-900 font-medium mb-2">
-              Type the verse from memory
-            </Text>
-            <Text className="text-blue-700 text-sm">
-              Don't peek! Try to recall as much as you can.
-            </Text>
-          </View>
-        )}
-
-        {/* Input Area */}
-        <View className="mb-6">
-          <Text className="text-gray-700 font-semibold mb-2">Your Answer:</Text>
-          <TextInput
-            value={userInput}
-            onChangeText={setUserInput}
-            placeholder="Type the verse text here..."
-            multiline
-            numberOfLines={8}
-            editable={!showResult}
-            className={`border ${
-              showResult ? 'border-gray-200 bg-gray-50' : 'border-gray-300 bg-white'
-            } rounded-lg px-4 py-3 text-gray-900 text-base leading-6`}
-            placeholderTextColor="#9ca3af"
-            textAlignVertical="top"
-          />
-          {userInput.length > 0 && !showResult && (
-            <Text className="text-xs text-gray-500 mt-1">
-              {userInput.split(/\s+/).length} words entered
-            </Text>
-          )}
-        </View>
-
-        {/* Action Buttons - Before Result */}
-        {!showResult ? (
-          <View className="gap-3 mb-6">
-            <TouchableOpacity
-              onPress={handleCheck}
-              className="bg-blue-500 py-4 rounded-lg items-center"
-            >
-              <Text className="text-white font-semibold text-base">Check Answer</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleGiveUp}
-              className="bg-gray-400 py-4 rounded-lg items-center"
-            >
-              <Text className="text-white font-semibold text-base">Give Up</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="bg-gray-200 py-3 rounded-lg items-center"
-            >
-              <Text className="text-gray-700 font-medium">Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View className="mb-6">
-            {/* Correct Answer (if gave up or after checking) */}
-            <View className="bg-green-50 p-6 rounded-xl border-2 border-green-200 mb-4">
-              <Text className="text-green-900 font-bold mb-3">Correct Answer:</Text>
-              <Text className="text-gray-800 text-base leading-7">
-                {verse.text}
-              </Text>
-            </View>
-
-            {/* Score */}
-            {score && !gaveUp && (
-              <View className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-4">
-                <Text className="text-blue-900 font-semibold mb-2">Word Match Score:</Text>
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-sm text-gray-700">
-                    {score.matches} of {score.total} words correct
-                  </Text>
-                  <Text className="text-2xl font-bold text-blue-600">
-                    {score.percentage}%
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Pass/Fail Selection */}
-            <View className="bg-white p-6 rounded-xl border-2 border-gray-200 mb-4">
-              <Text className="text-gray-900 font-bold mb-3 text-center">
-                Did you pass this test?
-              </Text>
-              <View className="flex-row gap-3">
-                <TouchableOpacity
-                  onPress={() => handlePassFail(false)}
-                  className={`flex-1 py-4 rounded-lg items-center ${
-                    testPassed === false ? 'bg-red-600' : 'bg-red-400'
-                  }`}
-                >
-                  <Text className="text-white font-semibold text-base">
-                    {testPassed === false ? '✗ Fail' : 'Fail'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handlePassFail(true)}
-                  className={`flex-1 py-4 rounded-lg items-center ${
-                    testPassed === true ? 'bg-green-600' : 'bg-green-400'
-                  }`}
-                >
-                  <Text className="text-white font-semibold text-base">
-                    {testPassed === true ? '✓ Pass' : 'Pass'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Done Button */}
-            <TouchableOpacity
-              onPress={handleDone}
-              className="bg-purple-500 py-4 rounded-lg items-center"
-            >
-              <Text className="text-white font-semibold text-base">
-                {testPassed !== null ? 'Save & Finish' : 'Finish Test'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Help Text */}
-        {!showResult && (
-          <View className="bg-purple-50 p-4 rounded-lg border border-purple-100">
-            <Text className="text-purple-900 font-semibold mb-2 text-center">
-              Testing Tips
-            </Text>
-            <Text className="text-purple-700 text-sm text-center">
-              Focus on accuracy rather than speed. It's okay to take your time.
-            </Text>
-          </View>
-        )}
-      </View>
+          </TouchableOpacity>
+        }
+      />
     </ScrollView>
   );
 }
