@@ -29,14 +29,13 @@ function syncAfterWrite(): void {
  * writes a second row for one test. It is logged and swallowed instead,
  * leaving the cached copy stale until the next load.
  *
- * The `refresh*` actions set the store's `error` on their way out; clear it
- * again, since nothing the caller asked for actually failed.
+ * Note what this does *not* do: touch `error`. Writes overlap, so a refresh
+ * that reported (or cleared) the shared write-error field would let a slow
+ * refresh belonging to write A overwrite the failure of a later write B. The
+ * `refresh*` actions it calls keep their hands off `error` for the same
+ * reason -- see the comment above them.
  */
-async function refreshAfterWrite(
-  set: (partial: Partial<VerseStore>) => void,
-  action: string,
-  refresh: () => Promise<void>
-): Promise<void> {
+async function refreshAfterWrite(action: string, refresh: () => Promise<void>): Promise<void> {
   try {
     await refresh();
   } catch (refreshError) {
@@ -44,7 +43,6 @@ async function refreshAfterWrite(
       `${action} was written, but refreshing the cached copy afterwards failed:`,
       refreshError
     );
-    set({ error: null });
   }
 }
 
@@ -63,10 +61,13 @@ export interface VerseStore {
    */
   isLoading: boolean;
   /**
-   * Last write failure, or null. Non-fatal and advisory: the action that
-   * failed also rejects, and the calling screen is what reports it to the
-   * user. Cleared at the start of the next write. For a failure that leaves
-   * the app unusable, see `initError`.
+   * Last write failure, or null. Written by the write actions and by nothing
+   * else -- reads and refreshes reject on failure but leave this alone, so
+   * that a background refresh can't overwrite or clear a real write's error.
+   *
+   * Non-fatal and advisory: the action that failed also rejects, and the
+   * calling screen is what reports it to the user. Cleared at the start of the
+   * next write. For a failure that leaves the app unusable, see `initError`.
    */
   error: string | null;
   /**
@@ -213,7 +214,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       },
     }));
 
-    await refreshAfterWrite(set, 'addVerse', () => get().refreshStats());
+    await refreshAfterWrite('addVerse', () => get().refreshStats());
     syncAfterWrite();
     return verse;
   },
@@ -253,7 +254,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         v.id === id ? { ...v, archived: true } : v
       ),
     }));
-    await refreshAfterWrite(set, 'archiveVerse', () => get().refreshStats());
+    await refreshAfterWrite('archiveVerse', () => get().refreshStats());
     syncAfterWrite();
   },
 
@@ -273,7 +274,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         v.id === id ? { ...v, archived: false } : v
       ),
     }));
-    await refreshAfterWrite(set, 'unarchiveVerse', () => get().refreshStats());
+    await refreshAfterWrite('unarchiveVerse', () => get().refreshStats());
     syncAfterWrite();
   },
 
@@ -294,7 +295,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
         Object.entries(state.progress).filter(([key]) => key !== id)
       ),
     }));
-    await refreshAfterWrite(set, 'removeVerse', () => get().refreshStats());
+    await refreshAfterWrite('removeVerse', () => get().refreshStats());
     syncAfterWrite();
   },
 
@@ -368,21 +369,15 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   },
 
   refreshShelves: async () => {
-    try {
-      const shelves = await shelfService.getAllShelves();
-      set((state) => ({
-        shelves,
-        // A pull may have deleted the shelf this device had active.
-        activeShelfId:
-          state.activeShelfId && !shelves.some((s) => s.id === state.activeShelfId)
-            ? null
-            : state.activeShelfId,
-      }));
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh shelves';
-      set({ error: errorMsg });
-      throw error;
-    }
+    const shelves = await shelfService.getAllShelves();
+    set((state) => ({
+      shelves,
+      // A pull may have deleted the shelf this device had active.
+      activeShelfId:
+        state.activeShelfId && !shelves.some((s) => s.id === state.activeShelfId)
+          ? null
+          : state.activeShelfId,
+    }));
   },
 
   // Record practice
@@ -400,7 +395,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       throw error;
     }
 
-    await refreshAfterWrite(set, 'recordPractice', () => get().refreshProgress(verseId));
+    await refreshAfterWrite('recordPractice', () => get().refreshProgress(verseId));
     syncAfterWrite();
   },
 
@@ -415,7 +410,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       throw error;
     }
 
-    await refreshAfterWrite(set, 'setComfortLevel', async () => {
+    await refreshAfterWrite('setComfortLevel', async () => {
       await get().refreshProgress(verseId);
       await get().refreshStats();
     });
@@ -433,7 +428,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       throw error;
     }
 
-    await refreshAfterWrite(set, 'resetProgress', async () => {
+    await refreshAfterWrite('resetProgress', async () => {
       await get().refreshProgress(verseId);
       await get().refreshStats();
     });
@@ -453,15 +448,18 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   // reporting it as unrecorded would be actively worse: `test_results` is an
   // append-only log, so a user who re-tests the verse on that advice writes a
   // second row for one test.
-  //
-  // It also leaves the store's `error` alone on the durable failure; the
-  // caller surfaces that itself, and the alert it shows says the session can
-  // carry on.
   recordTestResult: async (verseId, passed, score) => {
     set({ error: null });
-    const result = await testService.recordTestResult(verseId, passed, score);
+    let result: TestResult;
+    try {
+      result = await testService.recordTestResult(verseId, passed, score);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to record test result';
+      set({ error: errorMsg });
+      throw error;
+    }
 
-    await refreshAfterWrite(set, 'recordTestResult', async () => {
+    await refreshAfterWrite('recordTestResult', async () => {
       await get().refreshProgress(verseId);
       await get().refreshStats();
     });
@@ -469,69 +467,48 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     return result;
   },
 
+  // --- Reads and refreshes ---
+  //
+  // These reject on failure and leave `error` to the write actions (#40
+  // review). They run as cache maintenance behind a write, behind a sync pull,
+  // and behind a screen mount, so writing the shared write-error field from
+  // here would make it depend on which of those finished last: a refresh
+  // trailing an *earlier* write could clear or overwrite a *later* write's
+  // real failure. Every caller handles the rejection itself.
+
   // Refresh verses from database
   refreshVerses: async () => {
-    try {
-      const verses = await verseService.getAllVerses(true);
-      const progressList = await progressService.getAllProgress();
-      const progress = Object.fromEntries(progressList.map((p) => [p.verse_id, p]));
-      set({ verses, progress });
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh verses';
-      set({ error: errorMsg });
-      throw error;
-    }
+    const verses = await verseService.getAllVerses(true);
+    const progressList = await progressService.getAllProgress();
+    const progress = Object.fromEntries(progressList.map((p) => [p.verse_id, p]));
+    set({ verses, progress });
   },
 
   // Refresh one verse's cached progress from the database
   refreshProgress: async (verseId) => {
-    try {
-      const updatedProgress = await progressService.getProgress(verseId);
-      set((state) => ({
-        progress: {
-          ...state.progress,
-          [verseId]: updatedProgress,
-        },
-      }));
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh progress';
-      set({ error: errorMsg });
-      throw error;
-    }
+    const updatedProgress = await progressService.getProgress(verseId);
+    set((state) => ({
+      progress: {
+        ...state.progress,
+        [verseId]: updatedProgress,
+      },
+    }));
   },
 
   // Refresh stats from database
   refreshStats: async () => {
-    try {
-      const stats = await statsService.getOverallStats();
-      set({ stats });
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to refresh stats';
-      set({ error: errorMsg });
-      throw error;
-    }
+    const stats = await statsService.getOverallStats();
+    set({ stats });
   },
 
   // Get stats for a specific verse
   getVerseStats: async (verseId) => {
-    try {
-      return await statsService.getVerseStats(verseId);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to get verse stats';
-      set({ error: errorMsg });
-      throw error;
-    }
+    return await statsService.getVerseStats(verseId);
   },
 
   // Get test history for a verse
   getTestHistory: async (verseId) => {
-    try {
-      return await testService.getTestHistory(verseId);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to get test history';
-      set({ error: errorMsg });
-      throw error;
-    }
+    return await testService.getTestHistory(verseId);
   },
 
   // Computed getters
@@ -572,16 +549,10 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     });
   },
 
-  // Export all data as JSON
+  // Export all data as JSON. A read, so it reports by rejecting only --
+  // `settings.tsx` catches it and shows the alert.
   exportData: async () => {
-    try {
-      const jsonString = await dataExportService.exportAllDataAsJSON();
-      return jsonString;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to export data';
-      set({ error: errorMsg });
-      throw error;
-    }
+    return await dataExportService.exportAllDataAsJSON();
   },
 
   // Import data from JSON
@@ -597,7 +568,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       // Refresh all state from database. The data is already committed by
       // now, so a failure here must not fail the import; the UI updates on
       // the next load.
-      await refreshAfterWrite(set, 'importData', async () => {
+      await refreshAfterWrite('importData', async () => {
         await get().refreshVerses();  // Loads verses AND progress
         await get().refreshShelves();  // Loads shelves (and re-validates active shelf)
         await get().refreshStats();    // Loads overall statistics

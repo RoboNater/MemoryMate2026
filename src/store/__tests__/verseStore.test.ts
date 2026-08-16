@@ -10,7 +10,9 @@
  * They also pin the two fields `RootLayout` reads (#39): a failed write never
  * sets `initError`, which is what makes the app show its fatal "Failed to
  * load" screen, and never sets `isLoading`, which is what makes it show the
- * full-screen startup spinner.
+ * full-screen startup spinner. And they pin who may write `error`: the write
+ * actions, never a refresh -- writes overlap, so a refresh that wrote it could
+ * clear a later write's failure depending on which finished first.
  *
  * Per AGENTS.md, database-backed code is otherwise deliberately left
  * uncovered here -- this is not a general test of the store or of SQLite
@@ -112,14 +114,14 @@ describe('useVerseStore().recordTestResult', () => {
     jest.restoreAllMocks();
   });
 
-  it('rejects when the durable write fails, and leaves `error` null', async () => {
+  it('rejects when the durable write fails, and reports it on `error`', async () => {
     mockedTestService.recordTestResult.mockRejectedValue(new Error('db write failed'));
 
     await expect(useVerseStore.getState().recordTestResult(VERSE_ID, true)).rejects.toThrow(
       'db write failed'
     );
 
-    expect(useVerseStore.getState().error).toBeNull();
+    expect(useVerseStore.getState().error).toBe('db write failed');
   });
 
   it('resolves with the TestResult when the durable write succeeds but refreshing progress fails', async () => {
@@ -146,8 +148,8 @@ describe('useVerseStore().recordTestResult', () => {
       result
     );
     expect(console.error).toHaveBeenCalled();
-    // refreshStats() sets the store's `error` on the way out; the test itself
-    // was recorded, so the action clears it again.
+    // The test itself was recorded, so nothing the caller asked for failed --
+    // and a refresh doesn't write `error` in the first place.
     expect(useVerseStore.getState().error).toBeNull();
   });
 
@@ -270,6 +272,49 @@ describe.each(progressWrites)('useVerseStore().$action', ({ action, call, refres
     await expect(call()).rejects.toThrow('db write failed');
     expect(useVerseStore.getState().isLoading).toBe(false);
     expect(useVerseStore.getState().initError).toBeNull();
+  });
+});
+
+/**
+ * `error` is shared mutable state and writes overlap, so the two ends of one
+ * write must not reach for it independently: a post-write refresh belonging to
+ * an *earlier* write can finish after a *later* write has already failed.
+ */
+describe('overlapping writes', () => {
+  const initialState = useVerseStore.getState();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useVerseStore.setState(initialState, true);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("a slow refresh from write A does not clear write B's error", async () => {
+    // A commits durably, then hangs refreshing its cached copy.
+    let failARefresh!: (reason: Error) => void;
+    mockedProgressService.setComfortLevel.mockResolvedValue(true);
+    mockedProgressService.getProgress.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        failARefresh = reject;
+      })
+    );
+    mockedStatsService.getOverallStats.mockResolvedValue(makeStats());
+    const a = useVerseStore.getState().setComfortLevel(VERSE_ID, 4);
+
+    // B fails durably while A's refresh is still in flight.
+    mockedProgressService.recordPractice.mockRejectedValue(new Error('B failed'));
+    await expect(useVerseStore.getState().recordPractice(VERSE_ID)).rejects.toThrow('B failed');
+    expect(useVerseStore.getState().error).toBe('B failed');
+
+    // A's refresh now fails too. That is A's cache going stale, not a write
+    // failing, and it must not touch the error B just reported.
+    failARefresh(new Error('progress refresh failed'));
+    await expect(a).resolves.toBeUndefined();
+    expect(useVerseStore.getState().error).toBe('B failed');
   });
 });
 
