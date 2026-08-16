@@ -19,6 +19,10 @@ export function ManageShelvesModal({ visible, onClose }: ManageShelvesModalProps
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [shelfToDelete, setShelfToDelete] = useState<Shelf | null>(null);
+  // A failed shelf write is reported here, in the modal that asked for it. It
+  // used to be left to the store's `error`, which nothing displayed except
+  // RootLayout's fatal "Failed to load" screen (#39).
+  const [writeError, setWriteError] = useState<string | null>(null);
 
   const verseCount = (shelfId: string) =>
     verses.filter((v) => v.shelf_id === shelfId && !v.archived).length;
@@ -26,11 +30,13 @@ export function ManageShelvesModal({ visible, onClose }: ManageShelvesModalProps
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) return;
+    setWriteError(null);
     try {
       await createShelf(name);
       setNewName('');
     } catch {
-      // store surfaces the error state; keep the input so the user can retry
+      // keep the input so the user can retry
+      setWriteError(`Could not create "${name}". Please try again.`);
     }
   };
 
@@ -45,8 +51,11 @@ export function ManageShelvesModal({ visible, onClose }: ManageShelvesModalProps
       setEditingId(null);
       return;
     }
+    setWriteError(null);
     try {
       await renameShelf(editingId, name);
+    } catch {
+      setWriteError(`Could not rename that shelf to "${name}". Please try again.`);
     } finally {
       setEditingId(null);
       setEditingName('');
@@ -57,10 +66,11 @@ export function ManageShelvesModal({ visible, onClose }: ManageShelvesModalProps
     if (!shelfToDelete) return;
     const shelf = shelfToDelete;
     setShelfToDelete(null);
+    setWriteError(null);
     try {
       await deleteShelf(shelf.id);
     } catch {
-      // store surfaces the error state
+      setWriteError(`Could not delete "${shelf.name}". Please try again.`);
     }
   };
 
@@ -79,6 +89,12 @@ export function ManageShelvesModal({ visible, onClose }: ManageShelvesModalProps
             Group verses onto shelves, then pick one as your active set for practice
             and testing. Deleting a shelf keeps its verses — they just come off the shelf.
           </Text>
+
+          {writeError && (
+            <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-4">
+              <Text className="text-red-700 text-sm">{writeError}</Text>
+            </View>
+          )}
 
           {/* Create */}
           <View className="flex-row gap-2 mb-4">

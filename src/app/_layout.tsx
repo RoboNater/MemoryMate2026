@@ -6,7 +6,13 @@ import '../../global.css';
 
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
-  const { initialize, isLoading, error } = useVerseStore();
+  // Selectors, not the whole store: this gate is above the router, so
+  // subscribing to every field re-rendered the entire app on each write.
+  // `initError` specifically -- a failed write sets `error`, which is the
+  // calling screen's problem to report, not grounds for unmounting the app
+  // and showing "Failed to load" over it (#39).
+  const initialize = useVerseStore((s) => s.initialize);
+  const initError = useVerseStore((s) => s.initError);
   const initializeAuth = useAuthStore((s) => s.initializeAuth);
 
   useEffect(() => {
@@ -28,7 +34,7 @@ export default function RootLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!isReady || isLoading) {
+  if (!isReady) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator size="large" color="#3B82F6" />
@@ -37,11 +43,11 @@ export default function RootLayout() {
     );
   }
 
-  if (error) {
+  if (initError) {
     return (
       <View className="flex-1 items-center justify-center bg-white p-6">
         <Text className="text-red-500 text-lg font-semibold mb-2">Failed to load</Text>
-        <Text className="text-gray-600 text-center">{error}</Text>
+        <Text className="text-gray-600 text-center">{initError}</Text>
       </View>
     );
   }

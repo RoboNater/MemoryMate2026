@@ -1,11 +1,16 @@
 /**
- * These tests pin one narrow contract of `useVerseStore().recordTestResult()`
- * (see the comment above it in `../verseStore.ts`): it rejects if and only if
- * the durable write (`testService.recordTestResult`) rejects, and does not
- * set the store's `error` field in that case. If the durable write succeeds
- * but the post-write cache refresh (`progressService.getProgress` /
- * `refreshStats`) fails, it still resolves with the `TestResult` and logs to
- * `console.error` instead.
+ * These tests pin one narrow contract of the store's write actions (see the
+ * comments on `refreshAfterWrite` and `recordTestResult` in
+ * `../verseStore.ts`): a write action rejects if and only if the *durable*
+ * write rejects. If the durable write succeeds but the post-write cache
+ * refresh (`progressService.getProgress` / `refreshStats`) fails, the action
+ * still resolves and logs to `console.error` instead -- otherwise the calling
+ * screen tells the user a saved change was lost.
+ *
+ * They also pin the two fields `RootLayout` reads (#39): a failed write never
+ * sets `initError`, which is what makes the app show its fatal "Failed to
+ * load" screen, and never sets `isLoading`, which is what makes it show the
+ * full-screen startup spinner.
  *
  * Per AGENTS.md, database-backed code is otherwise deliberately left
  * uncovered here -- this is not a general test of the store or of SQLite
@@ -14,6 +19,7 @@
  * nothing else about the store's other actions is exercised.
  */
 import { useVerseStore } from '../verseStore';
+import { initDatabase } from '@/services/database';
 import * as testService from '@/services/testService';
 import * as progressService from '@/services/progressService';
 import * as statsService from '@/services/statsService';
@@ -48,6 +54,7 @@ jest.mock('@/services/statsService', () => ({
   getVerseStats: jest.fn(),
 }));
 
+const mockedInitDatabase = initDatabase as jest.MockedFunction<typeof initDatabase>;
 const mockedTestService = testService as jest.Mocked<typeof testService>;
 const mockedProgressService = progressService as jest.Mocked<typeof progressService>;
 const mockedStatsService = statsService as jest.Mocked<typeof statsService>;
@@ -139,8 +146,8 @@ describe('useVerseStore().recordTestResult', () => {
       result
     );
     expect(console.error).toHaveBeenCalled();
-    // refreshStats() sets the store's `error` on the way out, which RootLayout
-    // treats as fatal (#39); a recorded test must not take the app down.
+    // refreshStats() sets the store's `error` on the way out; the test itself
+    // was recorded, so the action clears it again.
     expect(useVerseStore.getState().error).toBeNull();
   });
 
@@ -157,5 +164,138 @@ describe('useVerseStore().recordTestResult', () => {
 
     expect(useVerseStore.getState().progress[VERSE_ID]).toEqual(progress);
     expect(console.error).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The Practice actions (#39). `recordTestResult` above got this treatment when
+ * the Test session needed a trustworthy "was it recorded?" signal; these three
+ * report the same thing to `practice/session.tsx`, which shows "Failed to save
+ * progress. Please try again." on a rejection.
+ */
+const progressWrites: {
+  action: 'recordPractice' | 'setComfortLevel' | 'resetProgress';
+  call: () => Promise<void>;
+  // recordPractice refreshes only the verse's own progress, as it always has
+  // -- it leaves `stats.total_practiced` stale until the next load, which is
+  // pre-existing behavior this change doesn't touch.
+  refreshesStats: boolean;
+}[] = [
+  {
+    action: 'recordPractice',
+    call: () => useVerseStore.getState().recordPractice(VERSE_ID),
+    refreshesStats: false,
+  },
+  {
+    action: 'setComfortLevel',
+    call: () => useVerseStore.getState().setComfortLevel(VERSE_ID, 4),
+    refreshesStats: true,
+  },
+  {
+    action: 'resetProgress',
+    call: () => useVerseStore.getState().resetProgress(VERSE_ID),
+    refreshesStats: true,
+  },
+];
+
+describe.each(progressWrites)('useVerseStore().$action', ({ action, call, refreshesStats }) => {
+  const initialState = useVerseStore.getState();
+  // The three have different signatures, so reach for the shared jest.Mock
+  // surface rather than the union of their mocked types.
+  const durable = () => mockedProgressService[action] as unknown as jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useVerseStore.setState(initialState, true);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    durable().mockResolvedValue(undefined);
+    mockedProgressService.getProgress.mockResolvedValue(makeProgress());
+    mockedStatsService.getOverallStats.mockResolvedValue(makeStats());
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('rejects when the durable write fails', async () => {
+    durable().mockRejectedValue(new Error('db write failed'));
+
+    await expect(call()).rejects.toThrow('db write failed');
+
+    expect(useVerseStore.getState().error).toBe('db write failed');
+  });
+
+  it('resolves when the durable write succeeds but refreshing progress fails', async () => {
+    mockedProgressService.getProgress.mockRejectedValue(new Error('progress refresh failed'));
+
+    await expect(call()).resolves.toBeUndefined();
+
+    expect(console.error).toHaveBeenCalled();
+    expect(useVerseStore.getState().error).toBeNull();
+  });
+
+  (refreshesStats ? it : it.skip)('resolves when the durable write succeeds but refreshing stats fails', async () => {
+    mockedStatsService.getOverallStats.mockRejectedValue(new Error('stats refresh failed'));
+
+    await expect(call()).resolves.toBeUndefined();
+
+    expect(console.error).toHaveBeenCalled();
+    expect(useVerseStore.getState().error).toBeNull();
+  });
+
+  it('caches the refreshed progress on the happy path', async () => {
+    const progress = makeProgress({ comfort_level: 4 });
+    mockedProgressService.getProgress.mockResolvedValue(progress);
+
+    await call();
+
+    expect(useVerseStore.getState().progress[VERSE_ID]).toEqual(progress);
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('never touches the fields RootLayout gates the whole app on', async () => {
+    // The startup spinner must not flash over the screen the user is on, and
+    // a failed save must not replace the app with "Failed to load" (#39).
+    const loadingDuringWrite: boolean[] = [];
+    durable().mockImplementation(async () => {
+      loadingDuringWrite.push(useVerseStore.getState().isLoading);
+    });
+
+    await call();
+    expect(loadingDuringWrite).toEqual([false]);
+    expect(useVerseStore.getState().isLoading).toBe(false);
+    expect(useVerseStore.getState().initError).toBeNull();
+
+    durable().mockRejectedValue(new Error('db write failed'));
+    await expect(call()).rejects.toThrow('db write failed');
+    expect(useVerseStore.getState().isLoading).toBe(false);
+    expect(useVerseStore.getState().initError).toBeNull();
+  });
+});
+
+describe('useVerseStore().initialize', () => {
+  const initialState = useVerseStore.getState();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useVerseStore.setState(initialState, true);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('reports a failure to open the database as `initError`, the fatal one', async () => {
+    mockedInitDatabase.mockRejectedValue(new Error('could not open the database'));
+
+    await useVerseStore.getState().initialize();
+
+    const state = useVerseStore.getState();
+    expect(state.initError).toBe('could not open the database');
+    expect(state.isInitialized).toBe(false);
+    expect(state.isLoading).toBe(false);
+    // `error` is the non-fatal, per-write field; initialization doesn't use it.
+    expect(state.error).toBeNull();
   });
 });
