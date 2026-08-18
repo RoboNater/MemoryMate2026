@@ -7,6 +7,13 @@ why that rule inverts the decision full-recall scoring made.
 Both functions live in `src/utils/scoring.ts` and both are under test in
 `src/utils/__tests__/scoring.test.ts`.
 
+> **Update, August 2026.** Everything below describes the blind whole-string
+> first-letter mode as built in #29, which is still how the app works today. That
+> mode is being rebuilt as a guided, word-at-a-time exercise (#44), and the blind
+> version moves to the Test flow (#45). The rule this note establishes survives
+> both; the cascade section below stops applying to practice once #44 lands. Design
+> for the replacement is in [`practice-interaction.md`](./practice-interaction.md).
+
 ## The rule: recover alignment only when the input format destroyed it
 
 The two modes compare a typed answer against the stored verse text in opposite
@@ -40,6 +47,14 @@ the grounds that repair heuristics shouldn't be designed before anyone has used
 the mode. It's mitigated in the UI instead: the answer is shown as one slot per
 word, so a cascade is visible as "everything from here is red", which is the
 information the user needs to spot that they dropped a word.
+
+The "before anyone has used the mode" condition has since been met, and the answer
+turned out not to be a repair heuristic at all. Guided practice (#44) prevents the
+misalignment instead of repairing it: a wrong letter never advances the cursor, so
+the user cannot get out of step in the first place. The cascade stays a real cost of
+blind whole-string entry, which is why this section keeps standing once that mode
+moves to Test (#45) — it just stops being practice's problem. See
+[`practice-interaction.md`](./practice-interaction.md).
 
 ### Typing past the end of the verse is penalized
 

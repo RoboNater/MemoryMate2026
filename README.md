@@ -124,6 +124,8 @@ files from before the August 2026 cleanup.
 | [`docs/notes/data-format.md`](docs/notes/data-format.md) | Export/import JSON contract |
 | [`docs/notes/expo-sqlite-web.md`](docs/notes/expo-sqlite-web.md) | Why the web build uses sql.js |
 | [`docs/notes/repo-cleanup-2026-08.md`](docs/notes/repo-cleanup-2026-08.md) | Why the lint/test config looks the way it does |
+| [`docs/notes/scoring-modes.md`](docs/notes/scoring-modes.md) | How a typed answer is graded, and why the two modes differ |
+| [`docs/notes/practice-interaction.md`](docs/notes/practice-interaction.md) | How guided practice collects an answer, and why |
 | [`docs/guides/backend-setup.md`](docs/guides/backend-setup.md) | Creating and configuring Supabase |
 | [`docs/guides/sync-testing.md`](docs/guides/sync-testing.md) | Manually testing cross-device sync |
 | [`docs/guides/ios-deployment.md`](docs/guides/ios-deployment.md) | Building and shipping to iOS |
