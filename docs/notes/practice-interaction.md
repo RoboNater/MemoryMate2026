@@ -9,11 +9,13 @@ Companion to [`scoring-modes.md`](./scoring-modes.md), which covers how a typed 
 *graded*. This note covers how it is *collected* — and the two turn out to be the same
 question wearing different clothes.
 
-> **Status: agreed design, not yet built.** The app today still has the blind
-> whole-string mode described in [`scoring-modes.md`](./scoring-modes.md).
-> Implementation is tracked in #44; the blind version's move to Test is #45. This note
-> is here because the reasoning is what outlives the work — per `AGENTS.md`, durable
-> "why" belongs in `docs/` rather than in an issue body nobody re-reads.
+> **Status: built.** #44 landed the interaction below, the seeded word mask, and the
+> per-word tally. The blind whole-string mode described in
+> [`scoring-modes.md`](./scoring-modes.md) still exists in Practice until #45 moves it
+> to Test. Deliberately not built yet: the shake and the difficulty control, which are
+> #47. This note is here because the reasoning is what outlives the work — per
+> `AGENTS.md`, durable "why" belongs in `docs/` rather than in an issue body nobody
+> re-reads.
 
 ## What went wrong with the first version
 
@@ -145,6 +147,33 @@ slot's word *text* as well as its letter, but that must be derived from the same
 rather than a second tokenizer, or `loving-kindness` starts meaning different things in
 different modes.
 
+As built:
+
+| file | what it holds |
+|---|---|
+| `src/utils/guidedFirstLetter.ts` | the reducer, the tally, and the seeded visible-word mask |
+| `src/utils/scoring.ts` | `firstLetterWords`, the one place a verse is split into words; `firstLetterTokens` is derived from it |
+| `src/components/FirstLetterPractice.tsx` | the shell, and the input parked over the active slot |
+| `src/components/LiveRegion.tsx` | announcements, because `announceForAccessibility` is an empty function on web |
+
+The input deserves a note of its own, because two plausible-looking alternatives are dead
+ends. It is **one** always-focused, visually-suppressed but real `TextInput`, absolutely
+positioned over the active slot with its `value` pinned to `''`. A web-only
+`document.addEventListener('keydown')` cannot work — react-native-web calls
+`stopPropagation()` before invoking `onKeyPress`, React 19 attaches its listeners to the
+root container rather than `document`, and mobile web has no keyboard at all without a
+real focused control. One input per word is also out: a long verse would mean dozens of
+native text fields, each holding an IME connection, with a focus hand-off on every
+correct letter. And "which slot is active" is application state, not platform focus —
+holding the cursor on a wrong letter means the two would diverge anyway.
+
+Three of that component's props are load-bearing rather than tidy. `autoCorrect={false}`
+sets Android's `NO_SUGGESTIONS`, without which a predictive-text insertion arrives as a
+text change with *no key event at all*; `blurOnSubmit={false}` stops Return dismissing the
+keyboard; and the input must have real, non-zero size and be on screen, because Android
+will not focus a zero-sized view. Parking it over the active slot also makes the
+platform's own scroll-into-view scroll the right thing.
+
 ## How this was decided — 18 August 2026
 
 Recorded because most of what follows is a set of forks where the discarded branch was
@@ -182,12 +211,35 @@ is unavailable until there is somewhere to store per-word history. This is the d
 most likely to be revisited, which is why all four are written down rather than just the
 winner.
 
-### What the discussion did *not* settle
+### What the discussion did *not* settle — and how it was settled
 
-Left as open questions on #44 rather than decided here: whether difficulty is a user
-control or a constant, whether the all-words-shown walkthrough deserves its own entry
-point, and what the rule is for which words are never blanked beyond "keep the first one
-visible".
+Three questions were left open on #44 rather than decided in the discussion above. All
+three were answered when it was built, and all three the same way: **build the mechanism,
+expose nothing, and let using it decide.**
+
+**Difficulty is a constant, not a control.** `DEFAULT_SHOWN_FRACTION` is two thirds — the
+"easy" row of the table above — and nothing in the UI changes it. The machinery is fully
+built and parameterised, because the design depends on it and it is pure either way; what
+is deferred is only the control. The argument is that the right default is a thing you
+*feel* rather than reason about, and a control shipped before anyone has practised with
+one setting would be a guess wearing a slider. It also sidesteps the layout problem that
+made this a question in the first place: the mode picker on the Practice tab is a
+`flex-row` of `flex-1` buttons that already crowds at two options.
+
+**The rhythm walkthrough gets no entry point yet**, for the same reason — it is the far
+end of the same dial, and whether it deserves a name of its own is easier to judge after
+stepping through a verse that way than before.
+
+**Words are never blanked in runs longer than three.** "Keep the first word visible" alone
+turned out not to be enough: a seeded two-thirds mask can still deal six blanks in a row,
+which is exactly the experience the setting exists to avoid. `MAX_CONSECUTIVE_HIDDEN`
+caps the run, and both rules can push the realised fraction above the target. That is
+accepted — the fraction is a dial, not a contract.
+
+Deferring all three to #47 rather than to "later" is the point: the mechanism was worth
+merging and using on its own, and real-device input behaviour under a non-Gboard Android
+IME is the kind of unknown that reading sources cannot settle. Building decoration on top
+of an untested input would have risked doing it twice.
 
 ### An observation worth keeping
 

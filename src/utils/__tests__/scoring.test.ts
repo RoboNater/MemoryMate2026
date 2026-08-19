@@ -2,6 +2,8 @@ import {
   calculateFirstLetterScore,
   calculateScore,
   firstLetterTokens,
+  firstLetterWords,
+  isAnswerCharacter,
   parseFirstLetterInput,
 } from '../scoring';
 
@@ -155,6 +157,58 @@ describe('firstLetterTokens', () => {
   it('returns nothing for empty text', () => {
     expect(firstLetterTokens('')).toEqual([]);
     expect(firstLetterTokens('   ')).toEqual([]);
+  });
+});
+
+describe('firstLetterWords', () => {
+  // The guided mode (#44) renders the word text; `firstLetterTokens` is derived
+  // from this, so the two can never disagree about what a word is.
+  it('pairs each word with the letter it asks for', () => {
+    expect(firstLetterWords('For God so')).toEqual([
+      { word: 'For', letter: 'f' },
+      { word: 'God', letter: 'g' },
+      { word: 'so', letter: 's' },
+    ]);
+  });
+
+  it('keeps the punctuation in the word while the letter skips it', () => {
+    expect(firstLetterWords('"For (God)')).toEqual([
+      { word: '"For', letter: 'f' },
+      { word: '(God)', letter: 'g' },
+    ]);
+  });
+
+  it('agrees with firstLetterTokens on every case that file covers', () => {
+    const samples = [
+      'For God so loved the world',
+      '"For (God) \u2018so\u2019',
+      "God's own Son",
+      'his loving-kindness endures',
+      'forty 40 days',
+      'the LORD \u2014 my shepherd',
+      '  For\n\nGod   so\tloved ',
+      '',
+      '   ',
+    ];
+    for (const sample of samples) {
+      expect(firstLetterWords(sample).map((entry) => entry.letter)).toEqual(
+        firstLetterTokens(sample)
+      );
+    }
+  });
+});
+
+describe('isAnswerCharacter', () => {
+  it('accepts letters and digits', () => {
+    expect(isAnswerCharacter('f')).toBe(true);
+    expect(isAnswerCharacter('F')).toBe(true);
+    expect(isAnswerCharacter('4')).toBe(true);
+  });
+
+  it('rejects punctuation, symbols and whitespace', () => {
+    for (const char of [',', '.', "'", '-', ' ', '\u2014']) {
+      expect(isAnswerCharacter(char)).toBe(false);
+    }
   });
 });
 

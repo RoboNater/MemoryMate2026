@@ -47,7 +47,9 @@ export default function PracticeVerseScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-white">
+    // See the note in practice/session.tsx: with the keyboard up, the first
+    // tap on "Skip word" would otherwise be eaten by the keyboard dismissing.
+    <ScrollView className="flex-1 bg-white" keyboardShouldPersistTaps="handled">
       <View className="p-6">
         {/* Progress Indicator */}
         {verseProgress && (
@@ -75,12 +77,13 @@ export default function PracticeVerseScreen() {
         </View>
 
         {practiceMode === 'letters' ? (
-          // The score is feedback only and is not persisted (issue #29);
-          // submitting an attempt gates the same save the reveal does.
+          // The per-word tally is feedback only and is not persisted (#31);
+          // finishing the run gates the same save the reveal does.
           <FirstLetterPractice
             verseText={verse.text}
+            verseId={verse.id}
             translation={verse.translation}
-            onSubmit={() => setRevealed(true)}
+            onComplete={() => setRevealed(true)}
           />
         ) : (
           <>

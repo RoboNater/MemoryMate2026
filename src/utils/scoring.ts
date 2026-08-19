@@ -96,14 +96,38 @@ const WORD_SEPARATOR = /\s+/;
 // than demanding a keystroke nobody would guess.
 const ALPHANUMERIC = /[\p{L}\p{N}]/u;
 
+/** One verse word, paired with the letter the exercise asks for. */
+export interface FirstLetterWord {
+  /** The word as it appears in the verse, punctuation and all. */
+  word: string;
+  /** Its first letter or digit, lowercased. */
+  letter: string;
+}
+
+/**
+ * The verse as a sequence of words that ask for a keystroke.
+ *
+ * Guided practice needs each slot's word *text* -- to show a word as a memory
+ * aid, and to reveal one the user missed -- which `firstLetterTokens` throws
+ * away. This is the one place a verse is split into words; `firstLetterTokens`
+ * is derived from it rather than tokenizing a second time, so
+ * `loving-kindness` cannot come to mean different things in different modes.
+ */
+export function firstLetterWords(text: string): FirstLetterWord[] {
+  return text
+    .split(WORD_SEPARATOR)
+    .map((word) => ({
+      word,
+      letter: word.match(ALPHANUMERIC)?.[0].toLowerCase() ?? '',
+    }))
+    .filter((entry) => entry.letter);
+}
+
 /**
  * The expected answer for a verse: one lowercased first letter per word.
  */
 export function firstLetterTokens(text: string): string[] {
-  return text
-    .split(WORD_SEPARATOR)
-    .map((word) => word.match(ALPHANUMERIC)?.[0].toLowerCase() ?? '')
-    .filter(Boolean);
+  return firstLetterWords(text).map((entry) => entry.letter);
 }
 
 /**
@@ -114,7 +138,17 @@ export function firstLetterTokens(text: string): string[] {
  * on a phone keyboard would cost the user something and buy nothing.
  */
 export function parseFirstLetterInput(input: string): string[] {
-  return Array.from(input.toLowerCase()).filter((char) => ALPHANUMERIC.test(char));
+  return Array.from(input.toLowerCase()).filter(isAnswerCharacter);
+}
+
+/**
+ * Whether a single character is one the exercise accepts as an answer.
+ *
+ * Exported so guided practice can ignore a punctuation keystroke without
+ * carrying a second copy of the rule -- see `src/utils/guidedFirstLetter.ts`.
+ */
+export function isAnswerCharacter(char: string): boolean {
+  return ALPHANUMERIC.test(char);
 }
 
 /**
