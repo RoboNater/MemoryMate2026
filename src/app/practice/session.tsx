@@ -119,7 +119,10 @@ export default function PracticeSessionScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-white">
+    // `keyboardShouldPersistTaps` matters in the guided letters mode: with the
+    // keyboard up, the first tap on "Skip word" is otherwise eaten by the
+    // keyboard dismissing (login.tsx already does this).
+    <ScrollView className="flex-1 bg-white" keyboardShouldPersistTaps="handled">
       <ConfirmDialog
         visible={showExitDialog}
         title="Exit Practice Session?"
@@ -176,14 +179,15 @@ export default function PracticeSessionScreen() {
         </View>
 
         {practiceMode === 'letters' ? (
-          // The score is feedback, not data: it is shown by the component and
-          // deliberately not persisted (issue #29). Submitting an attempt is
+          // The per-word tally is feedback, not data: the component shows it
+          // and deliberately does not persist it (#31). Finishing the run is
           // what "revealed" means in this mode -- it gates the same save.
           <FirstLetterPractice
             key={verse.id}
             verseText={verse.text}
+            verseId={verse.id}
             translation={verse.translation}
-            onSubmit={() => setRevealed(true)}
+            onComplete={() => setRevealed(true)}
           />
         ) : (
           <>

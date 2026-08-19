@@ -88,6 +88,18 @@ export default function RootLayout() {
         }}
       />
       <Stack.Screen
+        name="practice/session"
+        options={{
+          title: 'Practice Session',
+        }}
+      />
+      <Stack.Screen
+        name="practice/summary"
+        options={{
+          title: 'Practice Results',
+        }}
+      />
+      <Stack.Screen
         name="test/[id]"
         options={{
           title: 'Test Verse',
