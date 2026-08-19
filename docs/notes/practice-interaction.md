@@ -11,10 +11,12 @@ question wearing different clothes.
 
 > **Status: built.** #44 landed the interaction below, the seeded word mask, and the
 > per-word tally. The blind whole-string mode described in
-> [`scoring-modes.md`](./scoring-modes.md) still exists in Practice until #45 moves it
-> to Test. Deliberately not built yet: the shake and the difficulty control, which are
-> #47. This note is here because the reasoning is what outlives the work — per
-> `AGENTS.md`, durable "why" belongs in `docs/` rather than in an issue body nobody
+> [`scoring-modes.md`](./scoring-modes.md) is *gone from the app* — the rewrite replaced
+> it rather than sitting beside it — but its scoring is untouched and still tested, and
+> #45 restores the exercise itself under Test. Deliberately not built yet: the shake and
+> the difficulty control (#47), and the scroll behaviour when the keyboard covers the
+> active slot (#50). This note is here because the reasoning is what outlives the work —
+> per `AGENTS.md`, durable "why" belongs in `docs/` rather than in an issue body nobody
 > re-reads.
 
 ## What went wrong with the first version
