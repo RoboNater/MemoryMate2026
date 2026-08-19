@@ -44,9 +44,11 @@ Also true:
 
 - **Separators** are a tab, a `|`, an en/em dash (`–` `—`), or a hyphen with
   spaces on both sides. The first one on the line wins.
-- **A bare hyphen must be spaced.** `John 3:16-17 - text` keeps the range in the
-  reference, because `16-17` has no space around its hyphen. This asymmetry is
-  the reason the rule isn't just "the first dash".
+- **A dash between two digits is a range, not a separator.** `John 3:16-17 - text`
+  and `John 3:16–17 - text` both keep the range in the reference and split at
+  the spaced hyphen. This is why the rule isn't just "the first dash": a bare
+  hyphen must be spaced to separate, and *any* dash loses its separator meaning
+  when digits sit on both sides of it.
 - **A colon is never a separator.** References are full of them.
 - **Blank lines end an entry.** They are what makes the reference-on-its-own-line
   shape unambiguous.
@@ -68,7 +70,8 @@ is never subjected to the test: there is nothing above it for it to continue.
 
 The residual failure is a continuation line whose left half happens to be short
 and numeric ("in 1 day - the temple"). The preview on the import screen is the
-mitigation: it shows every entry the parser found, before anything is written.
+mitigation, which is why **Review all** exists: expanded, it shows every entry
+the parser found, in full, before anything is written.
 
 **Duplicates are skipped, never merged or re-added.** A duplicate is a matching
 reference *and* translation, compared with case and whitespace ignored, so
@@ -96,13 +99,20 @@ Repeats *within one file* are skipped the same way, keeping the first.
 
 - **Nothing is written until the preview is confirmed.** The picked file lands in
   an editable text box, parsed on every keystroke, so a bad line can be fixed in
-  place rather than back in the source file.
+  place rather than back in the source file. The preview opens showing the first
+  few of each kind; **Review all** expands it to every row, untruncated, which is
+  what makes it a real check on the heuristic above rather than a sample of one.
 - **A bad line never fails the file.** Unreadable blocks are listed by line
   number and left out; the rest still imports.
 - **The write is one transaction** (`verseService.addVerses`). A partial import
   is the worst outcome here, because it forces the user to diff their own file
   against the app by hand to find where it stopped.
-- **Imported rows are staggered by a millisecond each** so the batch's order is
-  stable in verse lists, which sort on `created_at`.
+- **The batch shares one `updated_at`, and staggers `created_at` backwards** by a
+  millisecond per row. The two clocks are separate on purpose: `updated_at` is
+  the one sync resolves last-write-wins on, so staggering it forwards would
+  stamp most of an import in the future, where it can outrank another device's
+  later edit and re-push past the watermark the running sync already captured.
+  `created_at` is display order only, and backwards keeps the file's first verse
+  newest, so a newest-first list reads in file order.
 - Progress rows are not created up front; `progressService.getProgress` already
   returns a default for a verse that has none.

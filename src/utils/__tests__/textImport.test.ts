@@ -42,6 +42,42 @@ describe('parseVerseTextFile', () => {
     ]);
   });
 
+  it('keeps an en- or em-dash verse range in the reference (PR #52 review)', () => {
+    const endash = parseVerseTextFile('John 3:16\u201317 - For God so loved the world');
+    expect(endash.entries).toEqual([
+      { reference: 'John 3:16\u201317', text: 'For God so loved the world', line: 1 },
+    ]);
+
+    const emdash = parseVerseTextFile('John 3:16\u201417 | For God so loved the world');
+    expect(emdash.entries).toEqual([
+      { reference: 'John 3:16\u201417', text: 'For God so loved the world', line: 1 },
+    ]);
+  });
+
+  it('splits at the first dash that is not between digits', () => {
+    const { entries } = parseVerseTextFile('Romans 12:1\u20132\u2014Therefore, I urge you');
+
+    expect(entries).toEqual([
+      { reference: 'Romans 12:1\u20132', text: 'Therefore, I urge you', line: 1 },
+    ]);
+  });
+
+  it('reports a range-only line as unreadable rather than splitting inside the range', () => {
+    const { entries, problems } = parseVerseTextFile('John 3:16\u201317');
+
+    expect(entries).toEqual([]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0].message).toMatch(/no separator/i);
+  });
+
+  it('still treats a spaced en dash as a separator, digits or not', () => {
+    const { entries } = parseVerseTextFile('Psalm 119:105 \u2013 Your word is a lamp');
+
+    expect(entries).toEqual([
+      { reference: 'Psalm 119:105', text: 'Your word is a lamp', line: 1 },
+    ]);
+  });
+
   it('treats a blank line as the end of an entry and continues text across lines', () => {
     const { entries, problems } = parseVerseTextFile(
       'John 3:16 - For God so loved the world,\nthat he gave his one and only Son.\n\nPsalm 23:1 - The LORD is my shepherd'

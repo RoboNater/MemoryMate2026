@@ -251,9 +251,10 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       comfort_level: 1,
     });
 
-    // Newest first, to match the order `refreshVerses` would load them back in.
+    // Already newest-first (verseService staggers created_at backwards), which
+    // is the order `refreshVerses` would load them back in.
     set((state) => ({
-      verses: [...[...verses].reverse(), ...state.verses],
+      verses: [...verses, ...state.verses],
       progress: {
         ...state.progress,
         ...Object.fromEntries(verses.map((v) => [v.id, initialProgress(v.id)])),

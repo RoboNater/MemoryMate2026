@@ -253,29 +253,55 @@ export default function ImportVersesScreen() {
 /**
  * What this file would do if imported: the verses that will be added, the
  * duplicates that will be skipped, and the lines that could not be read.
+ *
+ * Collapsed it shows the first few of each; expanded it shows every row in
+ * full, with no truncation. The expansion is not a nicety (PR #52 review): the
+ * preview is what stands behind the parser's one heuristic -- whether a line
+ * mid-entry starts a new verse -- and a preview that stops at five rows cannot
+ * catch a misparse on row six, or show the line number of the ninth problem.
  */
 function ImportPreview({ plan, translation }: { plan: TextImportPlan; translation: string }) {
   const { toImport, skipped, problems } = plan;
+  const [showAll, setShowAll] = useState(false);
+
+  const total = toImport.length + skipped.length + problems.length;
+  const hidden =
+    Math.max(0, toImport.length - PREVIEW_LIMIT) +
+    Math.max(0, skipped.length - PREVIEW_LIMIT) +
+    Math.max(0, problems.length - PREVIEW_LIMIT);
+
+  const visible = <T,>(rows: T[]): T[] => (showAll ? rows : rows.slice(0, PREVIEW_LIMIT));
 
   return (
     <View className="mb-4">
       <View className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <Text className="text-sm font-semibold text-gray-700 mb-2">
-          {toImport.length} to add
-          {skipped.length > 0
-            ? ` · ${skipped.length} duplicate${skipped.length === 1 ? '' : 's'} skipped`
-            : ''}
-          {problems.length > 0 ? ` · ${problems.length} couldn't be read` : ''}
-        </Text>
-
-        {toImport.slice(0, PREVIEW_LIMIT).map((entry) => (
-          <Text key={`add-${entry.line}`} className="text-sm text-gray-600" numberOfLines={1}>
-            {entry.reference} — {entry.text}
+        <View className="flex-row items-center justify-between mb-2">
+          <Text className="text-sm font-semibold text-gray-700 flex-1 pr-2">
+            {toImport.length} to add
+            {skipped.length > 0
+              ? ` · ${skipped.length} duplicate${skipped.length === 1 ? '' : 's'} skipped`
+              : ''}
+            {problems.length > 0 ? ` · ${problems.length} couldn't be read` : ''}
           </Text>
+          {(hidden > 0 || showAll) && (
+            <TouchableOpacity onPress={() => setShowAll(!showAll)}>
+              <Text className="text-sm font-semibold text-blue-600">
+                {showAll ? 'Show less' : `Review all ${total}`}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {visible(toImport).map((entry) => (
+          <View key={`add-${entry.line}`} className={showAll ? 'mb-2' : undefined}>
+            <Text className="text-sm text-gray-600" numberOfLines={showAll ? undefined : 1}>
+              <Text className="font-medium text-gray-800">{entry.reference}</Text> — {entry.text}
+            </Text>
+          </View>
         ))}
-        {toImport.length > PREVIEW_LIMIT && (
+        {!showAll && toImport.length > PREVIEW_LIMIT && (
           <Text className="text-sm text-gray-500 mt-1">
-            …and {toImport.length - PREVIEW_LIMIT} more
+            …and {toImport.length - PREVIEW_LIMIT} more, hidden
           </Text>
         )}
       </View>
@@ -285,15 +311,19 @@ function ImportPreview({ plan, translation }: { plan: TextImportPlan; translatio
           <Text className="text-sm font-semibold text-amber-800 mb-2">
             Skipped as duplicates ({translation})
           </Text>
-          {skipped.slice(0, PREVIEW_LIMIT).map(({ entry, reason }) => (
-            <Text key={`skip-${entry.line}`} className="text-sm text-amber-700" numberOfLines={1}>
+          {visible(skipped).map(({ entry, reason }) => (
+            <Text
+              key={`skip-${entry.line}`}
+              className="text-sm text-amber-700"
+              numberOfLines={showAll ? undefined : 1}
+            >
               Line {entry.line}: {entry.reference}
               {reason === 'duplicate-in-file' ? ' (repeated in this file)' : ' (already saved)'}
             </Text>
           ))}
-          {skipped.length > PREVIEW_LIMIT && (
+          {!showAll && skipped.length > PREVIEW_LIMIT && (
             <Text className="text-sm text-amber-600 mt-1">
-              …and {skipped.length - PREVIEW_LIMIT} more
+              …and {skipped.length - PREVIEW_LIMIT} more, hidden
             </Text>
           )}
         </View>
@@ -304,17 +334,17 @@ function ImportPreview({ plan, translation }: { plan: TextImportPlan; translatio
           <Text className="text-sm font-semibold text-red-800 mb-2">
             Couldn&apos;t be read — these lines will be left out
           </Text>
-          {problems.slice(0, PREVIEW_LIMIT).map((problem) => (
+          {visible(problems).map((problem) => (
             <View key={`problem-${problem.line}`} className="mb-2">
-              <Text className="text-sm text-red-700" numberOfLines={1}>
+              <Text className="text-sm text-red-700" numberOfLines={showAll ? undefined : 1}>
                 Line {problem.line}: {problem.excerpt}
               </Text>
               <Text className="text-xs text-red-600">{problem.message}</Text>
             </View>
           ))}
-          {problems.length > PREVIEW_LIMIT && (
+          {!showAll && problems.length > PREVIEW_LIMIT && (
             <Text className="text-sm text-red-600">
-              …and {problems.length - PREVIEW_LIMIT} more
+              …and {problems.length - PREVIEW_LIMIT} more, hidden
             </Text>
           )}
         </View>

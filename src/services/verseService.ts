@@ -62,11 +62,19 @@ export async function addVerse(
  * meant to add, and a partial import makes them diff it against the app by
  * hand to find out where it stopped.
  *
- * Each row gets its own id, and a `created_at` one millisecond after the row
- * before it -- which is also its starting `updated_at`, exactly as `addVerse`
- * does. The stagger is what keeps the import's order stable: verse lists sort
- * on `created_at`, and a batch that shared one timestamp would come back in
- * whatever order the two database backends happened to produce.
+ * `updated_at` is one real timestamp shared by the whole batch, and it is the
+ * only clock sync reads. `created_at` is staggered a millisecond *backwards*
+ * per row purely so the batch has a stable display order -- verse lists sort on
+ * it, and rows sharing one timestamp come back in whatever order the two
+ * database backends happen to produce. Staggering backwards leaves the file's
+ * first verse newest, so a newest-first list reads in file order.
+ *
+ * The two clocks are deliberately not the same value (PR #52 review): sync is
+ * last-write-wins on client-written `updated_at`, so staggering that one
+ * forwards would stamp most of the batch in the future, letting it outrank
+ * edits another device makes in the meantime and re-push after the watermark
+ * this sync already captured. Display ordering must not touch the mutation
+ * clock.
  *
  * Progress rows are not created: `progressService.getProgress` already returns
  * a default for a verse that has none, and every other path here creates them
@@ -78,14 +86,15 @@ export async function addVerses(
   shelfId: string | null = null
 ): Promise<Verse[]> {
   const db = getDatabase();
-  const startedAt = Date.now();
+  const now = Date.now();
+  const updated_at = new Date(now).toISOString();
 
   const verses: Verse[] = entries.map((entry, index) => ({
     id: generateUUID(),
     reference: entry.reference,
     text: entry.text,
     translation,
-    created_at: new Date(startedAt + index).toISOString(),
+    created_at: new Date(now - index).toISOString(),
     archived: false,
     shelf_id: shelfId,
   }));
@@ -102,7 +111,7 @@ export async function addVerses(
           verse.created_at,
           0,
           shelfId,
-          verse.created_at,
+          updated_at,
         ]
       );
     }

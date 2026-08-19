@@ -74,9 +74,13 @@ export interface ExistingVerseKey {
  * is the first punctuation the user put after "John 3:16".
  *
  * A bare hyphen must have whitespace on both sides; an en/em dash need not.
- * That asymmetry is the whole point: chapter-verse ranges are written
- * `John 3:16-18`, so a hyphen with no space around it is part of the
- * reference, never the separator. Nobody writes a range with an em dash.
+ * That asymmetry exists because chapter-verse ranges are written `John 3:16-18`,
+ * so a hyphen with no space around it is part of the reference.
+ *
+ * It is not sufficient on its own: `John 3:16\u201317` is the same range set in
+ * typographer's punctuation, and pasted text is full of it. So a dash of any
+ * kind sitting directly between two digits is a range, never a separator --
+ * see `isNumericRangeDash`.
  *
  * A colon is deliberately absent: references are full of them.
  */
@@ -243,14 +247,44 @@ export function duplicateKey(reference: string, translation: string): string {
   return `${strip(reference)}\u0000${strip(translation)}`;
 }
 
-/** Split a line at its first separator, or null if it has none. */
+/**
+ * Split a line at its first real separator, or null if it has none.
+ *
+ * "First real" rather than "first": a dash between two digits is skipped and
+ * the search continues past it, so `John 3:16\u201317 - text` splits at the
+ * spaced hyphen and keeps its range, exactly as `John 3:16-17 - text` does.
+ */
 function splitOnSeparator(line: string): { reference: string; text: string } | null {
-  const match = line.match(SEPARATOR);
-  if (!match || match.index === undefined) return null;
-  return {
-    reference: line.slice(0, match.index),
-    text: line.slice(match.index + match[0].length),
-  };
+  let offset = 0;
+
+  while (offset < line.length) {
+    const match = line.slice(offset).match(SEPARATOR);
+    if (!match || match.index === undefined) return null;
+
+    const start = offset + match.index;
+    const end = start + match[0].length;
+
+    if (isNumericRangeDash(line, match[0], start, end)) {
+      offset = end;
+      continue;
+    }
+
+    return { reference: line.slice(0, start), text: line.slice(end) };
+  }
+
+  return null;
+}
+
+/**
+ * Is this match a verse range (`16\u201317`) rather than a separator?
+ *
+ * Only an unspaced dash can be: a spaced dash is the documented separator, and
+ * a tab or a pipe is never part of a reference. Digits on both sides are what
+ * make it a range -- prose sets an em dash between words, not between numbers.
+ */
+function isNumericRangeDash(line: string, matched: string, start: number, end: number): boolean {
+  if (!/^[-\u2013\u2014]$/.test(matched)) return false;
+  return /\d/.test(line[start - 1] ?? '') && /\d/.test(line[end] ?? '');
 }
 
 /**
