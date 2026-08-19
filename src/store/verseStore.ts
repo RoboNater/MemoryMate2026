@@ -88,6 +88,16 @@ export interface VerseStore {
     translation: string,
     shelfId?: string | null
   ) => Promise<Verse>;
+  /**
+   * Bulk-add verses from a plain-text import (#15). Rejects, like every other
+   * write action, only if the durable write itself failed -- in which case
+   * nothing was written at all, since the service does it in one transaction.
+   */
+  addVerses: (
+    entries: { reference: string; text: string }[],
+    translation: string,
+    shelfId?: string | null
+  ) => Promise<Verse[]>;
   updateVerse: (id: string, updates: Partial<Verse>) => Promise<void>;
   archiveVerse: (id: string) => Promise<void>;
   unarchiveVerse: (id: string) => Promise<void>;
@@ -217,6 +227,43 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     await refreshAfterWrite('addVerse', () => get().refreshStats());
     syncAfterWrite();
     return verse;
+  },
+
+  // Bulk-add verses (plain-text import, #15)
+  addVerses: async (entries, translation, shelfId = null) => {
+    set({ error: null });
+    let verses: Verse[];
+    try {
+      verses = await verseService.addVerses(entries, translation, shelfId);
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to import verses';
+      set({ error: errorMsg });
+      throw error;
+    }
+
+    const initialProgress = (verseId: string): VerseProgress => ({
+      verse_id: verseId,
+      times_practiced: 0,
+      times_tested: 0,
+      times_correct: 0,
+      last_practiced: null,
+      last_tested: null,
+      comfort_level: 1,
+    });
+
+    // Already newest-first (verseService staggers created_at backwards), which
+    // is the order `refreshVerses` would load them back in.
+    set((state) => ({
+      verses: [...verses, ...state.verses],
+      progress: {
+        ...state.progress,
+        ...Object.fromEntries(verses.map((v) => [v.id, initialProgress(v.id)])),
+      },
+    }));
+
+    await refreshAfterWrite('addVerses', () => get().refreshStats());
+    syncAfterWrite();
+    return verses;
   },
 
   // Update verse

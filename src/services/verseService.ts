@@ -55,6 +55,72 @@ export async function addVerse(
 }
 
 /**
+ * Add many verses at once, all sharing a translation and shelf (issue #15).
+ *
+ * One transaction: a bulk import either lands or it doesn't. Half a file is
+ * the worst outcome here -- the user's own file is the record of what they
+ * meant to add, and a partial import makes them diff it against the app by
+ * hand to find out where it stopped.
+ *
+ * `updated_at` is one real timestamp shared by the whole batch, and it is the
+ * only clock sync reads. `created_at` is staggered a millisecond *backwards*
+ * per row purely so the batch has a stable display order -- verse lists sort on
+ * it, and rows sharing one timestamp come back in whatever order the two
+ * database backends happen to produce. Staggering backwards leaves the file's
+ * first verse newest, so a newest-first list reads in file order.
+ *
+ * The two clocks are deliberately not the same value (PR #52 review): sync is
+ * last-write-wins on client-written `updated_at`, so staggering that one
+ * forwards would stamp most of the batch in the future, letting it outrank
+ * edits another device makes in the meantime and re-push after the watermark
+ * this sync already captured. Display ordering must not touch the mutation
+ * clock.
+ *
+ * Progress rows are not created: `progressService.getProgress` already returns
+ * a default for a verse that has none, and every other path here creates them
+ * lazily too.
+ */
+export async function addVerses(
+  entries: { reference: string; text: string }[],
+  translation: string,
+  shelfId: string | null = null
+): Promise<Verse[]> {
+  const db = getDatabase();
+  const now = Date.now();
+  const updated_at = new Date(now).toISOString();
+
+  const verses: Verse[] = entries.map((entry, index) => ({
+    id: generateUUID(),
+    reference: entry.reference,
+    text: entry.text,
+    translation,
+    created_at: new Date(now - index).toISOString(),
+    archived: false,
+    shelf_id: shelfId,
+  }));
+
+  await db.withTransactionAsync(async () => {
+    for (const verse of verses) {
+      await db.runAsync(
+        'INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          verse.id,
+          verse.reference,
+          verse.text,
+          translation,
+          verse.created_at,
+          0,
+          shelfId,
+          updated_at,
+        ]
+      );
+    }
+  });
+
+  return verses;
+}
+
+/**
  * Get a single verse by ID
  */
 export async function getVerse(id: string): Promise<Verse | null> {

@@ -84,12 +84,15 @@ Keeping that mechanism current is part of the work, not a separate chore:
 
 Pure logic is expected to be tested; `jest-expo` is configured and `npm test` is
 CI-enforced. Currently covered: `syncCompare.ts`, `utils/scoring.ts`,
-`importValidation.ts`. Anything requiring a database is not yet covered — see
+`utils/guidedFirstLetter.ts`, `utils/testSession.ts`, `utils/textImport.ts`,
+`importValidation.ts`, and two narrow service/store contracts pinned with a
+shallow mock of their immediate boundary (`store/verseStore.ts`'s write actions,
+`verseService.addVerses`'s timestamps). Anything requiring a database is not yet covered — see
 `docs/notes/repo-cleanup-2026-08.md` for the open design question there.
 
 Two conventions worth following:
 
-- **Extract to test.** All three covered modules exist because the logic was
+- **Extract to test.** The pure modules above exist because the logic was
   unreachable where it sat (inside a component body, or in a module that imports
   the database at load time). Prefer a verbatim extraction over mocking the world.
 - **Label characterization tests.** A test that pins existing behavior you are
