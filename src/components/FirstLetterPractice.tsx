@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
-  LayoutChangeEvent,
   LayoutRectangle,
   Text,
   TextInput,
@@ -57,8 +56,12 @@ export function FirstLetterPractice({
     { verseText, verseId },
     createGuidedState
   );
-  const [layouts, setLayouts] = useState<Record<number, LayoutRectangle>>({});
+  // The active slot's rectangle, in the row's coordinate space, asked for
+  // rather than remembered. See `measureActive` below for why.
+  const [activeLayout, setActiveLayout] = useState<LayoutRectangle>(FALLBACK_SLOT);
   const [focused, setFocused] = useState(false);
+  const rowRef = useRef<React.ComponentRef<typeof View>>(null);
+  const boxRefs = useRef<Record<number, React.ComponentRef<typeof View> | null>>({});
   const inputRef = useRef<TextInput>(null);
 
   const finished = isComplete(state);
@@ -74,26 +77,6 @@ export function FirstLetterPractice({
     reported.current = true;
     onComplete(guidedTally(state));
   }, [finished, state, onComplete]);
-
-  const handleSlotLayout = useCallback(
-    (index: number) => (event: LayoutChangeEvent) => {
-      const { x, y, width, height } = event.nativeEvent.layout;
-      setLayouts((prev) => {
-        const known = prev[index];
-        if (
-          known &&
-          known.x === x &&
-          known.y === y &&
-          known.width === width &&
-          known.height === height
-        ) {
-          return prev;
-        }
-        return { ...prev, [index]: { x, y, width, height } };
-      });
-    },
-    []
-  );
 
   // `onChangeText` is the only channel. Backspace is deliberately absent (#46)
   // and Return is a no-op, so there is no key that produces no text change --
@@ -114,7 +97,39 @@ export function FirstLetterPractice({
   const focusInput = useCallback(() => inputRef.current?.focus(), []);
 
   const activeWord = finished ? null : state.slots[state.cursor];
-  const activeLayout = layouts[state.cursor] ?? FALLBACK_SLOT;
+
+  /**
+   * Measure the active slot against the row, on demand.
+   *
+   * `onLayout` cannot do this job on web. react-native-web drives it from a
+   * ResizeObserver, which fires when a node *resizes* and never when it merely
+   * *moves* -- and revealing a word widens its slot, which reflows every later
+   * slot in the row. Cached coordinates therefore drift further out of date
+   * with each reveal, silently, and only on web. `measureLayout` recomputes
+   * from the live boxes instead, so there is nothing to go stale.
+   */
+  const cursor = state.cursor;
+  const measureActive = useCallback(() => {
+    const row = rowRef.current;
+    const box = boxRefs.current[cursor];
+    if (!row || !box) return;
+    box.measureLayout(
+      row,
+      (x, y, width, height) => {
+        setActiveLayout((prev) =>
+          prev.x === x && prev.y === y && prev.width === width && prev.height === height
+            ? prev
+            : { x, y, width, height }
+        );
+      },
+      () => {}
+    );
+  }, [cursor]);
+
+  // Every event can reflow the row, so re-measure on each one -- `seq` changes
+  // whenever the reducer changed anything. The row's own `onLayout` covers the
+  // other trigger, a container resize or rotation.
+  useEffect(measureActive, [measureActive, state.seq]);
 
   const inputLabel = finished
     ? 'Practice complete'
@@ -151,8 +166,14 @@ export function FirstLetterPractice({
             not to be a control. Without it a screen reader announces an
             unlabelled button sitting in front of the real input. */}
         <TouchableOpacity activeOpacity={1} onPress={focusInput} accessible={false}>
+          {/* The positioning parent. The row must stay its only flow child, so
+              the row's origin is this View's origin, and the input must stay a
+              sibling of the row rather than inside it -- the row is hidden from
+              the accessibility tree and the input must not be. */}
           <View>
             <View
+              ref={rowRef}
+              onLayout={measureActive}
               className="flex-row flex-wrap gap-1.5"
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
@@ -164,7 +185,9 @@ export function FirstLetterPractice({
                   slot={slot}
                   active={!finished && index === state.cursor}
                   flagged={!finished && index === state.cursor && state.attempts > 0}
-                  onLayout={handleSlotLayout(index)}
+                  boxRef={(node) => {
+                    boxRefs.current[index] = node;
+                  }}
                 />
               ))}
             </View>
@@ -271,12 +294,13 @@ function Slot({
   slot,
   active,
   flagged,
-  onLayout,
+  boxRef,
 }: {
   slot: GuidedSlot;
   active: boolean;
   flagged: boolean;
-  onLayout: (event: LayoutChangeEvent) => void;
+  /** The box the input is parked over; the caller measures it against the row. */
+  boxRef: (node: React.ComponentRef<typeof View> | null) => void;
 }) {
   // A word is shown once it is settled, and beforehand only if it was chosen
   // as a memory aid. Either way it still asks for its first letter.
@@ -309,7 +333,7 @@ function Slot({
   return (
     <View className="items-center">
       <View
-        onLayout={onLayout}
+        ref={boxRef}
         style={{ minWidth: 34 }}
         className={`h-9 px-1.5 rounded border items-center justify-center ${box}`}
       >
