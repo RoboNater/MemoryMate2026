@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { LoadingSpinner, ShelfPicker } from '@/components';
 import { useVerseStore } from '@/store';
-import { DEFAULT_PRACTICE_MODE, type PracticeMode } from '@/types';
+import { type PracticeMode } from '@/types';
 
 // How many verses to show in the "choose a specific verse" list before
 // collapsing behind a "show more" toggle.
@@ -12,6 +12,8 @@ const INITIAL_VISIBLE_VERSES = 15;
 // Practice modes (epic #18). The mode is chosen here and carried into every
 // practice route as a `mode` param, so all three entry points below --
 // practice all, needs work, and a single verse -- honour the same choice.
+// The choice itself lives in the store, persisted per device (#34), so it
+// survives leaving the tab and restarting the app.
 const MODE_OPTIONS: { value: PracticeMode; label: string; description: string }[] = [
   {
     value: 'reveal',
@@ -33,13 +35,14 @@ export default function PracticeScreen() {
     getActiveShelf,
     getVersesNeedingPractice,
     progress,
+    practiceMode,
+    setPracticeMode,
   } = useVerseStore();
   // The active set: all non-archived verses, or just the active shelf (issue #5).
   const activeVerses = getActiveSetVerses();
   const activeShelf = getActiveShelf();
   const versesNeedingWork = getVersesNeedingPractice();
   const [showAllVerses, setShowAllVerses] = useState(false);
-  const [practiceMode, setPracticeMode] = useState<PracticeMode>(DEFAULT_PRACTICE_MODE);
 
   if (isLoading) {
     return <LoadingSpinner message="Loading verses..." />;
@@ -83,7 +86,7 @@ export default function PracticeScreen() {
                 return (
                   <TouchableOpacity
                     key={option.value}
-                    onPress={() => setPracticeMode(option.value)}
+                    onPress={() => void setPracticeMode(option.value)}
                     className={`flex-1 py-2 rounded-lg items-center border ${
                       isSelected
                         ? 'bg-green-500 border-green-500'

@@ -486,7 +486,9 @@ export async function clearLocalDataOnSignOut(): Promise<boolean> {
   }
   // active_shelf_id goes too: the shelf it points at no longer exists locally,
   // and the next sign-in may be a different account. Per-table pull cursors
-  // (last_pulled_at:*) are cleared alongside the legacy single cursor.
+  // (last_pulled_at:*) are cleared alongside the legacy single cursor. Other
+  // device-local preferences stay: practice_mode (#34) names no user data, so
+  // there is nothing to leak and no reason to make the device forget it.
   await db.runAsync(
     `DELETE FROM sync_state
        WHERE key IN ('synced_user_id', 'last_pushed_at', 'last_pulled_at', 'active_shelf_id')

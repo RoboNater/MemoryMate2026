@@ -25,13 +25,25 @@ import { initDatabase } from '@/services/database';
 import * as testService from '@/services/testService';
 import * as progressService from '@/services/progressService';
 import * as statsService from '@/services/statsService';
+import * as verseService from '@/services/verseService';
+import * as shelfService from '@/services/shelfService';
+import * as preferencesService from '@/services/preferencesService';
 import { OverallStats, TestResult, VerseProgress } from '@/types';
 
 jest.mock('@/services/database', () => ({
   initDatabase: jest.fn(),
 }));
-jest.mock('@/services/verseService', () => ({}));
-jest.mock('@/services/shelfService', () => ({}));
+jest.mock('@/services/verseService', () => ({
+  getAllVerses: jest.fn(),
+}));
+jest.mock('@/services/shelfService', () => ({
+  getAllShelves: jest.fn(),
+  getActiveShelfId: jest.fn(),
+}));
+jest.mock('@/services/preferencesService', () => ({
+  getPracticeMode: jest.fn(),
+  setPracticeMode: jest.fn(),
+}));
 jest.mock('@/services/dataExportService', () => ({}));
 // Dynamically imported by verseStore's syncAfterWrite() after a successful
 // write; stub it so recordTestResult's success path doesn't try to load the
@@ -60,6 +72,11 @@ const mockedInitDatabase = initDatabase as jest.MockedFunction<typeof initDataba
 const mockedTestService = testService as jest.Mocked<typeof testService>;
 const mockedProgressService = progressService as jest.Mocked<typeof progressService>;
 const mockedStatsService = statsService as jest.Mocked<typeof statsService>;
+const mockedVerseService = verseService as jest.Mocked<typeof verseService>;
+const mockedShelfService = shelfService as jest.Mocked<typeof shelfService>;
+const mockedPreferencesService = preferencesService as jest.Mocked<
+  typeof preferencesService
+>;
 
 const VERSE_ID = 'verse-1';
 
@@ -342,5 +359,65 @@ describe('useVerseStore().initialize', () => {
     expect(state.isLoading).toBe(false);
     // `error` is the non-fatal, per-write field; initialization doesn't use it.
     expect(state.error).toBeNull();
+  });
+});
+
+/**
+ * The practice mode is a device-local preference (#34): the picker on the
+ * Practice tab used to be screen-local `useState`, so the choice was gone the
+ * moment you left the tab. What is pinned here is the round trip through the
+ * store -- the choice is written through to the durable preference, and read
+ * back on startup -- not how the preference is stored, which is the (mocked)
+ * service's business.
+ */
+describe('practice mode preference', () => {
+  const initialState = useVerseStore.getState();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useVerseStore.setState(initialState, true);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('writes the chosen mode through to the durable preference', async () => {
+    mockedPreferencesService.setPracticeMode.mockResolvedValue(undefined);
+
+    await useVerseStore.getState().setPracticeMode('letters');
+
+    expect(mockedPreferencesService.setPracticeMode).toHaveBeenCalledWith('letters');
+    expect(useVerseStore.getState().practiceMode).toBe('letters');
+    expect(useVerseStore.getState().error).toBeNull();
+  });
+
+  it('rejects and leaves the mode alone when the write fails', async () => {
+    mockedPreferencesService.setPracticeMode.mockRejectedValue(
+      new Error('disk is full')
+    );
+
+    await expect(
+      useVerseStore.getState().setPracticeMode('letters')
+    ).rejects.toThrow('disk is full');
+
+    // Nothing was persisted, so the picker must not claim otherwise.
+    expect(useVerseStore.getState().practiceMode).toBe('reveal');
+    expect(useVerseStore.getState().error).toBe('disk is full');
+  });
+
+  it('is restored by initialize()', async () => {
+    mockedInitDatabase.mockResolvedValue(undefined as never);
+    mockedVerseService.getAllVerses.mockResolvedValue([]);
+    mockedShelfService.getAllShelves.mockResolvedValue([]);
+    mockedShelfService.getActiveShelfId.mockResolvedValue(null);
+    mockedProgressService.getAllProgress.mockResolvedValue([]);
+    mockedStatsService.getOverallStats.mockResolvedValue(makeStats());
+    mockedPreferencesService.getPracticeMode.mockResolvedValue('letters');
+
+    await useVerseStore.getState().initialize();
+
+    expect(useVerseStore.getState().practiceMode).toBe('letters');
   });
 });
