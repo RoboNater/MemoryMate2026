@@ -7,6 +7,10 @@ files a user already has on disk from an older version of the app must keep
 importing correctly. If you change this format, bump `version` and keep the
 importer accepting the older version(s) too.
 
+Not to be confused with the plain-text verse import behind My Verses -> Import
+(`docs/notes/text-import-format.md`), which bulk-adds verses from a typed list
+and carries no ids, progress or history.
+
 ## Envelope
 
 ```json

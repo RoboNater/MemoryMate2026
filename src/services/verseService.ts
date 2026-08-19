@@ -55,6 +55,63 @@ export async function addVerse(
 }
 
 /**
+ * Add many verses at once, all sharing a translation and shelf (issue #15).
+ *
+ * One transaction: a bulk import either lands or it doesn't. Half a file is
+ * the worst outcome here -- the user's own file is the record of what they
+ * meant to add, and a partial import makes them diff it against the app by
+ * hand to find out where it stopped.
+ *
+ * Each row gets its own id, and a `created_at` one millisecond after the row
+ * before it -- which is also its starting `updated_at`, exactly as `addVerse`
+ * does. The stagger is what keeps the import's order stable: verse lists sort
+ * on `created_at`, and a batch that shared one timestamp would come back in
+ * whatever order the two database backends happened to produce.
+ *
+ * Progress rows are not created: `progressService.getProgress` already returns
+ * a default for a verse that has none, and every other path here creates them
+ * lazily too.
+ */
+export async function addVerses(
+  entries: { reference: string; text: string }[],
+  translation: string,
+  shelfId: string | null = null
+): Promise<Verse[]> {
+  const db = getDatabase();
+  const startedAt = Date.now();
+
+  const verses: Verse[] = entries.map((entry, index) => ({
+    id: generateUUID(),
+    reference: entry.reference,
+    text: entry.text,
+    translation,
+    created_at: new Date(startedAt + index).toISOString(),
+    archived: false,
+    shelf_id: shelfId,
+  }));
+
+  await db.withTransactionAsync(async () => {
+    for (const verse of verses) {
+      await db.runAsync(
+        'INSERT INTO verses (id, reference, text, translation, created_at, archived, shelf_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          verse.id,
+          verse.reference,
+          verse.text,
+          translation,
+          verse.created_at,
+          0,
+          shelfId,
+          verse.created_at,
+        ]
+      );
+    }
+  });
+
+  return verses;
+}
+
+/**
  * Get a single verse by ID
  */
 export async function getVerse(id: string): Promise<Verse | null> {

@@ -6,7 +6,7 @@ import { useVerseStore, useAuthStore, useSyncStore } from '@/store';
 import { isSupabaseConfigured } from '@/services/supabaseClient';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import * as DocumentPicker from 'expo-document-picker';
+import { pickTextFile } from '@/services/filePicker';
 
 export default function SettingsScreen() {
   const [isExporting, setIsExporting] = useState(false);
@@ -89,40 +89,19 @@ export default function SettingsScreen() {
    * Handle import - file picker and data import
    */
   const handleImport = async () => {
-    console.log('Import button pressed');
     setIsImporting(true);
     try {
-      let jsonString: string;
+      const jsonString = await pickTextFile({
+        mimeType: 'application/json',
+        accept: 'application/json',
+      });
 
-      if (Platform.OS === 'web') {
-        console.log('Platform: web');
-        // Web: File input picker - direct call works
-        jsonString = await pickFileWeb();
-      } else {
-        console.log('Platform: native, opening document picker...');
-        // Native: Document picker
-        const result = await DocumentPicker.getDocumentAsync({
-          type: 'application/json',
-          copyToCacheDirectory: true,
-        });
-
-        console.log('Document picker result:', result);
-
-        if (result.canceled || !result.assets || result.assets.length === 0) {
-          console.log('Document picker canceled or no file selected');
-          setIsImporting(false);
-          return;
-        }
-
-        console.log('Reading file from:', result.assets[0].uri);
-        jsonString = await FileSystem.readAsStringAsync(result.assets[0].uri);
-        console.log('File read successfully, length:', jsonString.length);
+      // Cancelling the picker is not a failure -- leave the screen as it was.
+      if (jsonString === null) {
+        return;
       }
 
-      // Import the data
-      console.log('Calling importData...');
       const result = await importData(jsonString);
-      console.log('Import result:', result);
 
       // Build warning text if present
       const warningText =
@@ -144,35 +123,8 @@ export default function SettingsScreen() {
         error instanceof Error ? error.message : 'Failed to import data'
       );
     } finally {
-      console.log('Import process finished');
       setIsImporting(false);
     }
-  };
-
-  /**
-   * Web file picker helper
-   */
-  const pickFileWeb = (): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'application/json';
-      input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (!file) {
-          reject(new Error('No file selected'));
-          return;
-        }
-        try {
-          const text = await file.text();
-          resolve(text);
-        } catch {
-          reject(new Error('Failed to read file'));
-        }
-      };
-      input.onerror = () => reject(new Error('File picker cancelled'));
-      input.click();
-    });
   };
 
   return (

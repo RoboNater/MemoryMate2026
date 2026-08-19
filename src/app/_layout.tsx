@@ -69,6 +69,13 @@ export default function RootLayout() {
         }}
       />
       <Stack.Screen
+        name="verse/import"
+        options={{
+          title: 'Import Verses',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
         name="verse/[id]/index"
         options={{
           title: 'Verse Details',

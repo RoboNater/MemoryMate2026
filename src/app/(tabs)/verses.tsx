@@ -33,12 +33,20 @@ export default function VersesScreen() {
               {activeCount} active {archivedCount > 0 && `• ${archivedCount} archived`}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => router.push('/verse/add')}
-            className="bg-blue-500 px-4 py-2 rounded-lg"
-          >
-            <Text className="text-white font-semibold">+ Add</Text>
-          </TouchableOpacity>
+          <View className="flex-row items-center gap-2">
+            <TouchableOpacity
+              onPress={() => router.push('/verse/import')}
+              className="border border-blue-500 px-4 py-2 rounded-lg"
+            >
+              <Text className="text-blue-600 font-semibold">Import</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/verse/add')}
+              className="bg-blue-500 px-4 py-2 rounded-lg"
+            >
+              <Text className="text-white font-semibold">+ Add</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Filter Toggle */}
@@ -86,9 +94,12 @@ export default function VersesScreen() {
             </Text>
             <TouchableOpacity
               onPress={() => router.push('/verse/add')}
-              className="bg-blue-500 px-6 py-3 rounded-lg"
+              className="bg-blue-500 px-6 py-3 rounded-lg mb-3"
             >
               <Text className="text-white font-semibold">Add Your First Verse</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/verse/import')}>
+              <Text className="text-blue-600 font-semibold">or import a list</Text>
             </TouchableOpacity>
           </View>
         ) : (
