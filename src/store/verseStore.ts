@@ -1,8 +1,18 @@
 import { create } from 'zustand';
-import { Verse, VerseProgress, OverallStats, VerseStats, TestResult, Shelf } from '@/types';
+import {
+  Verse,
+  VerseProgress,
+  OverallStats,
+  VerseStats,
+  TestResult,
+  Shelf,
+  PracticeMode,
+  DEFAULT_PRACTICE_MODE,
+} from '@/types';
 import { initDatabase } from '@/services/database';
 import * as verseService from '@/services/verseService';
 import * as shelfService from '@/services/shelfService';
+import * as preferencesService from '@/services/preferencesService';
 import * as progressService from '@/services/progressService';
 import * as testService from '@/services/testService';
 import * as statsService from '@/services/statsService';
@@ -51,6 +61,13 @@ export interface VerseStore {
   verses: Verse[];
   shelves: Shelf[];
   activeShelfId: string | null; // null = all verses (no shelf filter)
+  /**
+   * How the Practice tab opens (issue #34). Device-local and persisted, like
+   * `activeShelfId` -- the picker used to be screen-local `useState`, so the
+   * choice was forgotten the moment you left the tab. Sessions already in
+   * flight are unaffected: they carry the mode in their route params.
+   */
+  practiceMode: PracticeMode;
   progress: Record<string, VerseProgress>;
   stats: OverallStats | null;
   /**
@@ -112,6 +129,7 @@ export interface VerseStore {
   refreshShelves: () => Promise<void>;
 
   // Practice/Test actions
+  setPracticeMode: (mode: PracticeMode) => Promise<void>;
   recordPractice: (verseId: string) => Promise<void>;
   setComfortLevel: (verseId: string, level: 1 | 2 | 3 | 4 | 5) => Promise<void>;
   resetProgress: (verseId: string) => Promise<void>;
@@ -146,6 +164,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   verses: [],
   shelves: [],
   activeShelfId: null,
+  practiceMode: DEFAULT_PRACTICE_MODE,
   progress: {},
   stats: null,
   isLoading: false,
@@ -176,7 +195,19 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
           ? savedActiveShelfId
           : null;
 
-      set({ verses, shelves, activeShelfId, progress, stats, isInitialized: true });
+      // Restore the device-local practice mode (#34); unknown values fall
+      // back to the default inside the service.
+      const practiceMode = await preferencesService.getPracticeMode();
+
+      set({
+        verses,
+        shelves,
+        activeShelfId,
+        practiceMode,
+        progress,
+        stats,
+        isInitialized: true,
+      });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error during initialization';
       console.error('Store initialization error:', errorMsg);
@@ -425,6 +456,23 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
           ? null
           : state.activeShelfId,
     }));
+  },
+
+  /**
+   * Persist the practice mode picked on the Practice tab (#34). Device-local
+   * preference only -- nothing to sync, same as `setActiveShelf`.
+   */
+  setPracticeMode: async (mode) => {
+    set({ error: null });
+    try {
+      await preferencesService.setPracticeMode(mode);
+      set({ practiceMode: mode });
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : 'Failed to set practice mode';
+      set({ error: errorMsg });
+      throw error;
+    }
   },
 
   // Record practice

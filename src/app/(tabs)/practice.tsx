@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { LoadingSpinner, ShelfPicker } from '@/components';
 import { useVerseStore } from '@/store';
-import { DEFAULT_PRACTICE_MODE, type PracticeMode } from '@/types';
+import { type PracticeMode } from '@/types';
 
 // How many verses to show in the "choose a specific verse" list before
 // collapsing behind a "show more" toggle.
@@ -12,6 +12,8 @@ const INITIAL_VISIBLE_VERSES = 15;
 // Practice modes (epic #18). The mode is chosen here and carried into every
 // practice route as a `mode` param, so all three entry points below --
 // practice all, needs work, and a single verse -- honour the same choice.
+// The choice itself lives in the store, persisted per device (#34), so it
+// survives leaving the tab and restarting the app.
 const MODE_OPTIONS: { value: PracticeMode; label: string; description: string }[] = [
   {
     value: 'reveal',
@@ -33,17 +35,41 @@ export default function PracticeScreen() {
     getActiveShelf,
     getVersesNeedingPractice,
     progress,
+    practiceMode,
+    setPracticeMode,
   } = useVerseStore();
   // The active set: all non-archived verses, or just the active shelf (issue #5).
   const activeVerses = getActiveSetVerses();
   const activeShelf = getActiveShelf();
   const versesNeedingWork = getVersesNeedingPractice();
   const [showAllVerses, setShowAllVerses] = useState(false);
-  const [practiceMode, setPracticeMode] = useState<PracticeMode>(DEFAULT_PRACTICE_MODE);
+  // A failed practice-mode write is reported here, in the picker that asked
+  // for it -- the same shape `ManageShelvesModal` uses for shelf writes (#39).
+  // The store's `error` is deliberately not read for this: it is shared by
+  // every write, so a screen that rendered it would show failures it did not
+  // cause.
+  const [modeError, setModeError] = useState<string | null>(null);
 
   if (isLoading) {
     return <LoadingSpinner message="Loading verses..." />;
   }
+
+  /**
+   * Pick a practice mode. `setPracticeMode` rejects if the durable write
+   * failed (#39), in which case the store keeps the mode that is actually
+   * persisted -- so the picker must say the choice didn't stick rather than
+   * silently showing the old one back.
+   */
+  const chooseMode = async (mode: PracticeMode) => {
+    if (mode === practiceMode) return;
+    setModeError(null);
+    try {
+      await setPracticeMode(mode);
+    } catch {
+      const kept = MODE_OPTIONS.find((o) => o.value === practiceMode)?.label;
+      setModeError(`Couldn't save that choice — still set to ${kept}. Please try again.`);
+    }
+  };
 
   const startPractice = (verses: typeof activeVerses) => {
     if (verses.length === 0) return;
@@ -83,7 +109,8 @@ export default function PracticeScreen() {
                 return (
                   <TouchableOpacity
                     key={option.value}
-                    onPress={() => setPracticeMode(option.value)}
+                    // chooseMode handles its own failure; nothing to catch here.
+                    onPress={() => void chooseMode(option.value)}
                     className={`flex-1 py-2 rounded-lg items-center border ${
                       isSelected
                         ? 'bg-green-500 border-green-500'
@@ -104,6 +131,11 @@ export default function PracticeScreen() {
             <Text className="text-xs text-gray-500 mt-2">
               {MODE_OPTIONS.find((o) => o.value === practiceMode)?.description}
             </Text>
+            {modeError && (
+              <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mt-2">
+                <Text className="text-red-700 text-sm">{modeError}</Text>
+              </View>
+            )}
           </View>
         )}
 

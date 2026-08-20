@@ -117,6 +117,28 @@ Local indexes: `idx_test_results_verse_id`, `idx_test_results_timestamp`.
 Supabase indexes: `idx_test_results_verse`, plus `(user_id, updated_at)` on all
 four tables to support the sync pull query.
 
+## Device-local preferences (`sync_state`)
+
+`sync_state` is a local-only key/value table (created by `runMigrations` in
+`src/services/database.ts`, no Postgres counterpart). Alongside the sync engine's
+own checkpoints it holds the UI preferences that are deliberately **not** synced,
+because they describe how *this device* is being used rather than what the user
+has memorized:
+
+| Key | Written by | Meaning |
+|---|---|---|
+| `active_shelf_id` | `shelfService.setActiveShelfId` | Which shelf Practice/Test draw from; absent = all verses (#5) |
+| `practice_mode` | `preferencesService.setPracticeMode` | Which practice mode the Practice tab opens with; absent/unrecognised = `reveal` (#34) |
+
+Both are read once during `verseStore.initialize()` and mirrored into the store.
+The bar for putting a preference here rather than in a synced table is whether
+two devices are allowed to disagree about it — for these, they are.
+
+`clearLocalDataOnSignOut` drops `active_shelf_id` along with the synced tables,
+because the shelf it names is about to stop existing locally and the next
+sign-in may be a different account. `practice_mode` names no user data and is
+left alone, so the device keeps practicing the way its owner set it up.
+
 ## Cascade relationships
 
 Both databases declare `ON DELETE CASCADE` from `progress.verse_id` and
