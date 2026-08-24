@@ -9,10 +9,10 @@ interaction check.
 2. Start **First Letters** practice and type through the verse without manually scrolling.
 3. Confirm the blue active box stays fully above the keyboard as it moves onto each new
    line. The page should move only when the box reaches the keyboard, not after every
-   letter.
+   letter. Confirm Safari does not show an **AutoFill Contact** row above the keyboard.
 4. Manually scroll a little while the keyboard remains open, then type another letter.
    Confirm the page preserves that position if the next box is already visible, and only
    makes the minimum correction if it is hidden.
 
-Please report the platform/browser (or native app), whether all four checks passed, and
-any visible jump or box overlap.
+Please report the iOS/Android version and browser (or native app), whether all four checks
+passed, and any visible jump or box overlap.

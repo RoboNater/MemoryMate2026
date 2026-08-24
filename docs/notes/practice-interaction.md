@@ -184,6 +184,11 @@ reported keyboard frame on native, and scroll only when the newly active slot cr
 that boundary. The scroll is the minimum needed to reveal the slot, rather than a
 re-centre on every letter, so it does not fight manual scrolling.
 
+Safari ignores `autocomplete="off"` and may classify an otherwise anonymous text field
+as contact information. The web input therefore uses the more specific
+`autocomplete="one-time-code"` hint. It still accepts ordinary letters, while steering
+Safari away from offering contact data in this non-form interaction.
+
 ## How this was decided — 18 August 2026
 
 Recorded because most of what follows is a set of forks where the discarded branch was

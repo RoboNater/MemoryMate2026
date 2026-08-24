@@ -8,6 +8,28 @@ export interface VerticalViewport {
   bottom: number;
 }
 
+export interface WebVisualViewportMetrics {
+  offsetTop: number;
+  pageTop: number;
+  height: number;
+}
+
+/**
+ * Expresses the visual viewport in getBoundingClientRect/measureInWindow's
+ * layout-viewport coordinate space.
+ *
+ * In conforming browsers pageTop - scrollY equals offsetTop. Safari has shipped
+ * releases where offsetTop is briefly stale while the software keyboard pans
+ * the visual viewport, so pageTop provides the second, more reliable signal.
+ */
+export function webVisualViewportBounds(
+  viewport: WebVisualViewportMetrics,
+  layoutScrollY: number
+): VerticalViewport {
+  const top = Math.max(0, viewport.offsetTop, viewport.pageTop - layoutScrollY);
+  return { top, bottom: top + viewport.height };
+}
+
 /**
  * Returns the smallest vertical scroll needed to reveal a rectangle.
  *

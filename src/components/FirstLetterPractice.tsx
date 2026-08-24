@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
   LayoutRectangle,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -222,7 +223,10 @@ export function FirstLetterPractice({
                 // one: it sets Android's NO_SUGGESTIONS, and without it a
                 // predictive-text insertion arrives with no key event at all.
                 autoCorrect={false}
-                autoComplete="off"
+                // Safari deliberately ignores autocomplete="off" and can show
+                // a Contact AutoFill bar. A web-only semantic hint steers it
+                // away from treating this one-letter exercise as a contact field.
+                autoComplete={Platform.OS === 'web' ? 'one-time-code' : 'off'}
                 autoCapitalize="none"
                 spellCheck={false}
                 // Or Return dismisses the keyboard on both platforms.
