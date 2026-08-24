@@ -6,7 +6,12 @@ import { useVerseStore, useAuthStore, useSyncStore } from '@/store';
 import { isSupabaseConfigured } from '@/services/supabaseClient';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import Constants from 'expo-constants';
 import { pickTextFile } from '@/services/filePicker';
+
+// Read the version from the app config rather than repeating it here, so the
+// About block can't drift from what was actually shipped.
+const appVersion = Constants.expoConfig?.version ?? 'unknown';
 
 export default function SettingsScreen() {
   const [isExporting, setIsExporting] = useState(false);
@@ -24,6 +29,16 @@ export default function SettingsScreen() {
   const lastSyncedAt = useSyncStore((state) => state.lastSyncedAt);
   const syncError = useSyncStore((state) => state.syncError);
   const syncNow = useSyncStore((state) => state.syncNow);
+
+  // Follows the same three states as the Cloud Sync card above, so the two
+  // can't contradict each other — branching on isSupabaseConfigured alone told
+  // an already-signed-in user to sign in. Leading space: this is appended to
+  // the sentence before it.
+  const dataPortabilityHint = !isSupabaseConfigured
+    ? ' Use Export Data above to back them up or move them to another device.'
+    : user
+      ? ' Cloud sync keeps them in step across your own devices.'
+      : ' Sign in to cloud sync to keep them in step across your own devices.';
 
   // Use the in-app ConfirmDialog rather than Alert.alert: on React Native Web
   // the multi-button Alert renders but never invokes button onPress handlers,
@@ -265,18 +280,12 @@ export default function SettingsScreen() {
         </View>
 
         {/* App Info */}
-        <View className="bg-white rounded-lg p-6 mb-4 border border-gray-200">
+        <View className="bg-white rounded-lg p-6 border border-gray-200">
           <Text className="text-xl font-bold text-gray-900 mb-4">About Memory Mate</Text>
           <View className="gap-3">
             <View>
               <Text className="text-sm text-gray-600">Version</Text>
-              <Text className="text-base font-semibold text-gray-900">MVP 1.0.0</Text>
-            </View>
-            <View>
-              <Text className="text-sm text-gray-600">Status</Text>
-              <View className="bg-green-100 px-3 py-1 rounded-full self-start mt-1">
-                <Text className="text-green-700 text-sm font-semibold">Phase 4 + Export/Import</Text>
-              </View>
+              <Text className="text-base font-semibold text-gray-900">{appVersion}</Text>
             </View>
             <View>
               <Text className="text-sm text-gray-600">Description</Text>
@@ -285,70 +294,14 @@ export default function SettingsScreen() {
                 your memorization skills.
               </Text>
             </View>
-          </View>
-        </View>
-
-        {/* Current Features */}
-        <View className="bg-white rounded-lg p-6 mb-4 border border-gray-200">
-          <Text className="text-lg font-bold text-gray-900 mb-3">Current Features</Text>
-          <View className="gap-2">
-            <View className="flex-row items-center">
-              <Text className="text-green-500 text-lg mr-2">✓</Text>
-              <Text className="text-gray-700">Verse management (add, edit, archive, delete)</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-green-500 text-lg mr-2">✓</Text>
-              <Text className="text-gray-700">Practice mode with comfort tracking</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-green-500 text-lg mr-2">✓</Text>
-              <Text className="text-gray-700">Test mode with scoring</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-green-500 text-lg mr-2">✓</Text>
-              <Text className="text-gray-700">Progress statistics and tracking</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-green-500 text-lg mr-2">✓</Text>
-              <Text className="text-gray-700">Data persistence (web & native)</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-green-500 text-lg mr-2">✓</Text>
-              <Text className="text-gray-700">Data export/import (JSON)</Text>
+            <View>
+              <Text className="text-sm text-gray-600">Your data</Text>
+              <Text className="text-base text-gray-700 mt-1">
+                Verses and progress are stored on this device and stay available offline.
+                {dataPortabilityHint}
+              </Text>
             </View>
           </View>
-        </View>
-
-        {/* Next Phase */}
-        <View className="bg-white rounded-lg p-6 border border-gray-200">
-          <Text className="text-lg font-bold text-gray-900 mb-3">Phase 5: Feature Integration & Polish</Text>
-          <View className="gap-2">
-            <View className="flex-row items-center">
-              <Text className="text-amber-500 text-lg mr-2">○</Text>
-              <Text className="text-gray-600">Performance optimization</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-amber-500 text-lg mr-2">○</Text>
-              <Text className="text-gray-600">User experience refinements</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-amber-500 text-lg mr-2">○</Text>
-              <Text className="text-gray-600">Bug fixes and polish</Text>
-            </View>
-            <View className="flex-row items-center">
-              <Text className="text-amber-500 text-lg mr-2">○</Text>
-              <Text className="text-gray-600">Release preparation</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Note */}
-        <View className="bg-blue-50 p-4 rounded-lg border border-blue-100 mt-4">
-          <Text className="text-blue-900 font-semibold mb-2 text-center">Ready for Production</Text>
-          <Text className="text-blue-700 text-sm text-center">
-            Your data is securely stored locally on your device. Export files are JSON format and can be backed up or
-            transferred between devices.
-          </Text>
         </View>
       </View>
     </ScrollView>
