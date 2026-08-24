@@ -15,9 +15,8 @@ question wearing different clothes.
 > it rather than sitting beside it — but its scoring is untouched and still tested, and
 > #45 restores the exercise itself under Test. Deliberately not built yet: the shake and
 > the difficulty control (#47). The active slot now follows the software keyboard (#50).
-> This note is here because the reasoning is what outlives the work —
-> per `AGENTS.md`, durable "why" belongs in `docs/` rather than in an issue body nobody
-> re-reads.
+> This note is here because the reasoning is what outlives the work — per `AGENTS.md`,
+> durable "why" belongs in `docs/` rather than in an issue body nobody re-reads.
 
 ## What went wrong with the first version
 
@@ -183,11 +182,6 @@ visibility check. They intersect their `ScrollView` frame with the visual viewpo
 reported keyboard frame on native, and scroll only when the newly active slot crosses
 that boundary. The scroll is the minimum needed to reveal the slot, rather than a
 re-centre on every letter, so it does not fight manual scrolling.
-
-Safari ignores `autocomplete="off"` and may classify an otherwise anonymous text field
-as contact information. The web input therefore uses the more specific
-`autocomplete="one-time-code"` hint. It still accepts ordinary letters, while steering
-Safari away from offering contact data in this non-form interaction.
 
 ## How this was decided — 18 August 2026
 

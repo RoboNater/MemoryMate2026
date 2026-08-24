@@ -3,15 +3,18 @@ import {
   Dimensions,
   Keyboard,
   type KeyboardEvent,
-  type LayoutRectangle,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
   ScrollView,
 } from 'react-native';
 import {
-  scrollDeltaToReveal,
+  nextScrollState,
+  recordActiveSlotMeasurement,
+  recordScrollOffset,
   webVisualViewportBounds,
+  type ActiveSlotMeasurement,
+  type ActiveSlotScrollState,
   type VerticalViewport,
 } from '../utils/activeSlotVisibility';
 
@@ -24,9 +27,12 @@ const SLOT_EDGE_PADDING = 12;
  */
 export function useActiveSlotAutoScroll() {
   const scrollViewRef = useRef<ScrollView>(null);
-  const scrollOffsetRef = useRef(0);
   const keyboardTopRef = useRef<number | null>(null);
-  const activeSlotRef = useRef<LayoutRectangle | null>(null);
+  const scrollStateRef = useRef<ActiveSlotScrollState>({
+    offset: 0,
+    slot: null,
+    lastMeasurement: null,
+  });
   const firstFrameRef = useRef<number | null>(null);
   const secondFrameRef = useRef<number | null>(null);
   const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,9 +57,8 @@ export function useActiveSlotAutoScroll() {
   }, []);
 
   const revealActiveSlot = useCallback(() => {
-    const slot = activeSlotRef.current;
     const scrollView = scrollViewRef.current;
-    if (!slot || !scrollView) return;
+    if (!scrollStateRef.current.slot || !scrollView) return;
     const nativeScrollView = scrollView.getNativeScrollRef();
     if (!nativeScrollView) return;
 
@@ -65,20 +70,12 @@ export function useActiveSlotAutoScroll() {
         top: Math.max(windowViewport.top, y),
         bottom: Math.min(windowViewport.bottom, y + height),
       };
-      const delta = scrollDeltaToReveal(slot, viewport, SLOT_EDGE_PADDING);
-      if (delta === 0) return;
-
-      const previousOffset = scrollOffsetRef.current;
-      const nextOffset = Math.max(0, scrollOffsetRef.current + delta);
-      // Keep rapid letters based on the requested position, even before the
-      // platform emits the corresponding onScroll event. Immediate scrolling
-      // also prevents fast typing from queuing overlapping animations.
-      scrollOffsetRef.current = nextOffset;
-      activeSlotRef.current = {
-        ...slot,
-        y: slot.y - (nextOffset - previousOffset),
-      };
-      scrollView.scrollTo({ y: nextOffset, animated: false });
+      const next = nextScrollState(scrollStateRef.current, viewport, SLOT_EDGE_PADDING);
+      scrollStateRef.current = next.state;
+      if (next.targetOffset !== null) {
+        // Immediate scrolling prevents fast typing from queuing animations.
+        scrollView.scrollTo({ y: next.targetOffset, animated: false });
+      }
     });
   }, [visibleWindow]);
 
@@ -105,23 +102,18 @@ export function useActiveSlotAutoScroll() {
   }, [revealActiveSlot]);
 
   const onActiveSlotLayout = useCallback(
-    (layout: LayoutRectangle) => {
-      activeSlotRef.current = layout;
+    (layout: ActiveSlotMeasurement | null) => {
+      scrollStateRef.current = recordActiveSlotMeasurement(scrollStateRef.current, layout);
       revealActiveSlot();
     },
     [revealActiveSlot]
   );
 
   const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const nextOffset = event.nativeEvent.contentOffset.y;
-    const delta = nextOffset - scrollOffsetRef.current;
-    scrollOffsetRef.current = nextOffset;
-    if (delta !== 0 && activeSlotRef.current) {
-      activeSlotRef.current = {
-        ...activeSlotRef.current,
-        y: activeSlotRef.current.y - delta,
-      };
-    }
+    scrollStateRef.current = recordScrollOffset(
+      scrollStateRef.current,
+      event.nativeEvent.contentOffset.y
+    );
   }, []);
 
   useEffect(() => {
@@ -147,7 +139,10 @@ export function useActiveSlotAutoScroll() {
     };
     const handleKeyboardHide = () => {
       keyboardTopRef.current = null;
+      scrollStateRef.current = recordActiveSlotMeasurement(scrollStateRef.current, null);
     };
+    keyboardTopRef.current = Keyboard.metrics()?.screenY ?? null;
+    revealActiveSlot();
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow';
     const showSubscription = Keyboard.addListener(showEvent, handleKeyboardFrame);
     const hideSubscription = Keyboard.addListener('keyboardDidHide', handleKeyboardHide);

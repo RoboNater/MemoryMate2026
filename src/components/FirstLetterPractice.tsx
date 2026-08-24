@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
   LayoutRectangle,
-  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -16,6 +15,7 @@ import {
   type GuidedState,
   type GuidedTally,
 } from '../utils/guidedFirstLetter';
+import type { ActiveSlotMeasurement } from '../utils/activeSlotVisibility';
 import { LiveRegion } from './LiveRegion';
 
 interface FirstLetterPracticeProps {
@@ -29,7 +29,7 @@ interface FirstLetterPracticeProps {
    */
   onComplete: (tally: GuidedTally) => void;
   /** Reports the focused slot in window coordinates to its owning screen. */
-  onActiveSlotLayout?: (layout: LayoutRectangle) => void;
+  onActiveSlotLayout?: (layout: ActiveSlotMeasurement | null) => void;
 }
 
 // The input has to exist at a real size on the very first frame or Android
@@ -67,6 +67,7 @@ export function FirstLetterPractice({
   const rowRef = useRef<React.ComponentRef<typeof View>>(null);
   const boxRefs = useRef<Record<number, React.ComponentRef<typeof View> | null>>({});
   const inputRef = useRef<TextInput>(null);
+  const measurementRequestRef = useRef(0);
 
   const finished = isComplete(state);
   const total = state.slots.length;
@@ -114,12 +115,14 @@ export function FirstLetterPractice({
    */
   const cursor = state.cursor;
   const measureActive = useCallback(() => {
+    const request = ++measurementRequestRef.current;
     const row = rowRef.current;
     const box = boxRefs.current[cursor];
     if (!row || !box) return;
     box.measureLayout(
       row,
       (x, y, width, height) => {
+        if (request !== measurementRequestRef.current) return;
         setActiveLayout((prev) =>
           prev.x === x && prev.y === y && prev.width === width && prev.height === height
             ? prev
@@ -127,11 +130,13 @@ export function FirstLetterPractice({
         );
         if (focused && onActiveSlotLayout) {
           box.measureInWindow((windowX, windowY, windowWidth, windowHeight) => {
+            if (request !== measurementRequestRef.current) return;
             onActiveSlotLayout({
               x: windowX,
               y: windowY,
               width: windowWidth,
               height: windowHeight,
+              slotIndex: cursor,
             });
           });
         }
@@ -139,6 +144,21 @@ export function FirstLetterPractice({
       () => {}
     );
   }, [cursor, focused, onActiveSlotLayout]);
+
+  useEffect(() => {
+    if (finished) {
+      measurementRequestRef.current += 1;
+      onActiveSlotLayout?.(null);
+    }
+  }, [finished, onActiveSlotLayout]);
+
+  useEffect(
+    () => () => {
+      measurementRequestRef.current += 1;
+      onActiveSlotLayout?.(null);
+    },
+    [onActiveSlotLayout]
+  );
 
   // Every event can reflow the row, so re-measure on each one -- `seq` changes
   // whenever the reducer changed anything. The row's own `onLayout` covers the
@@ -216,17 +236,18 @@ export function FirstLetterPractice({
                 value=""
                 onChangeText={handleChangeText}
                 onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
+                onBlur={() => {
+                  measurementRequestRef.current += 1;
+                  setFocused(false);
+                  onActiveSlotLayout?.(null);
+                }}
                 autoFocus
                 // Every one of these overrides a react-native-web default that
                 // works against us. `autoCorrect={false}` is the load-bearing
                 // one: it sets Android's NO_SUGGESTIONS, and without it a
                 // predictive-text insertion arrives with no key event at all.
                 autoCorrect={false}
-                // Safari deliberately ignores autocomplete="off" and can show
-                // a Contact AutoFill bar. A web-only semantic hint steers it
-                // away from treating this one-letter exercise as a contact field.
-                autoComplete={Platform.OS === 'web' ? 'one-time-code' : 'off'}
+                autoComplete="off"
                 autoCapitalize="none"
                 spellCheck={false}
                 // Or Return dismisses the keyboard on both platforms.
