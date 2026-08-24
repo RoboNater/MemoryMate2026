@@ -4,6 +4,7 @@ export { ProgressBar } from './ProgressBar';
 export { TestResultBadge } from './TestResultBadge';
 export { ComfortLevelPicker } from './ComfortLevelPicker';
 export { FirstLetterPractice } from './FirstLetterPractice';
+export { useActiveSlotAutoScroll } from './useActiveSlotAutoScroll';
 export { LiveRegion } from './LiveRegion';
 export { VerseCard } from './VerseCard';
 export { VerseDetail } from './VerseDetail';

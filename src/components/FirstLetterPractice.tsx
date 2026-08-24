@@ -27,6 +27,8 @@ interface FirstLetterPracticeProps {
    * means for progress; this component records nothing itself.
    */
   onComplete: (tally: GuidedTally) => void;
+  /** Reports the focused slot in window coordinates to its owning screen. */
+  onActiveSlotLayout?: (layout: LayoutRectangle) => void;
 }
 
 // The input has to exist at a real size on the very first frame or Android
@@ -50,6 +52,7 @@ export function FirstLetterPractice({
   verseId,
   translation,
   onComplete,
+  onActiveSlotLayout,
 }: FirstLetterPracticeProps) {
   const [state, dispatch] = useReducer(
     guidedReducer,
@@ -121,10 +124,20 @@ export function FirstLetterPractice({
             ? prev
             : { x, y, width, height }
         );
+        if (focused && onActiveSlotLayout) {
+          box.measureInWindow((windowX, windowY, windowWidth, windowHeight) => {
+            onActiveSlotLayout({
+              x: windowX,
+              y: windowY,
+              width: windowWidth,
+              height: windowHeight,
+            });
+          });
+        }
       },
       () => {}
     );
-  }, [cursor]);
+  }, [cursor, focused, onActiveSlotLayout]);
 
   // Every event can reflow the row, so re-measure on each one -- `seq` changes
   // whenever the reducer changed anything. The row's own `onLayout` covers the

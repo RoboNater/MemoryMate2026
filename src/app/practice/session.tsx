@@ -6,6 +6,7 @@ import {
   ConfirmDialog,
   ErrorDisplay,
   FirstLetterPractice,
+  useActiveSlotAutoScroll,
 } from '@/components';
 import { useVerseStore } from '@/store';
 import { parsePracticeMode } from '@/types';
@@ -18,6 +19,7 @@ export default function PracticeSessionScreen() {
   }>();
   const router = useRouter();
   const { verses, progress, recordPractice, setComfortLevel: setComfortLevelAction } = useVerseStore();
+  const { scrollViewRef, onScroll, onActiveSlotLayout } = useActiveSlotAutoScroll();
 
   // Parse session parameters
   const verseIds = ids ? ids.split(',') : [];
@@ -122,7 +124,13 @@ export default function PracticeSessionScreen() {
     // `keyboardShouldPersistTaps` matters in the guided letters mode: with the
     // keyboard up, the first tap on "Skip word" is otherwise eaten by the
     // keyboard dismissing (login.tsx already does this).
-    <ScrollView className="flex-1 bg-white" keyboardShouldPersistTaps="handled">
+    <ScrollView
+      ref={scrollViewRef}
+      className="flex-1 bg-white"
+      keyboardShouldPersistTaps="handled"
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+    >
       <ConfirmDialog
         visible={showExitDialog}
         title="Exit Practice Session?"
@@ -188,6 +196,7 @@ export default function PracticeSessionScreen() {
             verseId={verse.id}
             translation={verse.translation}
             onComplete={() => setRevealed(true)}
+            onActiveSlotLayout={onActiveSlotLayout}
           />
         ) : (
           <>
