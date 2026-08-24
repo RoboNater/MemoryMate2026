@@ -30,6 +30,16 @@ export default function SettingsScreen() {
   const syncError = useSyncStore((state) => state.syncError);
   const syncNow = useSyncStore((state) => state.syncNow);
 
+  // Follows the same three states as the Cloud Sync card above, so the two
+  // can't contradict each other — branching on isSupabaseConfigured alone told
+  // an already-signed-in user to sign in. Leading space: this is appended to
+  // the sentence before it.
+  const dataPortabilityHint = !isSupabaseConfigured
+    ? ' Use Export Data above to back them up or move them to another device.'
+    : user
+      ? ' Cloud sync keeps them in step across your own devices.'
+      : ' Sign in to cloud sync to keep them in step across your own devices.';
+
   // Use the in-app ConfirmDialog rather than Alert.alert: on React Native Web
   // the multi-button Alert renders but never invokes button onPress handlers,
   // so the sign-out action silently did nothing in the browser.
@@ -288,9 +298,7 @@ export default function SettingsScreen() {
               <Text className="text-sm text-gray-600">Your data</Text>
               <Text className="text-base text-gray-700 mt-1">
                 Verses and progress are stored on this device and stay available offline.
-                {isSupabaseConfigured
-                  ? ' Sign in to cloud sync to keep them in step across your own devices.'
-                  : ' Use Export Data above to back them up or move them to another device.'}
+                {dataPortabilityHint}
               </Text>
             </View>
           </View>
