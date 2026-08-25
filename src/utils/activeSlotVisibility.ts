@@ -54,7 +54,9 @@ export function recordActiveSlotMeasurement(
   if (previous) {
     // measureInWindow is asynchronous. Do not let an older cursor overwrite a
     // newer one, and do not re-apply an identical pre-scroll measurement while
-    // the platform's throttled onScroll event is still in flight.
+    // the platform's throttled onScroll event is still in flight. Cursor order
+    // is monotonic because guided practice deliberately has no undo (#46); if
+    // that decision changes, this guard and its test must change with it.
     if (measurement.slotIndex < previous.slotIndex) return state;
     if (
       measurement.slotIndex === previous.slotIndex &&

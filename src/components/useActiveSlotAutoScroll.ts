@@ -142,7 +142,6 @@ export function useActiveSlotAutoScroll() {
       scrollStateRef.current = recordActiveSlotMeasurement(scrollStateRef.current, null);
     };
     keyboardTopRef.current = Keyboard.metrics()?.screenY ?? null;
-    revealActiveSlot();
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow';
     const showSubscription = Keyboard.addListener(showEvent, handleKeyboardFrame);
     const hideSubscription = Keyboard.addListener('keyboardDidHide', handleKeyboardHide);

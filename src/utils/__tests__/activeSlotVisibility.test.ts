@@ -54,6 +54,21 @@ describe('active-slot scroll accounting', () => {
     expect(nextScrollState(duplicate, viewport, 12).targetOffset).toBeNull();
   });
 
+  it('drops an older async cursor report because guided practice has no undo (#46)', () => {
+    const current = recordActiveSlotMeasurement(initialState, {
+      ...measurement,
+      slotIndex: 5,
+    });
+    const stale = recordActiveSlotMeasurement(current, {
+      ...measurement,
+      y: 430,
+      slotIndex: 3,
+    });
+
+    expect(stale).toBe(current);
+    expect(stale.slot?.slotIndex).toBe(5);
+  });
+
   it('reconciles a requested scroll with the platform offset it observes', () => {
     const measured = recordActiveSlotMeasurement(initialState, measurement);
     const requested = nextScrollState(measured, viewport, 12).state;

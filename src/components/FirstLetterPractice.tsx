@@ -68,6 +68,11 @@ export function FirstLetterPractice({
   const boxRefs = useRef<Record<number, React.ComponentRef<typeof View> | null>>({});
   const inputRef = useRef<TextInput>(null);
   const measurementRequestRef = useRef(0);
+  const activeSlotLayoutCallbackRef = useRef(onActiveSlotLayout);
+
+  useEffect(() => {
+    activeSlotLayoutCallbackRef.current = onActiveSlotLayout;
+  }, [onActiveSlotLayout]);
 
   const finished = isComplete(state);
   const total = state.slots.length;
@@ -152,13 +157,12 @@ export function FirstLetterPractice({
     }
   }, [finished, onActiveSlotLayout]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    return () => {
       measurementRequestRef.current += 1;
-      onActiveSlotLayout?.(null);
-    },
-    [onActiveSlotLayout]
-  );
+      activeSlotLayoutCallbackRef.current?.(null);
+    };
+  }, []);
 
   // Every event can reflow the row, so re-measure on each one -- `seq` changes
   // whenever the reducer changed anything. The row's own `onLayout` covers the
