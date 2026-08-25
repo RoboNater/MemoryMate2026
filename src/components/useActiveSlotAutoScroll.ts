@@ -38,7 +38,8 @@ export function useActiveSlotAutoScroll() {
   const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const visibleWindow = useCallback((): VerticalViewport => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined') return { top: 0, bottom: 0 };
       const viewport = window.visualViewport;
       if (viewport) {
         return webVisualViewportBounds(viewport, window.scrollY);
@@ -117,7 +118,8 @@ export function useActiveSlotAutoScroll() {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined') return;
       const viewport = window.visualViewport;
       viewport?.addEventListener('resize', scheduleTrailingReveal);
       viewport?.addEventListener('scroll', scheduleTrailingReveal);
