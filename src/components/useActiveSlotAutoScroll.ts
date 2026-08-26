@@ -39,6 +39,7 @@ export function useActiveSlotAutoScroll() {
 
   const visibleWindow = useCallback((): VerticalViewport => {
     if (Platform.OS === 'web') {
+      // Expo Router can statically render web without a window; inert bounds avoid guessed scrolling.
       if (typeof window === 'undefined') return { top: 0, bottom: 0 };
       const viewport = window.visualViewport;
       if (viewport) {
