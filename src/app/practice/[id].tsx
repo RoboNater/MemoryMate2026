@@ -1,7 +1,11 @@
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ComfortLevelPicker, FirstLetterPractice } from '@/components';
+import {
+  ComfortLevelPicker,
+  FirstLetterPractice,
+  useActiveSlotAutoScroll,
+} from '@/components';
 import { useVerseStore } from '@/store';
 import { parsePracticeMode } from '@/types';
 
@@ -11,6 +15,7 @@ export default function PracticeVerseScreen() {
   const { verses, progress, recordPractice, setComfortLevel: setComfortLevelAction } = useVerseStore();
   const verse = verses.find((v) => v.id === id);
   const verseProgress = verse ? progress[verse.id] : undefined;
+  const { scrollViewRef, onScroll, onActiveSlotLayout } = useActiveSlotAutoScroll();
 
   const [revealed, setRevealed] = useState(false);
   const [comfortLevel, setComfortLevel] = useState<1 | 2 | 3 | 4 | 5>(
@@ -49,7 +54,13 @@ export default function PracticeVerseScreen() {
   return (
     // See the note in practice/session.tsx: with the keyboard up, the first
     // tap on "Skip word" would otherwise be eaten by the keyboard dismissing.
-    <ScrollView className="flex-1 bg-white" keyboardShouldPersistTaps="handled">
+    <ScrollView
+      ref={scrollViewRef}
+      className="flex-1 bg-white"
+      keyboardShouldPersistTaps="handled"
+      onScroll={onScroll}
+      scrollEventThrottle={16}
+    >
       <View className="p-6">
         {/* Progress Indicator */}
         {verseProgress && (
@@ -84,6 +95,7 @@ export default function PracticeVerseScreen() {
             verseId={verse.id}
             translation={verse.translation}
             onComplete={() => setRevealed(true)}
+            onActiveSlotLayout={onActiveSlotLayout}
           />
         ) : (
           <>

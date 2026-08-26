@@ -15,6 +15,7 @@ import {
   type GuidedState,
   type GuidedTally,
 } from '../utils/guidedFirstLetter';
+import type { ActiveSlotMeasurement } from '../utils/activeSlotVisibility';
 import { LiveRegion } from './LiveRegion';
 
 interface FirstLetterPracticeProps {
@@ -27,6 +28,8 @@ interface FirstLetterPracticeProps {
    * means for progress; this component records nothing itself.
    */
   onComplete: (tally: GuidedTally) => void;
+  /** Reports the focused slot in window coordinates to its owning screen. */
+  onActiveSlotLayout?: (layout: ActiveSlotMeasurement | null) => void;
 }
 
 // The input has to exist at a real size on the very first frame or Android
@@ -50,6 +53,7 @@ export function FirstLetterPractice({
   verseId,
   translation,
   onComplete,
+  onActiveSlotLayout,
 }: FirstLetterPracticeProps) {
   const [state, dispatch] = useReducer(
     guidedReducer,
@@ -63,6 +67,12 @@ export function FirstLetterPractice({
   const rowRef = useRef<React.ComponentRef<typeof View>>(null);
   const boxRefs = useRef<Record<number, React.ComponentRef<typeof View> | null>>({});
   const inputRef = useRef<TextInput>(null);
+  const measurementRequestRef = useRef(0);
+  const activeSlotLayoutCallbackRef = useRef(onActiveSlotLayout);
+
+  useEffect(() => {
+    activeSlotLayoutCallbackRef.current = onActiveSlotLayout;
+  }, [onActiveSlotLayout]);
 
   const finished = isComplete(state);
   const total = state.slots.length;
@@ -110,21 +120,49 @@ export function FirstLetterPractice({
    */
   const cursor = state.cursor;
   const measureActive = useCallback(() => {
+    const request = ++measurementRequestRef.current;
     const row = rowRef.current;
     const box = boxRefs.current[cursor];
     if (!row || !box) return;
     box.measureLayout(
       row,
       (x, y, width, height) => {
+        if (request !== measurementRequestRef.current) return;
         setActiveLayout((prev) =>
           prev.x === x && prev.y === y && prev.width === width && prev.height === height
             ? prev
             : { x, y, width, height }
         );
+        if (focused && onActiveSlotLayout) {
+          box.measureInWindow((windowX, windowY, windowWidth, windowHeight) => {
+            if (request !== measurementRequestRef.current) return;
+            onActiveSlotLayout({
+              x: windowX,
+              y: windowY,
+              width: windowWidth,
+              height: windowHeight,
+              slotIndex: cursor,
+            });
+          });
+        }
       },
       () => {}
     );
-  }, [cursor]);
+  }, [cursor, focused, onActiveSlotLayout]);
+
+  useEffect(() => {
+    if (finished) {
+      measurementRequestRef.current += 1;
+      onActiveSlotLayout?.(null);
+    }
+  }, [finished, onActiveSlotLayout]);
+
+  useEffect(() => {
+    return () => {
+      measurementRequestRef.current += 1;
+      activeSlotLayoutCallbackRef.current?.(null);
+    };
+  }, []);
 
   // Every event can reflow the row, so re-measure on each one -- `seq` changes
   // whenever the reducer changed anything. The row's own `onLayout` covers the
@@ -202,7 +240,11 @@ export function FirstLetterPractice({
                 value=""
                 onChangeText={handleChangeText}
                 onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
+                onBlur={() => {
+                  measurementRequestRef.current += 1;
+                  setFocused(false);
+                  onActiveSlotLayout?.(null);
+                }}
                 autoFocus
                 // Every one of these overrides a react-native-web default that
                 // works against us. `autoCorrect={false}` is the load-bearing

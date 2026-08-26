@@ -14,10 +14,9 @@ question wearing different clothes.
 > [`scoring-modes.md`](./scoring-modes.md) is *gone from the app* — the rewrite replaced
 > it rather than sitting beside it — but its scoring is untouched and still tested, and
 > #45 restores the exercise itself under Test. Deliberately not built yet: the shake and
-> the difficulty control (#47), and the scroll behaviour when the keyboard covers the
-> active slot (#50). This note is here because the reasoning is what outlives the work —
-> per `AGENTS.md`, durable "why" belongs in `docs/` rather than in an issue body nobody
-> re-reads.
+> the difficulty control (#47). The active slot now follows the software keyboard (#50).
+> This note is here because the reasoning is what outlives the work — per `AGENTS.md`,
+> durable "why" belongs in `docs/` rather than in an issue body nobody re-reads.
 
 ## What went wrong with the first version
 
@@ -175,6 +174,20 @@ text change with *no key event at all*; `blurOnSubmit={false}` stops Return dism
 keyboard; and the input must have real, non-zero size and be on screen, because Android
 will not focus a zero-sized view. Parking it over the active slot also makes the
 platform's own scroll-into-view scroll the right thing.
+
+The browser only performs that automatic scroll when the stable input first receives
+focus, not when it moves to the next slot. The practice screens therefore own an explicit
+visibility check. They intersect their `ScrollView` frame with the visual viewport on web
+(`window.visualViewport`, which accounts for iOS Safari's overlaid keyboard) or the
+reported keyboard frame on native, and scroll only when the newly active slot crosses
+that boundary. The scroll is the minimum needed to reveal the slot, rather than a
+re-centre on every letter, so it does not fight manual scrolling.
+
+`visualViewport.offsetTop` is the obvious way to express that boundary in the slot's
+layout-viewport coordinate space, but Safari can leave it stale in either direction while
+the keyboard pans the visual viewport. Taking the larger value fixes keyboard opening but
+can under-correct while it closes. The web path therefore trusts
+`visualViewport.pageTop - window.scrollY` and repeats the check after WebKit settles.
 
 ## How this was decided — 18 August 2026
 
