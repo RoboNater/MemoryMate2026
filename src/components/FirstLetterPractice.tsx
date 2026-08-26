@@ -414,18 +414,25 @@ function Slot({
   }
 
   return (
-    <Animated.View style={shakeStyle} className="items-center">
-      <View
-        ref={boxRef}
-        style={{ minWidth: 34 }}
-        className={`h-9 px-1.5 rounded border items-center justify-center ${box}`}
-      >
-        <Text
-          className={`font-semibold ${label.length > 1 ? 'text-sm' : 'text-base uppercase'} ${text}`}
-          numberOfLines={1}
-        >
-          {label || ' '}
-        </Text>
+    <View className="items-center">
+      {/* Keep the measured wrapper outside the transform. `measureInWindow`
+          can include ancestor transforms on iOS; measuring this stable layer
+          makes #50's auto-scroll coordinates independent of shake timing. */}
+      <View ref={boxRef} style={{ minWidth: 34 }}>
+        {/* No className on Animated.View: NativeWind does not register
+            Reanimated components, so classes on this node would be inert. */}
+        <Animated.View style={shakeStyle}>
+          <View
+            className={`h-9 px-1.5 rounded border items-center justify-center ${box}`}
+          >
+            <Text
+              className={`font-semibold ${label.length > 1 ? 'text-sm' : 'text-base uppercase'} ${text}`}
+              numberOfLines={1}
+            >
+              {label || ' '}
+            </Text>
+          </View>
+        </Animated.View>
       </View>
       {/* The active slot's cursor, and under a missed word, what was typed. */}
       <View className="h-4 items-center justify-start">
@@ -434,7 +441,7 @@ function Slot({
           <Text className="text-[10px] text-red-400 uppercase">{slot.wrongLetter}</Text>
         )}
       </View>
-    </Animated.View>
+    </View>
   );
 }
 

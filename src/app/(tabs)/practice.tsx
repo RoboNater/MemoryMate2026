@@ -9,12 +9,18 @@ import { type GuidedDifficulty, type PracticeMode } from '@/types';
 // collapsing behind a "show more" toggle.
 const INITIAL_VISIBLE_VERSES = 15;
 
+type PreferenceOption<T extends string> = {
+  value: T;
+  label: string;
+  description: string;
+};
+
 // Practice modes (epic #18). The mode is chosen here and carried into every
 // practice route as a `mode` param, so all three entry points below --
 // practice all, needs work, and a single verse -- honour the same choice.
 // The choice itself lives in the store, persisted per device (#34), so it
 // survives leaving the tab and restarting the app.
-const MODE_OPTIONS: { value: PracticeMode; label: string; description: string }[] = [
+const MODE_OPTIONS: PreferenceOption<PracticeMode>[] = [
   {
     value: 'reveal',
     label: 'Reveal',
@@ -27,11 +33,7 @@ const MODE_OPTIONS: { value: PracticeMode; label: string; description: string }[
   },
 ];
 
-const DIFFICULTY_OPTIONS: {
-  value: GuidedDifficulty;
-  label: string;
-  description: string;
-}[] = [
+const DIFFICULTY_OPTIONS: PreferenceOption<GuidedDifficulty>[] = [
   {
     value: 'walkthrough',
     label: 'Rhythm walkthrough',
@@ -67,7 +69,7 @@ export default function PracticeScreen() {
   const activeShelf = getActiveShelf();
   const versesNeedingWork = getVersesNeedingPractice();
   const [showAllVerses, setShowAllVerses] = useState(false);
-  // A failed practice-mode write is reported here, in the picker that asked
+  // A failed practice-preference write is reported here, in the picker that asked
   // for it -- the same shape `ManageShelvesModal` uses for shelf writes (#39).
   // The store's `error` is deliberately not read for this: it is shared by
   // every write, so a screen that rendered it would show failures it did not
@@ -78,34 +80,20 @@ export default function PracticeScreen() {
     return <LoadingSpinner message="Loading verses..." />;
   }
 
-  /**
-   * Pick a practice mode. `setPracticeMode` rejects if the durable write
-   * failed (#39), in which case the store keeps the mode that is actually
-   * persisted -- so the picker must say the choice didn't stick rather than
-   * silently showing the old one back.
-   */
-  const chooseMode = async (mode: PracticeMode) => {
-    if (mode === practiceMode) return;
+  const choosePreference = async <T extends string,>(
+    choice: T,
+    current: T,
+    options: PreferenceOption<T>[],
+    persist: (choice: T) => Promise<void>
+  ) => {
+    if (choice === current) return;
     setPreferenceError(null);
     try {
-      await setPracticeMode(mode);
+      await persist(choice);
     } catch {
-      const kept = MODE_OPTIONS.find((o) => o.value === practiceMode)?.label;
-      setPreferenceError(
-        `Couldn't save that choice — still set to ${kept}. Please try again.`
-      );
-    }
-  };
-
-  const chooseDifficulty = async (difficulty: GuidedDifficulty) => {
-    if (difficulty === guidedDifficulty) return;
-    setPreferenceError(null);
-    try {
-      await setGuidedDifficulty(difficulty);
-    } catch {
-      const kept = DIFFICULTY_OPTIONS.find(
-        (option) => option.value === guidedDifficulty
-      )?.label;
+      // Both store actions reject without changing their persisted selection
+      // (#39), so report the value that was actually kept.
+      const kept = options.find((option) => option.value === current)?.label;
       setPreferenceError(
         `Couldn't save that choice — still set to ${kept}. Please try again.`
       );
@@ -154,8 +142,16 @@ export default function PracticeScreen() {
                 return (
                   <TouchableOpacity
                     key={option.value}
-                    // chooseMode handles its own failure; nothing to catch here.
-                    onPress={() => void chooseMode(option.value)}
+                    onPress={() =>
+                      void choosePreference(
+                        option.value,
+                        practiceMode,
+                        MODE_OPTIONS,
+                        setPracticeMode
+                      )
+                    }
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: isSelected }}
                     className={`flex-1 py-2 rounded-lg items-center border ${
                       isSelected
                         ? 'bg-green-500 border-green-500'
@@ -188,7 +184,14 @@ export default function PracticeScreen() {
                     return (
                       <TouchableOpacity
                         key={option.value}
-                        onPress={() => void chooseDifficulty(option.value)}
+                        onPress={() =>
+                          void choosePreference(
+                            option.value,
+                            guidedDifficulty,
+                            DIFFICULTY_OPTIONS,
+                            setGuidedDifficulty
+                          )
+                        }
                         accessibilityRole="radio"
                         accessibilityState={{ checked: isSelected }}
                         className={`rounded-lg border px-3 py-2 ${

@@ -226,11 +226,18 @@ is unavailable until there is somewhere to store per-word history. This is the d
 most likely to be revisited, which is why all four are written down rather than just the
 winner.
 
-### What the discussion did *not* settle — and how it was settled
+### What the first implementation deferred — and how it was settled
 
-Three questions were left open on #44 rather than decided in the discussion above. The
-mechanism first shipped without controls so real use could answer them before the visual
-layer was built.
+#44 deliberately shipped the input mechanism before its decoration and controls, so
+real-device use could constrain the visual layer rather than forcing it to be rebuilt.
+#47 completed that second stage.
+
+**A wrong letter shakes the visible box.** The animation uses a Reanimated shared value
+on an animated layer that exists from the first render. A toggled NativeWind animation
+class would make react-native-css-interop upgrade and remount the slot mid-exercise,
+precisely when the input must retain its place and focus. The measured slot wrapper stays
+outside the transform as well, so the auto-scroll coordinates introduced in #50 cannot
+pick up a transient horizontal offset while the box moves.
 
 **Difficulty is a named three-point control.** `DEFAULT_SHOWN_FRACTION` remains two thirds
 and is exposed as Easy. Challenge asks for a zero shown fraction (the first-word and
@@ -245,10 +252,10 @@ which is exactly the experience the setting exists to avoid. `MAX_CONSECUTIVE_HI
 caps the run, and both rules can push the realised fraction above the target. That is
 accepted — the fraction is a dial, not a contract.
 
-Deferring all three to #47 rather than to "later" is the point: the mechanism was worth
-merging and using on its own, and real-device input behaviour under a non-Gboard Android
-IME is the kind of unknown that reading sources cannot settle. Building decoration on top
-of an untested input would have risked doing it twice.
+Splitting #44 and #47 was worthwhile: real-device input behaviour under a non-Gboard
+Android IME was the kind of unknown that reading sources could not settle, while naming
+the second stage kept the temporary lack of feedback and controls from becoming the
+permanent design by accident.
 
 ### An observation worth keeping
 
@@ -262,6 +269,7 @@ temptation.
 
 ### What came out of it
 
-#44 (the rebuild), #45 (blind version to Test), #46 (no undo, deliberately), and this
-note. #32 was reframed rather than refiled — it turned out to be the far end of the
-difficulty axis rather than a standalone variant.
+#44 (the rebuild), #47 (visual feedback and the difficulty control), #45 (blind version
+to Test), #46 (no undo, deliberately), and this note. #32 was reframed rather than
+refiled — it turned out to be the far end of the difficulty axis rather than a standalone
+variant.
