@@ -135,3 +135,24 @@ export function parsePracticeMode(value: string | undefined): PracticeMode {
     ? (value as PracticeMode)
     : DEFAULT_PRACTICE_MODE;
 }
+
+/**
+ * How much help guided first-letter practice gives (issue #47).
+ *
+ * These are named points on one dial, not separate practice modes. In
+ * particular, `walkthrough` is the all-words-shown end of the same guided
+ * interaction, where the user can establish the verse's rhythm without recall
+ * pressure.
+ */
+export const GUIDED_DIFFICULTIES = ['walkthrough', 'easy', 'challenge'] as const;
+
+export type GuidedDifficulty = typeof GUIDED_DIFFICULTIES[number];
+
+export const DEFAULT_GUIDED_DIFFICULTY: GuidedDifficulty = 'easy';
+
+/** Read a `difficulty` route param, falling back safely for old URLs. */
+export function parseGuidedDifficulty(value: string | undefined): GuidedDifficulty {
+  return GUIDED_DIFFICULTIES.includes(value as GuidedDifficulty)
+    ? (value as GuidedDifficulty)
+    : DEFAULT_GUIDED_DIFFICULTY;
+}

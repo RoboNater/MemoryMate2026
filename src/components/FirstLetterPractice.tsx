@@ -22,6 +22,8 @@ interface FirstLetterPracticeProps {
   verseText: string;
   /** Seeds which words are shown, so a verse blanks the same words each time. */
   verseId: string;
+  /** Fraction of words shown as memory aids; the Practice tab owns the preset. */
+  shownFraction?: number;
   translation: string;
   /**
    * Fires once, when every word has been settled. The caller decides what that
@@ -51,13 +53,14 @@ const FALLBACK_SLOT: LayoutRectangle = { x: 0, y: 0, width: 34, height: 36 };
 export function FirstLetterPractice({
   verseText,
   verseId,
+  shownFraction,
   translation,
   onComplete,
   onActiveSlotLayout,
 }: FirstLetterPracticeProps) {
   const [state, dispatch] = useReducer(
     guidedReducer,
-    { verseText, verseId },
+    { verseText, verseId, shownFraction },
     createGuidedState
   );
   // The active slot's rectangle, in the row's coordinate space, asked for

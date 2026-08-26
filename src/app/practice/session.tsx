@@ -9,13 +9,15 @@ import {
   useActiveSlotAutoScroll,
 } from '@/components';
 import { useVerseStore } from '@/store';
-import { parsePracticeMode } from '@/types';
+import { parseGuidedDifficulty, parsePracticeMode } from '@/types';
+import { shownFractionForDifficulty } from '@/utils/guidedFirstLetter';
 
 export default function PracticeSessionScreen() {
-  const { ids, index, mode } = useLocalSearchParams<{
+  const { ids, index, mode, difficulty } = useLocalSearchParams<{
     ids: string;
     index: string;
     mode?: string;
+    difficulty?: string;
   }>();
   const router = useRouter();
   const { verses, progress, recordPractice, setComfortLevel: setComfortLevelAction } = useVerseStore();
@@ -25,8 +27,10 @@ export default function PracticeSessionScreen() {
   const verseIds = ids ? ids.split(',') : [];
   const currentIndex = parseInt(index || '0', 10);
   const practiceMode = parsePracticeMode(mode);
+  const guidedDifficulty = parseGuidedDifficulty(difficulty);
   // Preserved across every navigation within the session.
-  const sessionQuery = `ids=${ids}&mode=${practiceMode}`;
+  const sessionQuery =
+    `ids=${ids}&mode=${practiceMode}&difficulty=${guidedDifficulty}`;
 
   // Filter to only valid verses (handles deleted verses during session)
   const validVerseIds = verseIds.filter(id => verses.find(v => v.id === id));
@@ -195,6 +199,7 @@ export default function PracticeSessionScreen() {
             verseText={verse.text}
             verseId={verse.id}
             translation={verse.translation}
+            shownFraction={shownFractionForDifficulty(guidedDifficulty)}
             onComplete={() => setRevealed(true)}
             onActiveSlotLayout={onActiveSlotLayout}
           />

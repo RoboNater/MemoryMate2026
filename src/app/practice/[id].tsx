@@ -7,10 +7,15 @@ import {
   useActiveSlotAutoScroll,
 } from '@/components';
 import { useVerseStore } from '@/store';
-import { parsePracticeMode } from '@/types';
+import { parseGuidedDifficulty, parsePracticeMode } from '@/types';
+import { shownFractionForDifficulty } from '@/utils/guidedFirstLetter';
 
 export default function PracticeVerseScreen() {
-  const { id, mode } = useLocalSearchParams<{ id: string; mode?: string }>();
+  const { id, mode, difficulty } = useLocalSearchParams<{
+    id: string;
+    mode?: string;
+    difficulty?: string;
+  }>();
   const router = useRouter();
   const { verses, progress, recordPractice, setComfortLevel: setComfortLevelAction } = useVerseStore();
   const verse = verses.find((v) => v.id === id);
@@ -22,6 +27,7 @@ export default function PracticeVerseScreen() {
     verseProgress?.comfort_level || 1
   );
   const practiceMode = parsePracticeMode(mode);
+  const guidedDifficulty = parseGuidedDifficulty(difficulty);
 
   if (!verse) {
     return (
@@ -94,6 +100,7 @@ export default function PracticeVerseScreen() {
             verseText={verse.text}
             verseId={verse.id}
             translation={verse.translation}
+            shownFraction={shownFractionForDifficulty(guidedDifficulty)}
             onComplete={() => setRevealed(true)}
             onActiveSlotLayout={onActiveSlotLayout}
           />
