@@ -6,6 +6,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   createGuidedState,
   guidedReducer,
@@ -110,6 +117,10 @@ export function FirstLetterPractice({
   const focusInput = useCallback(() => inputRef.current?.focus(), []);
 
   const activeWord = finished ? null : state.slots[state.cursor];
+  const shakeSlot =
+    state.lastFeedback?.kind === 'wrong' || state.lastFeedback?.kind === 'revealed'
+      ? state.lastFeedback.slot
+      : -1;
 
   /**
    * Measure the active slot against the row, on demand.
@@ -226,6 +237,7 @@ export function FirstLetterPractice({
                   slot={slot}
                   active={!finished && index === state.cursor}
                   flagged={!finished && index === state.cursor && state.attempts > 0}
+                  shakeNonce={shakeSlot === index ? state.seq : 0}
                   boxRef={(node) => {
                     boxRefs.current[index] = node;
                   }}
@@ -339,14 +351,40 @@ function Slot({
   slot,
   active,
   flagged,
+  shakeNonce,
   boxRef,
 }: {
   slot: GuidedSlot;
   active: boolean;
   flagged: boolean;
+  /** Non-zero reducer sequence for each wrong letter targeting this slot. */
+  shakeNonce: number;
   /** The box the input is parked over; the caller measures it against the row. */
   boxRef: (node: React.ComponentRef<typeof View> | null) => void;
 }) {
+  const shakeX = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  // The animated wrapper exists from the first render. Adding an animation
+  // class later would make react-native-css-interop remount the slot exactly
+  // when the TextInput needs to keep its place and focus (#47).
+  useEffect(() => {
+    if (shakeNonce === 0) return;
+    shakeX.set(0);
+    shakeX.set(
+      withSequence(
+        withTiming(-5, { duration: 40, reduceMotion: ReduceMotion.System }),
+        withTiming(5, { duration: 55, reduceMotion: ReduceMotion.System }),
+        withTiming(-4, { duration: 50, reduceMotion: ReduceMotion.System }),
+        withTiming(4, { duration: 50, reduceMotion: ReduceMotion.System }),
+        withTiming(-2, { duration: 45, reduceMotion: ReduceMotion.System }),
+        withTiming(0, { duration: 40, reduceMotion: ReduceMotion.System })
+      )
+    );
+  }, [shakeNonce, shakeX]);
+
   // A word is shown once it is settled, and beforehand only if it was chosen
   // as a memory aid. Either way it still asks for its first letter.
   const shown = slot.status !== 'pending' || slot.visible;
@@ -376,7 +414,7 @@ function Slot({
   }
 
   return (
-    <View className="items-center">
+    <Animated.View style={shakeStyle} className="items-center">
       <View
         ref={boxRef}
         style={{ minWidth: 34 }}
@@ -396,7 +434,7 @@ function Slot({
           <Text className="text-[10px] text-red-400 uppercase">{slot.wrongLetter}</Text>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
