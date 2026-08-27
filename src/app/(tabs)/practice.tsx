@@ -80,20 +80,37 @@ export default function PracticeScreen() {
     return <LoadingSpinner message="Loading verses..." />;
   }
 
-  const choosePreference = async <T extends string,>(
-    choice: T,
-    current: T,
-    options: PreferenceOption<T>[],
-    persist: (choice: T) => Promise<void>
-  ) => {
-    if (choice === current) return;
+  /**
+   * Pick a practice mode. `setPracticeMode` rejects if the durable write
+   * failed (#39), in which case the store keeps the mode that is actually
+   * persisted -- so the picker must say the choice didn't stick rather than
+   * silently showing the old one back.
+   */
+  const chooseMode = async (mode: PracticeMode) => {
+    if (mode === practiceMode) return;
     setPreferenceError(null);
     try {
-      await persist(choice);
+      await setPracticeMode(mode);
     } catch {
-      // Both store actions reject without changing their persisted selection
-      // (#39), so report the value that was actually kept.
-      const kept = options.find((option) => option.value === current)?.label;
+      const kept = MODE_OPTIONS.find(
+        (option) => option.value === practiceMode
+      )?.label;
+      setPreferenceError(
+        `Couldn't save that choice — still set to ${kept}. Please try again.`
+      );
+    }
+  };
+
+  /** Difficulty uses the same durable-write contract as practice mode. */
+  const chooseDifficulty = async (difficulty: GuidedDifficulty) => {
+    if (difficulty === guidedDifficulty) return;
+    setPreferenceError(null);
+    try {
+      await setGuidedDifficulty(difficulty);
+    } catch {
+      const kept = DIFFICULTY_OPTIONS.find(
+        (option) => option.value === guidedDifficulty
+      )?.label;
       setPreferenceError(
         `Couldn't save that choice — still set to ${kept}. Please try again.`
       );
@@ -142,14 +159,8 @@ export default function PracticeScreen() {
                 return (
                   <TouchableOpacity
                     key={option.value}
-                    onPress={() =>
-                      void choosePreference(
-                        option.value,
-                        practiceMode,
-                        MODE_OPTIONS,
-                        setPracticeMode
-                      )
-                    }
+                    // chooseMode handles its own failure; nothing to catch here.
+                    onPress={() => void chooseMode(option.value)}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: isSelected }}
                     className={`flex-1 py-2 rounded-lg items-center border ${
@@ -184,14 +195,8 @@ export default function PracticeScreen() {
                     return (
                       <TouchableOpacity
                         key={option.value}
-                        onPress={() =>
-                          void choosePreference(
-                            option.value,
-                            guidedDifficulty,
-                            DIFFICULTY_OPTIONS,
-                            setGuidedDifficulty
-                          )
-                        }
+                        // chooseDifficulty handles its own failure.
+                        onPress={() => void chooseDifficulty(option.value)}
                         accessibilityRole="radio"
                         accessibilityState={{ checked: isSelected }}
                         className={`rounded-lg border px-3 py-2 ${

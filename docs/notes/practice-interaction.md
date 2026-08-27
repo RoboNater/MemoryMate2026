@@ -232,12 +232,13 @@ winner.
 real-device use could constrain the visual layer rather than forcing it to be rebuilt.
 #47 completed that second stage.
 
-**A wrong letter shakes the visible box.** The animation uses a Reanimated shared value
-on an animated layer that exists from the first render. A toggled NativeWind animation
-class would make react-native-css-interop upgrade and remount the slot mid-exercise,
-precisely when the input must retain its place and focus. The measured slot wrapper stays
-outside the transform as well, so the auto-scroll coordinates introduced in #50 cannot
-pick up a transient horizontal offset while the box moves.
+**A wrong letter shakes the visible slot.** The box and its cursor or wrong-letter cue
+move together from one Reanimated shared value, on animated layers that exist from the
+first render. A toggled NativeWind animation class would make react-native-css-interop
+upgrade and remount the slot mid-exercise, precisely when the input must retain its place
+and focus. The measured box wrapper stays outside the transform as well, so the
+auto-scroll coordinates introduced in #50 cannot pick up a transient horizontal offset
+while the visual layers move.
 
 **Difficulty is a named three-point control.** `DEFAULT_SHOWN_FRACTION` remains two thirds
 and is exposed as Easy. Challenge asks for a zero shown fraction (the first-word and

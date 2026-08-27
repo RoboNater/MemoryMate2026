@@ -363,7 +363,10 @@ function Slot({
   boxRef: (node: React.ComponentRef<typeof View> | null) => void;
 }) {
   const shakeX = useSharedValue(0);
-  const shakeStyle = useAnimatedStyle(() => ({
+  const boxShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+  const feedbackShakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeX.value }],
   }));
 
@@ -417,11 +420,13 @@ function Slot({
     <View className="items-center">
       {/* Keep the measured wrapper outside the transform. `measureInWindow`
           can include ancestor transforms on iOS; measuring this stable layer
-          makes #50's auto-scroll coordinates independent of shake timing. */}
+          makes #50's auto-scroll coordinates independent of shake timing.
+          Its minWidth also remains the width floor for the stretched animated
+          layer and bordered box beneath it. */}
       <View ref={boxRef} style={{ minWidth: 34 }}>
         {/* No className on Animated.View: NativeWind does not register
             Reanimated components, so classes on this node would be inert. */}
-        <Animated.View style={shakeStyle}>
+        <Animated.View style={boxShakeStyle}>
           <View
             className={`h-9 px-1.5 rounded border items-center justify-center ${box}`}
           >
@@ -435,12 +440,16 @@ function Slot({
         </Animated.View>
       </View>
       {/* The active slot's cursor, and under a missed word, what was typed. */}
-      <View className="h-4 items-center justify-start">
-        {active && <View className="w-4 h-0.5 mt-0.5 bg-blue-500 rounded-full" />}
-        {!active && slot.status === 'missed' && slot.wrongLetter && (
-          <Text className="text-[10px] text-red-400 uppercase">{slot.wrongLetter}</Text>
-        )}
-      </View>
+      <Animated.View style={feedbackShakeStyle}>
+        <View className="h-4 items-center justify-start">
+          {active && <View className="w-4 h-0.5 mt-0.5 bg-blue-500 rounded-full" />}
+          {!active && slot.status === 'missed' && slot.wrongLetter && (
+            <Text className="text-[10px] text-red-400 uppercase">
+              {slot.wrongLetter}
+            </Text>
+          )}
+        </View>
+      </Animated.View>
     </View>
   );
 }
