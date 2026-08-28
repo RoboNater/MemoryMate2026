@@ -244,8 +244,10 @@ while the visual layers move.
 and is exposed as Easy. Challenge asks for a zero shown fraction (the first-word and
 maximum-hidden-run safety rules still apply), while Rhythm walkthrough shows every word.
 The choices live beneath First letters on the Practice tab rather than becoming extra
-top-level modes, and the device-local selection is carried through the whole session.
-This keeps the conceptual model honest: all three are points on one guided-practice dial.
+top-level modes. They appear as stacked, full-width cards only when that mode is selected,
+which leaves room for each description without crowding the two-up mode row. The
+device-local selection is carried through the whole session. This keeps the conceptual
+model honest: all three are points on one guided-practice dial.
 
 **Words are never blanked in runs longer than three.** "Keep the first word visible" alone
 turned out not to be enough: a seeded two-thirds mask can still deal six blanks in a row,

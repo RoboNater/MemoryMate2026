@@ -363,6 +363,9 @@ function Slot({
   boxRef: (node: React.ComponentRef<typeof View> | null) => void;
 }) {
   const shakeX = useSharedValue(0);
+  // Keep one animated-style hook per view. Sharing one style currently works
+  // through Reanimated's multi-view descriptor set, but that is an
+  // implementation detail this focus-sensitive interaction need not depend on.
   const boxShakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeX.value }],
   }));

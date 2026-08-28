@@ -162,7 +162,7 @@ export default function PracticeScreen() {
                     // chooseMode handles its own failure; nothing to catch here.
                     onPress={() => void chooseMode(option.value)}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected }}
+                    aria-checked={isSelected}
                     className={`flex-1 py-2 rounded-lg items-center border ${
                       isSelected
                         ? 'bg-green-500 border-green-500'
@@ -198,7 +198,7 @@ export default function PracticeScreen() {
                         // chooseDifficulty handles its own failure.
                         onPress={() => void chooseDifficulty(option.value)}
                         accessibilityRole="radio"
-                        accessibilityState={{ checked: isSelected }}
+                        aria-checked={isSelected}
                         className={`rounded-lg border px-3 py-2 ${
                           isSelected
                             ? 'bg-green-50 border-green-500'
