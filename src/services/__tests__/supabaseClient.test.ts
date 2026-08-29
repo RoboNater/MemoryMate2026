@@ -69,4 +69,26 @@ describe('supabaseClient', () => {
       })
     );
   });
+
+  it('stays offline when present environment variables are unusable', () => {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'YOUR-PROJECT.supabase.co';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'public-anon-key';
+    mockCreateClient.mockImplementation(() => {
+      throw new Error('Invalid supabaseUrl: Must be a valid HTTP or HTTPS URL.');
+    });
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+
+    let clientModule: typeof import('../supabaseClient');
+    jest.isolateModules(() => {
+      clientModule = jest.requireActual('../supabaseClient');
+    });
+
+    expect(clientModule!.supabase).toBeNull();
+    expect(clientModule!.isSupabaseConfigured).toBe(false);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Supabase env vars are present but unusable: Invalid supabaseUrl'
+      )
+    );
+  });
 });

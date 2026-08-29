@@ -20,18 +20,17 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-/** True when both Supabase env vars are present, so cloud sync can be attempted. */
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+function createSupabaseClient(): SupabaseClient | null {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn(
+      '[MemoryMate] Supabase env vars missing (EXPO_PUBLIC_SUPABASE_URL / ' +
+        'EXPO_PUBLIC_SUPABASE_ANON_KEY). Cloud sync is disabled; the app runs offline only.'
+    );
+    return null;
+  }
 
-if (!isSupabaseConfigured) {
-  console.warn(
-    '[MemoryMate] Supabase env vars missing (EXPO_PUBLIC_SUPABASE_URL / ' +
-      'EXPO_PUBLIC_SUPABASE_ANON_KEY). Cloud sync is disabled; the app runs offline only.'
-  );
-}
-
-export const supabase: SupabaseClient | null = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey, {
+  try {
+    return createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         // Native needs an explicit storage adapter; web uses the gotrue default.
         storage: Platform.OS === 'web' ? undefined : AsyncStorage,
@@ -40,5 +39,18 @@ export const supabase: SupabaseClient | null = supabaseUrl && supabaseAnonKey
         // URL session detection only makes sense on web (OAuth redirect handling).
         detectSessionInUrl: Platform.OS === 'web',
       },
-    })
-  : null;
+    });
+  } catch (error) {
+    console.warn(
+      '[MemoryMate] Supabase env vars are present but unusable: ' +
+        (error instanceof Error ? error.message : String(error)) +
+        ' Cloud sync is disabled; the app runs offline only.'
+    );
+    return null;
+  }
+}
+
+export const supabase: SupabaseClient | null = createSupabaseClient();
+
+/** True when Supabase accepted the configuration, so cloud sync can be attempted. */
+export const isSupabaseConfigured = supabase !== null;
