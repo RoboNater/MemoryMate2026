@@ -15,7 +15,7 @@
 import 'react-native-url-polyfill/auto';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -30,13 +30,15 @@ if (!isSupabaseConfigured) {
   );
 }
 
-export const supabase = createClient(supabaseUrl ?? '', supabaseAnonKey ?? '', {
-  auth: {
-    // Native needs an explicit storage adapter; web uses the gotrue default.
-    storage: Platform.OS === 'web' ? undefined : AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    // URL session detection only makes sense on web (OAuth redirect handling).
-    detectSessionInUrl: Platform.OS === 'web',
-  },
-});
+export const supabase: SupabaseClient | null = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        // Native needs an explicit storage adapter; web uses the gotrue default.
+        storage: Platform.OS === 'web' ? undefined : AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        // URL session detection only makes sense on web (OAuth redirect handling).
+        detectSessionInUrl: Platform.OS === 'web',
+      },
+    })
+  : null;

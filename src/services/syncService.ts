@@ -26,7 +26,8 @@
  * starts clean on a shared device.
  */
 import { getDatabase } from './database';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
 import { getCurrentSession } from './authService';
 import { useVerseStore } from '@/store/verseStore';
 import { useSyncStore } from '@/store/syncStore';
@@ -124,6 +125,7 @@ async function clearPullWatermarks(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function pushTable(
+  client: SupabaseClient,
   table: 'shelves' | 'verses' | 'progress' | 'test_results',
   since: string,
   userId: string,
@@ -139,16 +141,21 @@ async function pushTable(
 
   const payloads = rows.map((r) => ({ ...toPayload(r), user_id: userId }));
   for (const part of chunk(payloads, UPSERT_CHUNK)) {
-    const { error } = await supabase.from(table).upsert(part, { onConflict });
+    const { error } = await client.from(table).upsert(part, { onConflict });
     if (error) throw new Error(`push ${table}: ${error.message}`);
   }
   return rows.length;
 }
 
-async function pushAll(since: string, userId: string): Promise<number> {
+async function pushAll(
+  client: SupabaseClient,
+  since: string,
+  userId: string
+): Promise<number> {
   let n = 0;
   // Dependency order so server-side FKs are always satisfied.
   n += await pushTable(
+    client,
     'shelves',
     since,
     userId,
@@ -162,6 +169,7 @@ async function pushAll(since: string, userId: string): Promise<number> {
     'id'
   );
   n += await pushTable(
+    client,
     'verses',
     since,
     userId,
@@ -179,6 +187,7 @@ async function pushAll(since: string, userId: string): Promise<number> {
     'id'
   );
   n += await pushTable(
+    client,
     'progress',
     since,
     userId,
@@ -196,6 +205,7 @@ async function pushAll(since: string, userId: string): Promise<number> {
     'verse_id'
   );
   n += await pushTable(
+    client,
     'test_results',
     since,
     userId,
@@ -218,13 +228,14 @@ async function pushAll(since: string, userId: string): Promise<number> {
 // ---------------------------------------------------------------------------
 
 async function fetchRemote(
+  client: SupabaseClient,
   table: 'shelves' | 'verses' | 'progress' | 'test_results',
   since: string
 ): Promise<any[]> {
   // INCLUSIVE (`>=`): re-read the boundary timestamp each pull so same-timestamp
   // rows made visible across separate server writes are never stranded (see the
   // per-table watermark note above). Safe because the merge is idempotent.
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from(table)
     .select('*')
     .gte('updated_at', since)
@@ -238,7 +249,7 @@ async function fetchRemote(
  * getPullSince) so one table's progress can't skip another's same-timestamp
  * rows. Returns how many rows were applied locally.
  */
-async function pullAll(): Promise<{ pulled: number }> {
+async function pullAll(client: SupabaseClient): Promise<{ pulled: number }> {
   const db = getDatabase();
   let pulled = 0;
 
@@ -249,7 +260,7 @@ async function pullAll(): Promise<{ pulled: number }> {
   const note = (ua: string | null) => {
     if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
   };
-  for (const r of await fetchRemote('shelves', since)) {
+  for (const r of await fetchRemote(client, 'shelves', since)) {
     note(r.updated_at);
     try {
       const local = await db.getFirstAsync<any>('SELECT * FROM shelves WHERE id = ?', [r.id]);
@@ -281,7 +292,7 @@ async function pullAll(): Promise<{ pulled: number }> {
   const note = (ua: string | null) => {
     if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
   };
-  for (const r of await fetchRemote('verses', since)) {
+  for (const r of await fetchRemote(client, 'verses', since)) {
     note(r.updated_at);
     try {
       const local = await db.getFirstAsync<any>('SELECT * FROM verses WHERE id = ?', [r.id]);
@@ -315,7 +326,7 @@ async function pullAll(): Promise<{ pulled: number }> {
   const note = (ua: string | null) => {
     if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
   };
-  for (const r of await fetchRemote('progress', since)) {
+  for (const r of await fetchRemote(client, 'progress', since)) {
     note(r.updated_at);
     try {
       const local = await db.getFirstAsync<any>('SELECT * FROM progress WHERE verse_id = ?', [r.verse_id]);
@@ -371,7 +382,7 @@ async function pullAll(): Promise<{ pulled: number }> {
   const note = (ua: string | null) => {
     if (ua && isNewer(ua, maxUpdated)) maxUpdated = ua;
   };
-  for (const r of await fetchRemote('test_results', since)) {
+  for (const r of await fetchRemote(client, 'test_results', since)) {
     note(r.updated_at);
     try {
       const local = await db.getFirstAsync<any>('SELECT * FROM test_results WHERE id = ?', [r.id]);
@@ -504,7 +515,7 @@ export async function clearLocalDataOnSignOut(): Promise<boolean> {
 export async function sync(): Promise<SyncResult> {
   if (inFlight) return inFlight;
   inFlight = (async (): Promise<SyncResult> => {
-    if (!isSupabaseConfigured) return { ok: false, skipped: true, reason: 'not-configured' };
+    if (!supabase) return { ok: false, skipped: true, reason: 'not-configured' };
 
     const session = await getCurrentSession();
     if (!session) return { ok: false, skipped: true, reason: 'signed-out' };
@@ -531,10 +542,10 @@ export async function sync(): Promise<SyncResult> {
 
       // Capture local time BEFORE pushing; rows changed mid-sync get caught next run.
       const pushWatermark = new Date().toISOString();
-      const pushed = await pushAll(pushSince, userId);
+      const pushed = await pushAll(supabase, pushSince, userId);
       await setMeta('last_pushed_at', pushWatermark);
 
-      const { pulled } = await pullAll();
+      const { pulled } = await pullAll(supabase);
 
       // After merging, drop any verse->shelf reference whose shelf is gone or
       // tombstoned (issue #5 review, concern 2). The repair is stamped, so it
