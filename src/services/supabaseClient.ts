@@ -9,8 +9,8 @@
  *   - Native (iOS/Android): AsyncStorage.
  *   - Web: the gotrue default (localStorage); detectSessionInUrl handles OAuth redirects.
  *
- * If the env vars are absent the app still runs fully offline against local SQLite;
- * `isSupabaseConfigured` lets callers skip cloud work gracefully.
+ * If the env vars are absent or unusable, the app still runs fully offline against
+ * local SQLite; `isSupabaseConfigured` lets callers skip cloud work gracefully.
  */
 import 'react-native-url-polyfill/auto';
 import { Platform } from 'react-native';
