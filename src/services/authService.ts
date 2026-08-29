@@ -6,7 +6,7 @@
  * One account = the user, shared across all their devices.
  */
 import type { Session, User, AuthError } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { supabase } from './supabaseClient';
 
 export interface AuthResult {
   user: User | null;
@@ -20,14 +20,14 @@ function messageFor(error: AuthError | null): string | null {
 
 /** Current session (null if signed out or Supabase isn't configured). */
 export async function getCurrentSession(): Promise<Session | null> {
-  if (!isSupabaseConfigured) return null;
+  if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   return data.session;
 }
 
 /** Sign in with email + password. */
 export async function signIn(email: string, password: string): Promise<AuthResult> {
-  if (!isSupabaseConfigured) {
+  if (!supabase) {
     return { user: null, session: null, error: 'Cloud sync is not configured.' };
   }
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -42,7 +42,7 @@ export async function signIn(email: string, password: string): Promise<AuthResul
  * confirmation setting, `session` may be null until the address is confirmed.
  */
 export async function signUp(email: string, password: string): Promise<AuthResult> {
-  if (!isSupabaseConfigured) {
+  if (!supabase) {
     return { user: null, session: null, error: 'Cloud sync is not configured.' };
   }
   const { data, error } = await supabase.auth.signUp({
@@ -54,7 +54,7 @@ export async function signUp(email: string, password: string): Promise<AuthResul
 
 /** Sign out the current user on this device. */
 export async function signOut(): Promise<{ error: string | null }> {
-  if (!isSupabaseConfigured) return { error: null };
+  if (!supabase) return { error: null };
   const { error } = await supabase.auth.signOut();
   return { error: messageFor(error) };
 }
@@ -66,7 +66,7 @@ export async function signOut(): Promise<{ error: string | null }> {
 export function onAuthStateChange(
   callback: (session: Session | null) => void
 ): () => void {
-  if (!isSupabaseConfigured) return () => {};
+  if (!supabase) return () => {};
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session);
   });
