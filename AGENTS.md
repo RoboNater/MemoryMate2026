@@ -87,8 +87,20 @@ CI-enforced. Currently covered: `syncCompare.ts`, `utils/scoring.ts`,
 `utils/guidedFirstLetter.ts`, `utils/testSession.ts`, `utils/textImport.ts`,
 `importValidation.ts`, and two narrow service/store contracts pinned with a
 shallow mock of their immediate boundary (`store/verseStore.ts`'s write actions,
-`verseService.addVerses`'s timestamps). Anything requiring a database is not yet covered — see
-`docs/notes/repo-cleanup-2026-08.md` for the open design question there.
+`verseService.addVerses`'s timestamps).
+
+The sync engine's merge logic — the code that only runs with a database handle —
+is now covered too (issue #64). The tests open a real schema-migrated SQLite
+database in Node via `sql.js` (`src/services/__tests__/testDatabase.ts`) and
+exercise `pullAll`, the progress counter reconciliation, `reconcileShelfMembership`,
+the account-scoping paths (`adoptUnownedRows` / `purgeRowsOwnedByOthers` /
+`clearLocalDataOnSignOut`), and `runMigrations`, with only the Supabase client
+faked at the `fetchRemote` boundary. The design question this settles — sql.js in
+Node vs. mocking the `AppDatabase` interface — went to sql.js, so the SQL itself
+is under test, not just the merge control flow; the rationale is in
+`docs/notes/repo-cleanup-2026-08.md`. This covers the shared merge logic and the
+web adapter's SQL, **not** `expo-sqlite`'s native transaction semantics — see the
+"two backends, one interface" invariant below.
 
 Two conventions worth following:
 
