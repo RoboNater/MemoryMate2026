@@ -131,8 +131,10 @@ Changes must not break these:
   `onPress` handlers, so it cannot gate an action (a real bug this caused: sign
   out silently did nothing in the browser). Use the in-app `ConfirmDialog`
   component for anything that needs a confirm/cancel choice.
-- **Use `aria-checked`, not `accessibilityState.checked`, for radio controls.**
-  React Native Web 0.21 renders the role from `accessibilityRole="radio"` but
-  silently drops the checked value inside `accessibilityState`, leaving web
-  screen readers unable to identify the selected option. `aria-checked` reaches
-  the DOM and React Native core also maps it into native accessibility state.
+- **Use `aria-*` props, not `accessibilityState`, for stateful controls.** React
+  Native Web 0.21 never reads the `accessibilityState` object, so checked,
+  disabled, expanded, and selected values inside it silently disappear from the
+  DOM. Use the matching `aria-checked`, `aria-disabled`, `aria-expanded`, or
+  `aria-selected` prop; React Native core maps them back into native
+  accessibility state. Related radio controls must also sit in a labelled
+  `radiogroup`, so independent sets do not appear as one contradictory group.

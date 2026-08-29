@@ -153,7 +153,11 @@ export default function PracticeScreen() {
             <Text className="text-sm font-medium text-gray-700 mb-2">
               How do you want to practice?
             </Text>
-            <View className="flex-row gap-2">
+            <View
+              className="flex-row gap-2"
+              accessibilityRole="radiogroup"
+              aria-label="How do you want to practice?"
+            >
               {MODE_OPTIONS.map((option) => {
                 const isSelected = practiceMode === option.value;
                 return (
@@ -189,7 +193,11 @@ export default function PracticeScreen() {
                 <Text className="text-sm font-medium text-gray-700 mb-2">
                   How much help do you want?
                 </Text>
-                <View className="gap-2">
+                <View
+                  className="gap-2"
+                  accessibilityRole="radiogroup"
+                  aria-label="How much help do you want?"
+                >
                   {DIFFICULTY_OPTIONS.map((option) => {
                     const isSelected = guidedDifficulty === option.value;
                     return (
