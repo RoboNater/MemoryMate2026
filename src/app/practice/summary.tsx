@@ -2,16 +2,21 @@ import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ErrorDisplay } from '@/components';
 import { useVerseStore } from '@/store';
-import { parsePracticeMode } from '@/types';
+import { parseGuidedDifficulty, parsePracticeMode } from '@/types';
 
 export default function PracticeSummaryScreen() {
-  const { ids, mode } = useLocalSearchParams<{ ids: string; mode?: string }>();
+  const { ids, mode, difficulty } = useLocalSearchParams<{
+    ids: string;
+    mode?: string;
+    difficulty?: string;
+  }>();
   const router = useRouter();
   const { verses, progress } = useVerseStore();
 
   // Parse session parameters
   const verseIds = ids ? ids.split(',') : [];
   const practiceMode = parsePracticeMode(mode);
+  const guidedDifficulty = parseGuidedDifficulty(difficulty);
 
   // Get verses that were in this session
   const sessionVerses = verseIds
@@ -49,7 +54,9 @@ export default function PracticeSummaryScreen() {
   // `mode` falls back to reveal, so summary URLs from before this existed
   // still work.
   const handlePracticeAgain = () => {
-    router.push(`/practice/session?ids=${ids}&mode=${practiceMode}&index=0`);
+    router.push(
+      `/practice/session?ids=${ids}&mode=${practiceMode}&difficulty=${guidedDifficulty}&index=0`
+    );
   };
 
   const handleDone = () => {

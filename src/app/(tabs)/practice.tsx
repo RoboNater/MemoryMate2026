@@ -3,18 +3,24 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { LoadingSpinner, ShelfPicker } from '@/components';
 import { useVerseStore } from '@/store';
-import { type PracticeMode } from '@/types';
+import { type GuidedDifficulty, type PracticeMode } from '@/types';
 
 // How many verses to show in the "choose a specific verse" list before
 // collapsing behind a "show more" toggle.
 const INITIAL_VISIBLE_VERSES = 15;
+
+type PreferenceOption<T extends string> = {
+  value: T;
+  label: string;
+  description: string;
+};
 
 // Practice modes (epic #18). The mode is chosen here and carried into every
 // practice route as a `mode` param, so all three entry points below --
 // practice all, needs work, and a single verse -- honour the same choice.
 // The choice itself lives in the store, persisted per device (#34), so it
 // survives leaving the tab and restarting the app.
-const MODE_OPTIONS: { value: PracticeMode; label: string; description: string }[] = [
+const MODE_OPTIONS: PreferenceOption<PracticeMode>[] = [
   {
     value: 'reveal',
     label: 'Reveal',
@@ -27,6 +33,24 @@ const MODE_OPTIONS: { value: PracticeMode; label: string; description: string }[
   },
 ];
 
+const DIFFICULTY_OPTIONS: PreferenceOption<GuidedDifficulty>[] = [
+  {
+    value: 'walkthrough',
+    label: 'Rhythm walkthrough',
+    description: 'See every word and step through the verse without recall pressure.',
+  },
+  {
+    value: 'easy',
+    label: 'Easy',
+    description: 'See most words, with a few blanks to recall.',
+  },
+  {
+    value: 'challenge',
+    label: 'Challenge',
+    description: 'Recall nearly every word, with only occasional guide words.',
+  },
+];
+
 export default function PracticeScreen() {
   const router = useRouter();
   const {
@@ -36,19 +60,21 @@ export default function PracticeScreen() {
     getVersesNeedingPractice,
     progress,
     practiceMode,
+    guidedDifficulty,
     setPracticeMode,
+    setGuidedDifficulty,
   } = useVerseStore();
   // The active set: all non-archived verses, or just the active shelf (issue #5).
   const activeVerses = getActiveSetVerses();
   const activeShelf = getActiveShelf();
   const versesNeedingWork = getVersesNeedingPractice();
   const [showAllVerses, setShowAllVerses] = useState(false);
-  // A failed practice-mode write is reported here, in the picker that asked
+  // A failed practice-preference write is reported here, in the picker that asked
   // for it -- the same shape `ManageShelvesModal` uses for shelf writes (#39).
   // The store's `error` is deliberately not read for this: it is shared by
   // every write, so a screen that rendered it would show failures it did not
   // cause.
-  const [modeError, setModeError] = useState<string | null>(null);
+  const [preferenceError, setPreferenceError] = useState<string | null>(null);
 
   if (isLoading) {
     return <LoadingSpinner message="Loading verses..." />;
@@ -62,12 +88,32 @@ export default function PracticeScreen() {
    */
   const chooseMode = async (mode: PracticeMode) => {
     if (mode === practiceMode) return;
-    setModeError(null);
+    setPreferenceError(null);
     try {
       await setPracticeMode(mode);
     } catch {
-      const kept = MODE_OPTIONS.find((o) => o.value === practiceMode)?.label;
-      setModeError(`Couldn't save that choice — still set to ${kept}. Please try again.`);
+      const kept = MODE_OPTIONS.find(
+        (option) => option.value === practiceMode
+      )?.label;
+      setPreferenceError(
+        `Couldn't save that choice — still set to ${kept}. Please try again.`
+      );
+    }
+  };
+
+  /** Difficulty uses the same durable-write contract as practice mode. */
+  const chooseDifficulty = async (difficulty: GuidedDifficulty) => {
+    if (difficulty === guidedDifficulty) return;
+    setPreferenceError(null);
+    try {
+      await setGuidedDifficulty(difficulty);
+    } catch {
+      const kept = DIFFICULTY_OPTIONS.find(
+        (option) => option.value === guidedDifficulty
+      )?.label;
+      setPreferenceError(
+        `Couldn't save that choice — still set to ${kept}. Please try again.`
+      );
     }
   };
 
@@ -76,13 +122,17 @@ export default function PracticeScreen() {
 
     // For single verse, navigate to individual practice screen
     if (verses.length === 1) {
-      router.push(`/practice/${verses[0].id}?mode=${practiceMode}`);
+      router.push(
+        `/practice/${verses[0].id}?mode=${practiceMode}&difficulty=${guidedDifficulty}`
+      );
       return;
     }
 
     // For multiple verses, navigate to session screen
     const verseIds = verses.map(v => v.id).join(',');
-    router.push(`/practice/session?ids=${verseIds}&mode=${practiceMode}&index=0`);
+    router.push(
+      `/practice/session?ids=${verseIds}&mode=${practiceMode}&difficulty=${guidedDifficulty}&index=0`
+    );
   };
 
   return (
@@ -103,7 +153,11 @@ export default function PracticeScreen() {
             <Text className="text-sm font-medium text-gray-700 mb-2">
               How do you want to practice?
             </Text>
-            <View className="flex-row gap-2">
+            <View
+              className="flex-row gap-2"
+              accessibilityRole="radiogroup"
+              aria-label="How do you want to practice?"
+            >
               {MODE_OPTIONS.map((option) => {
                 const isSelected = practiceMode === option.value;
                 return (
@@ -111,6 +165,8 @@ export default function PracticeScreen() {
                     key={option.value}
                     // chooseMode handles its own failure; nothing to catch here.
                     onPress={() => void chooseMode(option.value)}
+                    accessibilityRole="radio"
+                    aria-checked={isSelected}
                     className={`flex-1 py-2 rounded-lg items-center border ${
                       isSelected
                         ? 'bg-green-500 border-green-500'
@@ -131,9 +187,52 @@ export default function PracticeScreen() {
             <Text className="text-xs text-gray-500 mt-2">
               {MODE_OPTIONS.find((o) => o.value === practiceMode)?.description}
             </Text>
-            {modeError && (
+
+            {practiceMode === 'letters' && (
+              <View className="mt-4 pt-4 border-t border-gray-100">
+                <Text className="text-sm font-medium text-gray-700 mb-2">
+                  How much help do you want?
+                </Text>
+                <View
+                  className="gap-2"
+                  accessibilityRole="radiogroup"
+                  aria-label="How much help do you want?"
+                >
+                  {DIFFICULTY_OPTIONS.map((option) => {
+                    const isSelected = guidedDifficulty === option.value;
+                    return (
+                      <TouchableOpacity
+                        key={option.value}
+                        // chooseDifficulty handles its own failure.
+                        onPress={() => void chooseDifficulty(option.value)}
+                        accessibilityRole="radio"
+                        aria-checked={isSelected}
+                        className={`rounded-lg border px-3 py-2 ${
+                          isSelected
+                            ? 'bg-green-50 border-green-500'
+                            : 'bg-white border-gray-300'
+                        }`}
+                      >
+                        <Text
+                          className={`font-semibold ${
+                            isSelected ? 'text-green-800' : 'text-gray-700'
+                          }`}
+                        >
+                          {option.label}
+                        </Text>
+                        <Text className="text-xs text-gray-500 mt-0.5">
+                          {option.description}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {preferenceError && (
               <View className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mt-2">
-                <Text className="text-red-700 text-sm">{modeError}</Text>
+                <Text className="text-red-700 text-sm">{preferenceError}</Text>
               </View>
             )}
           </View>
@@ -232,7 +331,9 @@ export default function PracticeScreen() {
                     <TouchableOpacity
                       key={verse.id}
                       onPress={() =>
-                        router.push(`/practice/${verse.id}?mode=${practiceMode}`)
+                        router.push(
+                          `/practice/${verse.id}?mode=${practiceMode}&difficulty=${guidedDifficulty}`
+                        )
                       }
                       className="flex-row items-center justify-between py-3 border-b border-gray-100"
                     >

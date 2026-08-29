@@ -6,7 +6,9 @@ import {
   VerseStats,
   TestResult,
   Shelf,
+  GuidedDifficulty,
   PracticeMode,
+  DEFAULT_GUIDED_DIFFICULTY,
   DEFAULT_PRACTICE_MODE,
 } from '@/types';
 import { initDatabase } from '@/services/database';
@@ -68,6 +70,8 @@ export interface VerseStore {
    * flight are unaffected: they carry the mode in their route params.
    */
   practiceMode: PracticeMode;
+  /** Device-local difficulty used by guided first-letter practice (#47). */
+  guidedDifficulty: GuidedDifficulty;
   progress: Record<string, VerseProgress>;
   stats: OverallStats | null;
   /**
@@ -130,6 +134,7 @@ export interface VerseStore {
 
   // Practice/Test actions
   setPracticeMode: (mode: PracticeMode) => Promise<void>;
+  setGuidedDifficulty: (difficulty: GuidedDifficulty) => Promise<void>;
   recordPractice: (verseId: string) => Promise<void>;
   setComfortLevel: (verseId: string, level: 1 | 2 | 3 | 4 | 5) => Promise<void>;
   resetProgress: (verseId: string) => Promise<void>;
@@ -165,6 +170,7 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
   shelves: [],
   activeShelfId: null,
   practiceMode: DEFAULT_PRACTICE_MODE,
+  guidedDifficulty: DEFAULT_GUIDED_DIFFICULTY,
   progress: {},
   stats: null,
   isLoading: false,
@@ -198,12 +204,14 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
       // Restore the device-local practice mode (#34); unknown values fall
       // back to the default inside the service.
       const practiceMode = await preferencesService.getPracticeMode();
+      const guidedDifficulty = await preferencesService.getGuidedDifficulty();
 
       set({
         verses,
         shelves,
         activeShelfId,
         practiceMode,
+        guidedDifficulty,
         progress,
         stats,
         isInitialized: true,
@@ -470,6 +478,20 @@ export const useVerseStore = create<VerseStore>()((set, get) => ({
     } catch (error) {
       const errorMsg =
         error instanceof Error ? error.message : 'Failed to set practice mode';
+      set({ error: errorMsg });
+      throw error;
+    }
+  },
+
+  /** Persist guided practice's named difficulty preset on this device. */
+  setGuidedDifficulty: async (difficulty) => {
+    set({ error: null });
+    try {
+      await preferencesService.setGuidedDifficulty(difficulty);
+      set({ guidedDifficulty: difficulty });
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : 'Failed to set guided difficulty';
       set({ error: errorMsg });
       throw error;
     }

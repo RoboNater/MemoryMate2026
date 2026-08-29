@@ -226,24 +226,28 @@ is unavailable until there is somewhere to store per-word history. This is the d
 most likely to be revisited, which is why all four are written down rather than just the
 winner.
 
-### What the discussion did *not* settle — and how it was settled
+### What the first implementation deferred — and how it was settled
 
-Three questions were left open on #44 rather than decided in the discussion above. All
-three were answered when it was built, and all three the same way: **build the mechanism,
-expose nothing, and let using it decide.**
+#44 deliberately shipped the input mechanism before its decoration and controls, so
+real-device use could constrain the visual layer rather than forcing it to be rebuilt.
+#47 completed that second stage.
 
-**Difficulty is a constant, not a control.** `DEFAULT_SHOWN_FRACTION` is two thirds — the
-"easy" row of the table above — and nothing in the UI changes it. The machinery is fully
-built and parameterised, because the design depends on it and it is pure either way; what
-is deferred is only the control. The argument is that the right default is a thing you
-*feel* rather than reason about, and a control shipped before anyone has practised with
-one setting would be a guess wearing a slider. It also sidesteps the layout problem that
-made this a question in the first place: the mode picker on the Practice tab is a
-`flex-row` of `flex-1` buttons that already crowds at two options.
+**A wrong letter shakes the visible slot.** The box and its cursor or wrong-letter cue
+move together from one Reanimated shared value, on animated layers that exist from the
+first render. A toggled NativeWind animation class would make react-native-css-interop
+upgrade and remount the slot mid-exercise, precisely when the input must retain its place
+and focus. The measured box wrapper stays outside the transform as well, so the
+auto-scroll coordinates introduced in #50 cannot pick up a transient horizontal offset
+while the visual layers move.
 
-**The rhythm walkthrough gets no entry point yet**, for the same reason — it is the far
-end of the same dial, and whether it deserves a name of its own is easier to judge after
-stepping through a verse that way than before.
+**Difficulty is a named three-point control.** `DEFAULT_SHOWN_FRACTION` remains two thirds
+and is exposed as Easy. Challenge asks for a zero shown fraction (the first-word and
+maximum-hidden-run safety rules still apply), while Rhythm walkthrough shows every word.
+The choices live beneath First letters on the Practice tab rather than becoming extra
+top-level modes. They appear as stacked, full-width cards only when that mode is selected,
+which leaves room for each description without crowding the two-up mode row. The
+device-local selection is carried through the whole session. This keeps the conceptual
+model honest: all three are points on one guided-practice dial.
 
 **Words are never blanked in runs longer than three.** "Keep the first word visible" alone
 turned out not to be enough: a seeded two-thirds mask can still deal six blanks in a row,
@@ -251,10 +255,10 @@ which is exactly the experience the setting exists to avoid. `MAX_CONSECUTIVE_HI
 caps the run, and both rules can push the realised fraction above the target. That is
 accepted — the fraction is a dial, not a contract.
 
-Deferring all three to #47 rather than to "later" is the point: the mechanism was worth
-merging and using on its own, and real-device input behaviour under a non-Gboard Android
-IME is the kind of unknown that reading sources cannot settle. Building decoration on top
-of an untested input would have risked doing it twice.
+Splitting #44 and #47 was worthwhile: real-device input behaviour under a non-Gboard
+Android IME was the kind of unknown that reading sources could not settle, while naming
+the second stage kept the temporary lack of feedback and controls from becoming the
+permanent design by accident.
 
 ### An observation worth keeping
 
@@ -268,6 +272,7 @@ temptation.
 
 ### What came out of it
 
-#44 (the rebuild), #45 (blind version to Test), #46 (no undo, deliberately), and this
-note. #32 was reframed rather than refiled — it turned out to be the far end of the
-difficulty axis rather than a standalone variant.
+#44 (the rebuild), #47 (visual feedback and the difficulty control), #45 (blind version
+to Test), #46 (no undo, deliberately), and this note. #32 was reframed rather than
+refiled — it turned out to be the far end of the difficulty axis rather than a standalone
+variant.

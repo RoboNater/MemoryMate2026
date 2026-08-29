@@ -43,6 +43,8 @@ jest.mock('@/services/shelfService', () => ({
 jest.mock('@/services/preferencesService', () => ({
   getPracticeMode: jest.fn(),
   setPracticeMode: jest.fn(),
+  getGuidedDifficulty: jest.fn(),
+  setGuidedDifficulty: jest.fn(),
 }));
 jest.mock('@/services/dataExportService', () => ({}));
 // Dynamically imported by verseStore's syncAfterWrite() after a successful
@@ -370,7 +372,7 @@ describe('useVerseStore().initialize', () => {
  * back on startup -- not how the preference is stored, which is the (mocked)
  * service's business.
  */
-describe('practice mode preference', () => {
+describe('practice preferences', () => {
   const initialState = useVerseStore.getState();
 
   beforeEach(() => {
@@ -407,6 +409,31 @@ describe('practice mode preference', () => {
     expect(useVerseStore.getState().error).toBe('disk is full');
   });
 
+  it('writes guided difficulty through to the durable preference', async () => {
+    mockedPreferencesService.setGuidedDifficulty.mockResolvedValue(undefined);
+
+    await useVerseStore.getState().setGuidedDifficulty('walkthrough');
+
+    expect(mockedPreferencesService.setGuidedDifficulty).toHaveBeenCalledWith(
+      'walkthrough'
+    );
+    expect(useVerseStore.getState().guidedDifficulty).toBe('walkthrough');
+    expect(useVerseStore.getState().error).toBeNull();
+  });
+
+  it('rejects and leaves guided difficulty alone when the write fails', async () => {
+    mockedPreferencesService.setGuidedDifficulty.mockRejectedValue(
+      new Error('disk is full')
+    );
+
+    await expect(
+      useVerseStore.getState().setGuidedDifficulty('challenge')
+    ).rejects.toThrow('disk is full');
+
+    expect(useVerseStore.getState().guidedDifficulty).toBe('easy');
+    expect(useVerseStore.getState().error).toBe('disk is full');
+  });
+
   it('is restored by initialize()', async () => {
     mockedInitDatabase.mockResolvedValue(undefined as never);
     mockedVerseService.getAllVerses.mockResolvedValue([]);
@@ -415,9 +442,11 @@ describe('practice mode preference', () => {
     mockedProgressService.getAllProgress.mockResolvedValue([]);
     mockedStatsService.getOverallStats.mockResolvedValue(makeStats());
     mockedPreferencesService.getPracticeMode.mockResolvedValue('letters');
+    mockedPreferencesService.getGuidedDifficulty.mockResolvedValue('challenge');
 
     await useVerseStore.getState().initialize();
 
     expect(useVerseStore.getState().practiceMode).toBe('letters');
+    expect(useVerseStore.getState().guidedDifficulty).toBe('challenge');
   });
 });

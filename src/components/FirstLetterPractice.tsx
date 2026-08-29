@@ -6,6 +6,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, {
+  ReduceMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   createGuidedState,
   guidedReducer,
@@ -22,6 +29,8 @@ interface FirstLetterPracticeProps {
   verseText: string;
   /** Seeds which words are shown, so a verse blanks the same words each time. */
   verseId: string;
+  /** Fraction of words shown as memory aids; the Practice tab owns the preset. */
+  shownFraction?: number;
   translation: string;
   /**
    * Fires once, when every word has been settled. The caller decides what that
@@ -51,13 +60,14 @@ const FALLBACK_SLOT: LayoutRectangle = { x: 0, y: 0, width: 34, height: 36 };
 export function FirstLetterPractice({
   verseText,
   verseId,
+  shownFraction,
   translation,
   onComplete,
   onActiveSlotLayout,
 }: FirstLetterPracticeProps) {
   const [state, dispatch] = useReducer(
     guidedReducer,
-    { verseText, verseId },
+    { verseText, verseId, shownFraction },
     createGuidedState
   );
   // The active slot's rectangle, in the row's coordinate space, asked for
@@ -107,6 +117,10 @@ export function FirstLetterPractice({
   const focusInput = useCallback(() => inputRef.current?.focus(), []);
 
   const activeWord = finished ? null : state.slots[state.cursor];
+  const shakeSlot =
+    state.lastFeedback?.kind === 'wrong' || state.lastFeedback?.kind === 'revealed'
+      ? state.lastFeedback.slot
+      : -1;
 
   /**
    * Measure the active slot against the row, on demand.
@@ -223,6 +237,7 @@ export function FirstLetterPractice({
                   slot={slot}
                   active={!finished && index === state.cursor}
                   flagged={!finished && index === state.cursor && state.attempts > 0}
+                  shakeNonce={shakeSlot === index ? state.seq : 0}
                   boxRef={(node) => {
                     boxRefs.current[index] = node;
                   }}
@@ -336,14 +351,46 @@ function Slot({
   slot,
   active,
   flagged,
+  shakeNonce,
   boxRef,
 }: {
   slot: GuidedSlot;
   active: boolean;
   flagged: boolean;
+  /** Non-zero reducer sequence for each wrong letter targeting this slot. */
+  shakeNonce: number;
   /** The box the input is parked over; the caller measures it against the row. */
   boxRef: (node: React.ComponentRef<typeof View> | null) => void;
 }) {
+  const shakeX = useSharedValue(0);
+  // Keep one animated-style hook per view. Sharing one style currently works
+  // through Reanimated's multi-view descriptor set, but that is an
+  // implementation detail this focus-sensitive interaction need not depend on.
+  const boxShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+  const feedbackShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  // The animated wrapper exists from the first render. Adding an animation
+  // class later would make react-native-css-interop remount the slot exactly
+  // when the TextInput needs to keep its place and focus (#47).
+  useEffect(() => {
+    if (shakeNonce === 0) return;
+    shakeX.set(0);
+    shakeX.set(
+      withSequence(
+        withTiming(-5, { duration: 40, reduceMotion: ReduceMotion.System }),
+        withTiming(5, { duration: 55, reduceMotion: ReduceMotion.System }),
+        withTiming(-4, { duration: 50, reduceMotion: ReduceMotion.System }),
+        withTiming(4, { duration: 50, reduceMotion: ReduceMotion.System }),
+        withTiming(-2, { duration: 45, reduceMotion: ReduceMotion.System }),
+        withTiming(0, { duration: 40, reduceMotion: ReduceMotion.System })
+      )
+    );
+  }, [shakeNonce, shakeX]);
+
   // A word is shown once it is settled, and beforehand only if it was chosen
   // as a memory aid. Either way it still asks for its first letter.
   const shown = slot.status !== 'pending' || slot.visible;
@@ -374,25 +421,38 @@ function Slot({
 
   return (
     <View className="items-center">
-      <View
-        ref={boxRef}
-        style={{ minWidth: 34 }}
-        className={`h-9 px-1.5 rounded border items-center justify-center ${box}`}
-      >
-        <Text
-          className={`font-semibold ${label.length > 1 ? 'text-sm' : 'text-base uppercase'} ${text}`}
-          numberOfLines={1}
-        >
-          {label || ' '}
-        </Text>
+      {/* Keep the measured wrapper outside the transform. `measureInWindow`
+          can include ancestor transforms on iOS; measuring this stable layer
+          makes #50's auto-scroll coordinates independent of shake timing.
+          Its minWidth also remains the width floor for the stretched animated
+          layer and bordered box beneath it. */}
+      <View ref={boxRef} style={{ minWidth: 34 }}>
+        {/* No className on Animated.View: NativeWind does not register
+            Reanimated components, so classes on this node would be inert. */}
+        <Animated.View style={boxShakeStyle}>
+          <View
+            className={`h-9 px-1.5 rounded border items-center justify-center ${box}`}
+          >
+            <Text
+              className={`font-semibold ${label.length > 1 ? 'text-sm' : 'text-base uppercase'} ${text}`}
+              numberOfLines={1}
+            >
+              {label || ' '}
+            </Text>
+          </View>
+        </Animated.View>
       </View>
       {/* The active slot's cursor, and under a missed word, what was typed. */}
-      <View className="h-4 items-center justify-start">
-        {active && <View className="w-4 h-0.5 mt-0.5 bg-blue-500 rounded-full" />}
-        {!active && slot.status === 'missed' && slot.wrongLetter && (
-          <Text className="text-[10px] text-red-400 uppercase">{slot.wrongLetter}</Text>
-        )}
-      </View>
+      <Animated.View style={feedbackShakeStyle}>
+        <View className="h-4 items-center justify-start">
+          {active && <View className="w-4 h-0.5 mt-0.5 bg-blue-500 rounded-full" />}
+          {!active && slot.status === 'missed' && slot.wrongLetter && (
+            <Text className="text-[10px] text-red-400 uppercase">
+              {slot.wrongLetter}
+            </Text>
+          )}
+        </View>
+      </Animated.View>
     </View>
   );
 }

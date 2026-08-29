@@ -3,6 +3,7 @@ import {
   guidedReducer,
   guidedTally,
   isComplete,
+  shownFractionForDifficulty,
   visibleWordMask,
   DEFAULT_SHOWN_FRACTION,
   MAX_CONSECUTIVE_HIDDEN,
@@ -260,5 +261,13 @@ describe('visibleWordMask', () => {
   it('handles the degenerate lengths', () => {
     expect(visibleWordMask(0, 'verse-1')).toEqual([]);
     expect(visibleWordMask(1, 'verse-1')).toEqual([true]);
+  });
+});
+
+describe('shownFractionForDifficulty', () => {
+  it('maps the named presets to the full difficulty dial', () => {
+    expect(shownFractionForDifficulty('walkthrough')).toBe(1);
+    expect(shownFractionForDifficulty('easy')).toBe(DEFAULT_SHOWN_FRACTION);
+    expect(shownFractionForDifficulty('challenge')).toBe(0);
   });
 });

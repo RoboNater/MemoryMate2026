@@ -15,6 +15,7 @@
  */
 
 import { firstLetterWords, isAnswerCharacter } from './scoring';
+import type { GuidedDifficulty } from '../types';
 
 /**
  * What became of one word.
@@ -79,10 +80,22 @@ export interface GuidedTally {
 /**
  * The fraction of words shown in full. Difficulty is this one number: all
  * shown is a rhythm walkthrough, none shown is the original exercise but
- * guided. Two thirds is the "easy" end, and it is a constant rather than a
- * user control until someone has practised with it -- see #47.
+ * guided. Two thirds remains the default "easy" preset; #47 exposes all three
+ * named points through the Practice tab.
  */
 export const DEFAULT_SHOWN_FRACTION = 2 / 3;
+
+/** Convert the named UI presets into the reducer's single difficulty dial. */
+export function shownFractionForDifficulty(difficulty: GuidedDifficulty): number {
+  switch (difficulty) {
+    case 'walkthrough':
+      return 1;
+    case 'easy':
+      return DEFAULT_SHOWN_FRACTION;
+    case 'challenge':
+      return 0;
+  }
+}
 
 /**
  * The longest run of blanks allowed. Without a cap, "easy" can still hand you
