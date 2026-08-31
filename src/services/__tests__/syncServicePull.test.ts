@@ -297,11 +297,18 @@ describe('pullAll — per-table watermark', () => {
   });
 });
 
-describe('pullAll — a row that fails to apply is skipped, not fatal', () => {
-  it('swallows one bad row (FK violation) and still applies the good ones', async () => {
+describe('pullAll — a row that fails to apply is skipped [characterization] (#67)', () => {
+  // This pins the CURRENT skip-a-bad-row behaviour, it does not endorse it. The
+  // try/catch keeps one corrupt row from aborting the whole sync — which is
+  // wanted — but the watermark is noted from r.updated_at BEFORE the catch, so a
+  // failed row followed by a newer successful one is advanced past and stranded
+  // below the inclusive `>= since` cursor: permanent loss on this device. The
+  // data-loss decision is tracked in #67; rewrite this test, don't delete it, if
+  // that changes. The watermark assertion below documents the consequence.
+  it('strands a failed row below the watermark, unrecoverable even after its parent verse arrives', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    // 'v-missing' has no local/remote verse, so its progress INSERT violates the
-    // FK and throws inside the loop; 'v-ok' has a verse and must still apply.
+    // 'v-missing' has no verse, so its progress INSERT violates the FK and throws
+    // inside the loop; 'v-ok' has a verse and applies.
     await insertVerse({ id: 'v-ok', updated_at: '2026-01-01T00:00:00.000Z' });
     const client = fakeSupabase({
       progress: [
@@ -312,10 +319,24 @@ describe('pullAll — a row that fails to apply is skipped, not fatal', () => {
 
     const { pulled } = await pullAll(client);
 
+    // The catch let the good row through and warned about the bad one.
     expect(pulled).toBe(1);
     expect(await one<any>('SELECT times_practiced FROM progress WHERE verse_id = ?', ['v-ok'])).toEqual({ times_practiced: 4 });
     expect(await one('SELECT verse_id FROM progress WHERE verse_id = ?', ['v-missing'])).toBeNull();
     expect(warn).toHaveBeenCalled();
+
+    // Consequence (#67): the newer good row advanced the cursor PAST the failed
+    // 2026-02-01 row...
+    expect(await meta('last_pulled_at:progress')).toEqual({ value: '2026-02-02T00:00:00.000Z' });
+
+    // ...so even after its missing parent verse arrives, a re-pull never recovers
+    // it: the 2026-02-01 row now sits below the inclusive `>= since` cursor and is
+    // filtered out at the source. That is the data loss.
+    await insertVerse({ id: 'v-missing', updated_at: '2026-02-03T00:00:00.000Z' });
+    const second = await pullAll(client);
+    expect(second.pulled).toBe(0);
+    expect(await one('SELECT verse_id FROM progress WHERE verse_id = ?', ['v-missing'])).toBeNull();
+
     warn.mockRestore();
   });
 });
