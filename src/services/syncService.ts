@@ -248,8 +248,12 @@ async function fetchRemote(
  * Merge all pulled rows. Each table advances its OWN pull cursor (see
  * getPullSince) so one table's progress can't skip another's same-timestamp
  * rows. Returns how many rows were applied locally.
+ *
+ * Exported for the database-backed tests (issue #64): they drive it against a
+ * real schema-migrated database with the Supabase client faked at its immediate
+ * boundary (fetchRemote), exactly as verseService.addVerses mocks getDatabase.
  */
-async function pullAll(client: SupabaseClient): Promise<{ pulled: number }> {
+export async function pullAll(client: SupabaseClient): Promise<{ pulled: number }> {
   const db = getDatabase();
   let pulled = 0;
 
@@ -422,7 +426,7 @@ async function pullAll(client: SupabaseClient): Promise<{ pulled: number }> {
  * shelf deletion authoritative over membership and lets every device self-heal
  * on each sync, so the inconsistency can never persist. Returns rows repaired.
  */
-async function reconcileShelfMembership(): Promise<number> {
+export async function reconcileShelfMembership(): Promise<number> {
   const db = getDatabase();
   const now = new Date().toISOString();
   const res = await db.runAsync(
@@ -448,8 +452,10 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
  * while signed in get owned. Rows already stamped with a different account's
  * user_id are never re-claimed — re-stamping would push one account's data into
  * another account's cloud on a shared device (issue #2).
+ *
+ * Exported for the account-boundary tests (issue #64).
  */
-async function adoptUnownedRows(userId: string): Promise<void> {
+export async function adoptUnownedRows(userId: string): Promise<void> {
   const db = getDatabase();
   for (const table of ['shelves', 'verses', 'progress', 'test_results']) {
     await db.runAsync(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`, [userId]);
@@ -461,8 +467,10 @@ async function adoptUnownedRows(userId: string): Promise<void> {
  * sign-out already clears local data — but covers account switches that bypass
  * sign-out, so another account's rows are never shown to or synced for this
  * user. Children are deleted first so the result doesn't depend on FK cascades.
+ *
+ * Exported for the account-boundary tests (issue #64).
  */
-async function purgeRowsOwnedByOthers(userId: string): Promise<boolean> {
+export async function purgeRowsOwnedByOthers(userId: string): Promise<boolean> {
   const db = getDatabase();
   let purged = false;
   for (const table of ['test_results', 'progress', 'verses', 'shelves']) {

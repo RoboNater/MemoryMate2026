@@ -59,6 +59,20 @@ export async function initDatabase(): Promise<void> {
   // Reference: https://www.sqlite.org/pragma.html#pragma_foreign_keys
   await db.execAsync('PRAGMA foreign_keys = ON;');
 
+  await applySchema(db);
+}
+
+/**
+ * Create the tables/indexes and run migrations on an already-open connection.
+ *
+ * Split out from initDatabase so the fresh-install DDL and runMigrations can be
+ * applied to any AppDatabase — including a database-backed test harness that
+ * opens its own sql.js connection — without going through the platform-specific
+ * connection setup in initDatabase (issue #64). Callers are responsible for
+ * enabling foreign keys on the connection first (initDatabase does; the web
+ * adapter does so on open); this only touches schema.
+ */
+export async function applySchema(db: AppDatabase): Promise<void> {
   // Create tables (one statement per execAsync for sql.js compatibility).
   //
   // Sync columns (user_id / updated_at / deleted_at) are part of the fresh-install
@@ -174,8 +188,12 @@ async function addColumnIfMissing(
  * to databases created before this schema existed, backfill `updated_at` for
  * existing rows, and create the sync_state checkpoint table. Safe to run on
  * every startup — each step is a no-op once applied.
+ *
+ * Exported (issue #64) so the additive-and-idempotent contract asserted in this
+ * comment can be pinned by a database-backed test that migrates a pre-sync-era
+ * schema, not just by prose.
  */
-async function runMigrations(db: AppDatabase): Promise<void> {
+export async function runMigrations(db: AppDatabase): Promise<void> {
   // 1. Add sync metadata columns to the three synced tables (no-op on fresh DBs).
   for (const table of ['verses', 'progress', 'test_results']) {
     await addColumnIfMissing(db, table, 'user_id', 'TEXT');

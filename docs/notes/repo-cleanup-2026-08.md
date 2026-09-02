@@ -107,14 +107,32 @@ third-party files.
 
 ## Testing: where the line currently sits
 
-Covered: the three pure functions above, 133 tests, enforced by `npm test` in CI.
+Covered: the pure functions above, plus — since [#64](https://github.com/RoboNater/MemoryMate2026/issues/64)
+— the sync engine's merge logic, which is most of what needs a database.
 
-**Not covered: anything that needs a database** — which is most of the sync
-engine's merge logic. There's an open design question before that work can start:
-run the tests against the sql.js web adapter in Node, or mock the `AppDatabase`
-interface? Worth settling before
+**The open design question that used to sit here is settled: run the tests
+against sql.js in Node, not a mock of the `AppDatabase` interface.** The reasoning:
+
+- **sql.js exercises the SQL, a mock does not.** Several of the paths that most
+  needed cover *are* SQL — the `NOT IN (SELECT ...)` in `reconcileShelfMembership`,
+  the `LIKE 'last_pulled_at:%'` sweep in `clearLocalDataOnSignOut`, the FK
+  cascades. A mock of `AppDatabase` would assert the merge control flow while
+  saying nothing about the statements, which is where the bugs live.
+- **It stays honest about scope.** sql.js is the same Emscripten SQLite the web
+  adapter ships, so these tests are evidence about the web adapter and the SQL
+  itself — *not* about `expo-sqlite`'s native transaction semantics. Necessary,
+  not sufficient, per the "two backends, one interface" invariant.
+- **The harness** (`src/services/__tests__/testDatabase.ts`) opens a bare sql.js
+  handle and applies the production `applySchema` (fresh DDL + `runMigrations`),
+  so a schema or migration drift breaks the tests. Two implementation notes worth
+  keeping: it wraps a *bare* handle rather than reusing `openWebDatabase`, whose
+  debounced writes reach IndexedDB; and it loads sql.js's **asm.js** build, since
+  the WASM build fails to instantiate under jest ("out of memory") while asm.js
+  is the same SQLite and runs. Everything is in-process — no network.
+
+This was worth settling before
 [#11](https://github.com/RoboNater/MemoryMate2026/issues/11), which rewrites the
-comparison logic the current tests protect.
+comparison logic these tests now protect.
 
 `@testing-library/react-native` is deliberately **not** installed. Nothing tested
 so far is a component; it can arrive with the first test that needs it.
