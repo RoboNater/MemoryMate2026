@@ -15,7 +15,33 @@
  * persistence across page reloads (on web).
  */
 
+import { Asset } from 'expo-asset';
+
 import { saveDatabaseBlob } from './webPersistence';
+
+// The sql.js WASM binary, resolved as a Metro asset so it is served from the
+// app's own origin instead of a third-party CDN (issue #65). Two things fall
+// out of this for free: the app no longer needs the network — or `sql.js.org`
+// specifically — to open its local database, keeping the offline-first
+// invariant; and the `.wasm` is the exact one shipped by the pinned `sql.js`
+// dependency, so it can never drift out of step with the JS glue the way an
+// unpinned CDN URL could. Metro already treats `.wasm` as an asset
+// (`metro.config.js`), so this is the same resolution the repo already relies
+// on for expo-sqlite's own WASM. The import resolves to a Metro asset id (see
+// the `*.wasm` ambient declaration in `src/types/`).
+import SQL_WASM_MODULE from 'sql.js/dist/sql-wasm.wasm';
+
+/**
+ * Resolve the sql.js WASM binary to a same-origin URL that `initSqlJs` can load
+ * without touching the network beyond the app's own host.
+ */
+async function locateSqlWasm(): Promise<string> {
+  const asset = Asset.fromModule(SQL_WASM_MODULE);
+  if (!asset.downloaded) {
+    await asset.downloadAsync();
+  }
+  return asset.localUri ?? asset.uri;
+}
 
 export interface WebSQLiteDatabase {
   execAsync(source: string): Promise<void>;
@@ -36,9 +62,10 @@ export async function openWebDatabase(
   // Dynamic import so sql.js is never bundled for native platforms.
   const initSqlJs = (await import('sql.js')).default;
 
+  const wasmUri = await locateSqlWasm();
   const SQL = await initSqlJs({
-    // Load the WASM binary from the official sql.js CDN.
-    locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+    // Load the WASM binary from our own origin (see SQL_WASM_MODULE above).
+    locateFile: () => wasmUri,
   });
 
   // Initialize database from saved blob or create new empty database

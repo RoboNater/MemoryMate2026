@@ -69,7 +69,13 @@ Native (iOS/Android)          Web (Browser)
 ### Key Design Decisions
 
 - **Dynamic import**: `sql.js` is loaded via `await import('./webDatabase')` inside a `Platform.OS === 'web'` check, so it is never bundled for native platforms.
-- **WASM from CDN**: The sql.js WASM binary is fetched from `https://sql.js.org/dist/` at runtime. No local WASM file serving needed.
+- **WASM from our own origin**: The sql.js WASM binary is imported as a Metro
+  asset (`sql.js/dist/sql-wasm.wasm`) and resolved to a same-origin URL via
+  `expo-asset`, so opening the local database never depends on a third-party
+  host. It previously loaded from the `https://sql.js.org/dist/` CDN, which put
+  a network fetch in front of the offline-first storage layer and let an
+  unpinned upstream `.wasm` drift out of step with the pinned `sql.js` glue —
+  see issue #65.
 - **Shared interface**: An `AppDatabase` interface defines the methods used by the service layer (`execAsync`, `runAsync`, `getFirstAsync`, `getAllAsync`, `withTransactionAsync`, `closeAsync`). Both expo-sqlite and the sql.js adapter satisfy this interface.
 - **No service changes**: All 5 service modules (`verseService`, `progressService`, `testService`, `statsService`, `database`) work unchanged on both platforms.
 
