@@ -164,7 +164,7 @@ function checkProtection(protection, packageJson, packageLock) {
   if (!Object.hasOwn(protection, 'ancestor')) {
     for (const [packagePath, pkg] of Object.entries(packages)) {
       if (!isPackagePath(packagePath, protection.package)) continue;
-      if (!semver.satisfies(pkg.version, selector.installedRange, { includePrerelease: true })) {
+      if (!semver.satisfies(pkg.version, selector.requestedRange, { includePrerelease: true })) {
         continue;
       }
 
@@ -188,7 +188,7 @@ function checkProtection(protection, packageJson, packageLock) {
 
   for (const [packagePath, pkg] of Object.entries(packages)) {
     if (!isPackagePath(packagePath, protection.ancestor)) continue;
-    if (!semver.satisfies(pkg.version, selector.installedRange, { includePrerelease: true })) continue;
+    if (!semver.satisfies(pkg.version, selector.requestedRange, { includePrerelease: true })) continue;
 
     if (!Object.prototype.hasOwnProperty.call(pkg.dependencies ?? {}, protection.package)) {
       errors.push(

@@ -257,6 +257,17 @@ describe('version-selected override protection', () => {
     expect(result.errors).toEqual([]);
     expect(result.matches).toHaveLength(1);
   });
+
+  test('keeps prereleases of the selected major in scope', () => {
+    const result = checkProtection(
+      { ...directProtection, safeRange: '>=4.0.0-0 <5' },
+      { overrides: { 'child@4': '^4.3.1' } },
+      { packages: { 'node_modules/child': { version: '4.0.0-rc.1' } } },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.matches).toHaveLength(1);
+  });
 });
 
 describe('npm audit report validation', () => {
