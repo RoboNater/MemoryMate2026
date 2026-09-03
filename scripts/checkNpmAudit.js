@@ -2,7 +2,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { checkAuditBaseline } = require('./auditBaseline');
+const { checkAuditBaseline, isVulnerabilityReport } = require('./auditBaseline');
 
 const root = process.cwd();
 
@@ -32,6 +32,15 @@ try {
 
 if (![0, 1].includes(audit.status)) {
   console.error(`npm audit failed with exit code ${audit.status}.`);
+  if (audit.stderr) console.error(audit.stderr.trim());
+  process.exit(1);
+}
+
+if (!isVulnerabilityReport(report)) {
+  console.error(
+    'npm audit did not return a vulnerability report; the advisory service may be unreachable.',
+  );
+  if (report.message) console.error(report.message);
   if (audit.stderr) console.error(audit.stderr.trim());
   process.exit(1);
 }

@@ -22,11 +22,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Check npm audit against reviewed baseline
-        run: npm run audit:check
-
       - run: npm run typecheck
 
       - run: npm run lint
 
       - run: npm test
+
+      - name: Check npm audit against reviewed baseline
+        run: npm run audit:check

@@ -7,6 +7,8 @@ const MATERIAL_FIELDS = [
   'vulnerableVersions',
   'cwes',
   'cvss',
+  'nodes',
+  'effects',
 ];
 
 function advisoryId(advisory) {
@@ -18,7 +20,7 @@ function advisoryId(advisory) {
   return String(advisory.source);
 }
 
-function normalizeAdvisory(advisory) {
+function normalizeAdvisory(advisory, vulnerability = {}) {
   return {
     id: advisoryId(advisory),
     package: advisory.dependency ?? advisory.name,
@@ -30,6 +32,8 @@ function normalizeAdvisory(advisory) {
       score: advisory.cvss?.score ?? null,
       vectorString: advisory.cvss?.vectorString ?? null,
     },
+    nodes: [...(vulnerability.nodes ?? [])].sort(),
+    effects: [...(vulnerability.effects ?? [])].sort(),
   };
 }
 
@@ -39,7 +43,12 @@ function collectRootAdvisories(report) {
   for (const vulnerability of Object.values(report.vulnerabilities ?? {})) {
     for (const via of vulnerability.via ?? []) {
       if (typeof via !== 'object' || via === null) continue;
-      const advisory = normalizeAdvisory(via);
+      const advisory = normalizeAdvisory(via, vulnerability);
+      const existing = advisories.get(advisory.id);
+      if (existing) {
+        advisory.nodes = [...new Set([...existing.nodes, ...advisory.nodes])].sort();
+        advisory.effects = [...new Set([...existing.effects, ...advisory.effects])].sort();
+      }
       advisories.set(advisory.id, advisory);
     }
   }
@@ -71,7 +80,8 @@ function resolveDependency(packages, parentPath, dependencyName) {
 }
 
 function getOverride(packageJson, protection) {
-  return packageJson.overrides?.[protection.overrideSelector]?.[protection.package];
+  const selectedOverride = packageJson.overrides?.[protection.overrideSelector];
+  return protection.ancestor ? selectedOverride?.[protection.package] : selectedOverride;
 }
 
 function checkProtection(protection, packageJson, packageLock) {
@@ -87,6 +97,31 @@ function checkProtection(protection, packageJson, packageLock) {
   }
 
   const packages = packageLock.packages ?? {};
+  if (!protection.ancestor) {
+    for (const [packagePath, pkg] of Object.entries(packages)) {
+      if (!isPackagePath(packagePath, protection.package)) continue;
+      if (!semver.satisfies(pkg.version, protection.selectedRange, { includePrerelease: true })) {
+        continue;
+      }
+
+      matches.push({ dependencyPath: packagePath, dependencyVersion: pkg.version });
+      if (!semver.satisfies(pkg.version, protection.safeRange, { includePrerelease: true })) {
+        errors.push(
+          `${packagePath}@${pkg.version} is outside safe range ${protection.safeRange}`,
+        );
+      }
+    }
+
+    if (matches.length === 0) {
+      errors.push(
+        `no installed ${protection.package} matches ${protection.selectedRange}; ` +
+          'the version-scoped override may be inert',
+      );
+    }
+
+    return { errors, matches };
+  }
+
   for (const [packagePath, pkg] of Object.entries(packages)) {
     if (!isPackagePath(packagePath, protection.ancestor)) continue;
     if (!semver.satisfies(pkg.version, protection.ancestorRange, { includePrerelease: true })) continue;
@@ -159,6 +194,7 @@ function validateBaseline(baseline) {
 function checkAuditBaseline(report, baseline, packageJson, packageLock) {
   const errors = validateBaseline(baseline);
   const current = collectRootAdvisories(report);
+  const rootAdvisoryCount = current.size;
   const accepted = [];
 
   for (const expected of baseline.acceptedAdvisories ?? []) {
@@ -199,8 +235,19 @@ function checkAuditBaseline(report, baseline, packageJson, packageLock) {
     accepted,
     protections,
     affectedPackageEntries: Object.keys(report.vulnerabilities ?? {}).length,
-    rootAdvisoryCount: collectRootAdvisories(report).size,
+    rootAdvisoryCount,
   };
+}
+
+function isVulnerabilityReport(report) {
+  return (
+    report !== null &&
+    typeof report === 'object' &&
+    !report.error &&
+    typeof report.vulnerabilities === 'object' &&
+    report.vulnerabilities !== null &&
+    !Array.isArray(report.vulnerabilities)
+  );
 }
 
 module.exports = {
@@ -209,6 +256,7 @@ module.exports = {
   checkAuditBaseline,
   checkProtection,
   collectRootAdvisories,
+  isVulnerabilityReport,
   normalizeAdvisory,
   resolveDependency,
 };

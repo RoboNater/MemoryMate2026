@@ -9,9 +9,10 @@ even when `package-lock.json` has not changed.
 
 [`security/npm-audit-baseline.json`](../../security/npm-audit-baseline.json)
 records each accepted root advisory by its GHSA identity. It also records the
-affected package, title, severity, vulnerable range, CWEs, and CVSS data. A new
-identity, a change to any of those material fields, or the disappearance of an
-accepted advisory fails the check and requires another review.
+affected package, title, severity, vulnerable range, CWEs, CVSS data, installed
+nodes, and direct effects. A new identity, a change to any of those material or
+reachability fields, or the disappearance of an accepted advisory fails the
+check and requires another review.
 
 The check deliberately does not compare npm's aggregate vulnerability counts.
 One root advisory can create many derived findings as npm walks dependency
@@ -52,6 +53,13 @@ confirming the installed dependency is patched or gone. When a protected
 override has no matching ancestor, either update its selector and safe range for
 the new dependency tree or remove it if the vulnerable dependency is no longer
 reachable.
+
+Upstream metadata can change without making the installed package more
+dangerous. For example, an advisory that was initially unscored may later gain a
+CVSS score, or its title may be clarified. The resulting failure is still a
+required triage point: verify that the vulnerable range, severity, and local
+reachability have not worsened, then update those baseline fields in the same PR
+with a note explaining the upstream change.
 
 Do not run `npm audit fix` or `npm audit fix --force` as part of this process.
 npm's proposed fix can be a major downgrade of Expo or another incompatible

@@ -1,6 +1,6 @@
 const { describe, expect, test } = require('@jest/globals');
 
-const { checkAuditBaseline } = require('../auditBaseline');
+const { checkAuditBaseline, checkProtection, isVulnerabilityReport } = require('../auditBaseline');
 
 const advisory = {
   source: 123,
@@ -22,6 +22,8 @@ const acceptedAdvisory = {
   vulnerableVersions: '<2.0.0',
   cwes: ['CWE-400'],
   cvss: { score: 7.5, vectorString: 'CVSS:3.1/example' },
+  nodes: ['node_modules/example-package'],
+  effects: ['parent'],
   rationale: 'The vulnerable package is used only by a local build tool.',
   trackingIssue: 'https://github.com/RoboNater/MemoryMate2026/issues/42',
 };
@@ -41,7 +43,11 @@ function fixtures() {
   return {
     report: {
       vulnerabilities: {
-        'example-package': { via: [advisory] },
+        'example-package': {
+          via: [advisory],
+          nodes: ['node_modules/example-package'],
+          effects: ['parent'],
+        },
         parent: { via: ['example-package'] },
       },
     },
@@ -76,6 +82,20 @@ describe('audit baseline comparison', () => {
     expect(result.rootAdvisoryCount).toBe(1);
     expect(result.affectedPackageEntries).toBe(2);
     expect(result.accepted).toHaveLength(1);
+  });
+
+  test('rejects changes to accepted-advisory reachability', () => {
+    const input = fixtures();
+    input.report.vulnerabilities['example-package'].effects.push('runtime-consumer');
+
+    const result = checkAuditBaseline(
+      input.report,
+      input.baseline,
+      input.packageJson,
+      input.packageLock,
+    );
+
+    expect(result.errors).toContain('GHSA-1111-2222-3333 changed materially: effects');
   });
 
   test('rejects a new advisory identity', () => {
@@ -155,5 +175,61 @@ describe('audit baseline comparison', () => {
     );
 
     expect(result.errors).toContainEqual(expect.stringContaining('outside safe range >=5.0.9'));
+  });
+});
+
+describe('version-selected override protection', () => {
+  const directProtection = {
+    overrideSelector: 'child@4',
+    selectedRange: '>=4 <5',
+    package: 'child',
+    expectedOverride: '^4.3.1',
+    safeRange: '>=4.3.1 <5',
+  };
+
+  test('accepts an installed selected version within the safe range', () => {
+    const result = checkProtection(
+      directProtection,
+      { overrides: { 'child@4': '^4.3.1' } },
+      { packages: { 'node_modules/child': { version: '4.3.1' } } },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.matches).toHaveLength(1);
+  });
+
+  test('rejects an installed selected version below the safe range', () => {
+    const result = checkProtection(
+      directProtection,
+      { overrides: { 'child@4': '^4.3.1' } },
+      { packages: { 'node_modules/child': { version: '4.3.0' } } },
+    );
+
+    expect(result.errors).toContainEqual(expect.stringContaining('outside safe range'));
+  });
+
+  test('rejects a selector with no matching installed package', () => {
+    const result = checkProtection(
+      directProtection,
+      { overrides: { 'child@4': '^4.3.1' } },
+      { packages: { 'node_modules/child': { version: '5.0.0' } } },
+    );
+
+    expect(result.errors).toContainEqual(expect.stringContaining('override may be inert'));
+  });
+});
+
+describe('npm audit report validation', () => {
+  test('accepts a clean vulnerability report', () => {
+    expect(isVulnerabilityReport({ vulnerabilities: {} })).toBe(true);
+  });
+
+  test('rejects npm registry errors that happen to exit with status 1', () => {
+    expect(
+      isVulnerabilityReport({
+        message: 'request to the advisory service failed',
+        error: { summary: '', detail: '' },
+      }),
+    ).toBe(false);
   });
 });
