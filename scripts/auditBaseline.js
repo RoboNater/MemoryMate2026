@@ -86,6 +86,17 @@ function getOverride(packageJson, protection) {
     : selectedOverride;
 }
 
+function parseOverrideSelector(selector) {
+  if (typeof selector !== 'string') return null;
+  const separator = selector.lastIndexOf('@');
+  if (separator <= 0 || separator === selector.length - 1) return null;
+
+  const packageName = selector.slice(0, separator);
+  const requestedRange = selector.slice(separator + 1);
+  const installedRange = semver.validRange(requestedRange);
+  return installedRange ? { packageName, requestedRange, installedRange } : null;
+}
+
 function validateProtection(protection) {
   const label = `${protection.overrideSelector ?? '<missing selector>'} -> ${protection.package ?? '<missing package>'}`;
   const errors = [];
@@ -102,26 +113,32 @@ function validateProtection(protection) {
     errors.push(`${label} needs a full GitHub tracking issue URL`);
   }
 
-  if (Object.hasOwn(protection, 'ancestor')) {
+  const hasAncestor = Object.hasOwn(protection, 'ancestor');
+  if (hasAncestor) {
     if (typeof protection.ancestor !== 'string' || !protection.ancestor.trim()) {
       errors.push(`${label} needs a non-empty ancestor`);
     }
-    if (typeof protection.ancestorRange !== 'string' || !protection.ancestorRange.trim()) {
-      errors.push(`${label} needs a non-empty ancestorRange`);
-    }
-    if (Object.hasOwn(protection, 'selectedRange')) {
-      errors.push(`${label} must not mix ancestorRange with selectedRange`);
-    }
-  } else if (typeof protection.selectedRange !== 'string' || !protection.selectedRange.trim()) {
-    errors.push(`${label} needs a non-empty selectedRange`);
   }
 
-  const selectorRangeField = Object.hasOwn(protection, 'ancestor')
-    ? 'ancestorRange'
-    : 'selectedRange';
-  for (const field of ['safeRange', selectorRangeField]) {
-    if (typeof protection[field] === 'string' && semver.validRange(protection[field]) === null) {
-      errors.push(`${label} has an invalid ${field}: ${protection[field]}`);
+  for (const field of ['selectedRange', 'ancestorRange']) {
+    if (Object.hasOwn(protection, field)) {
+      errors.push(`${label} must derive its selected range; remove ${field}`);
+    }
+  }
+
+  if (typeof protection.safeRange === 'string' && semver.validRange(protection.safeRange) === null) {
+    errors.push(`${label} has an invalid safeRange: ${protection.safeRange}`);
+  }
+
+  const selector = parseOverrideSelector(protection.overrideSelector);
+  if (!selector) {
+    errors.push(`${label} needs a version-selected overrideSelector`);
+  } else {
+    const selectedPackage = hasAncestor ? protection.ancestor : protection.package;
+    if (selector.packageName !== selectedPackage) {
+      errors.push(
+        `${label} selects ${selector.packageName}, expected ${selectedPackage ?? '<missing package>'}`,
+      );
     }
   }
 
@@ -134,6 +151,7 @@ function checkProtection(protection, packageJson, packageLock) {
   if (errors.length > 0) return { errors, matches };
 
   const actualOverride = getOverride(packageJson, protection);
+  const selector = parseOverrideSelector(protection.overrideSelector);
 
   if (actualOverride !== protection.expectedOverride) {
     errors.push(
@@ -146,7 +164,7 @@ function checkProtection(protection, packageJson, packageLock) {
   if (!Object.hasOwn(protection, 'ancestor')) {
     for (const [packagePath, pkg] of Object.entries(packages)) {
       if (!isPackagePath(packagePath, protection.package)) continue;
-      if (!semver.satisfies(pkg.version, protection.selectedRange, { includePrerelease: true })) {
+      if (!semver.satisfies(pkg.version, selector.installedRange, { includePrerelease: true })) {
         continue;
       }
 
@@ -160,7 +178,7 @@ function checkProtection(protection, packageJson, packageLock) {
 
     if (matches.length === 0) {
       errors.push(
-        `no installed ${protection.package} matches ${protection.selectedRange}; ` +
+        `no installed ${protection.package} matches ${selector.requestedRange}; ` +
           'the version-scoped override may be inert',
       );
     }
@@ -170,7 +188,7 @@ function checkProtection(protection, packageJson, packageLock) {
 
   for (const [packagePath, pkg] of Object.entries(packages)) {
     if (!isPackagePath(packagePath, protection.ancestor)) continue;
-    if (!semver.satisfies(pkg.version, protection.ancestorRange, { includePrerelease: true })) continue;
+    if (!semver.satisfies(pkg.version, selector.installedRange, { includePrerelease: true })) continue;
 
     if (!Object.prototype.hasOwnProperty.call(pkg.dependencies ?? {}, protection.package)) {
       errors.push(
@@ -203,7 +221,7 @@ function checkProtection(protection, packageJson, packageLock) {
 
   if (matches.length === 0) {
     errors.push(
-      `no installed ${protection.ancestor} matches ${protection.ancestorRange}; ` +
+      `no installed ${protection.ancestor} matches ${selector.requestedRange}; ` +
         'the version-scoped override may be inert',
     );
   }

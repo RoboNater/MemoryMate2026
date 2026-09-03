@@ -31,7 +31,6 @@ const acceptedAdvisory = {
 const protection = {
   overrideSelector: 'parent@10',
   ancestor: 'parent',
-  ancestorRange: '>=10 <11',
   package: 'child',
   expectedOverride: '^5.0.9',
   safeRange: '>=5.0.9',
@@ -181,7 +180,6 @@ describe('audit baseline comparison', () => {
 describe('version-selected override protection', () => {
   const directProtection = {
     overrideSelector: 'child@4',
-    selectedRange: '>=4 <5',
     package: 'child',
     expectedOverride: '^4.3.1',
     safeRange: '>=4.3.1 <5',
@@ -222,26 +220,42 @@ describe('version-selected override protection', () => {
 
   test('rejects a protection that mixes the two supported shapes', () => {
     const result = checkProtection(
-      { ...directProtection, ancestor: 'parent', ancestorRange: '>=10 <11' },
+      { ...directProtection, ancestor: 'parent', selectedRange: '>=4 <5' },
       { overrides: { 'child@4': '^4.3.1' } },
       { packages: { 'node_modules/child': { version: '4.3.1' } } },
     );
 
     expect(result.errors).toContainEqual(
-      expect.stringContaining('must not mix ancestorRange with selectedRange'),
+      expect.stringContaining('must derive its selected range; remove selectedRange'),
     );
   });
 
-  test('rejects a selected-package protection without selectedRange', () => {
-    const invalidProtection = { ...directProtection };
-    delete invalidProtection.selectedRange;
+  test('rejects an ignored ancestorRange on a selected-package protection', () => {
     const result = checkProtection(
-      invalidProtection,
+      { ...directProtection, ancestorRange: '>=99 <100' },
       { overrides: { 'child@4': '^4.3.1' } },
       { packages: { 'node_modules/child': { version: '4.3.1' } } },
     );
 
-    expect(result.errors).toContainEqual(expect.stringContaining('needs a non-empty selectedRange'));
+    expect(result.errors).toContainEqual(
+      expect.stringContaining('must derive its selected range; remove ancestorRange'),
+    );
+  });
+
+  test('derives the governed package range from overrideSelector', () => {
+    const result = checkProtection(
+      directProtection,
+      { overrides: { 'child@4': '^4.3.1' } },
+      {
+        packages: {
+          'node_modules/child': { version: '4.3.1' },
+          'node_modules/legacy/node_modules/child': { version: '3.0.0' },
+        },
+      },
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.matches).toHaveLength(1);
   });
 });
 

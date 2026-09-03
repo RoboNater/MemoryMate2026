@@ -27,11 +27,16 @@ root identities it actually evaluates.
 
 The baseline's `protectedOverrides` section separately verifies each
 version-scoped security override. Schema version 2 supports two entry shapes. A
-selected-package entry uses `selectedRange` to check an override such as
-`js-yaml@4` directly. A selected-ancestor entry uses `ancestor` and
-`ancestorRange` to check a nested override such as `minimatch@10` →
-`brace-expansion`. Do not mix `selectedRange` with the ancestor fields in one
-entry.
+selected-package entry checks an override such as `js-yaml@4` directly. A
+selected-ancestor entry adds `ancestor` to check a nested override such as
+`minimatch@10` → `brace-expansion`. In both shapes, the selected range is
+derived from the version suffix in `overrideSelector`; do not add a separate
+`selectedRange` or `ancestorRange` that could drift from it.
+
+npm applies an override selector to a dependency's requested spec, not to its
+eventual installed version. The checker applies the selector's derived semver
+range to installed versions, so this remains a conservative model of npm's
+selection rather than a reimplementation of its exact matching semantics.
 
 Together, the entries check that:
 

@@ -70,7 +70,6 @@
     {
       "overrideSelector": "minimatch@10",
       "ancestor": "minimatch",
-      "ancestorRange": ">=10 <11",
       "package": "brace-expansion",
       "expectedOverride": "^5.0.9",
       "safeRange": ">=5.0.9 <6",
@@ -79,7 +78,6 @@
     },
     {
       "overrideSelector": "js-yaml@4",
-      "selectedRange": ">=4 <5",
       "package": "js-yaml",
       "expectedOverride": "^4.3.1",
       "safeRange": ">=4.3.1 <5",
@@ -88,7 +86,6 @@
     },
     {
       "overrideSelector": "@xmldom/xmldom@0.8",
-      "selectedRange": ">=0.8 <0.9",
       "package": "@xmldom/xmldom",
       "expectedOverride": "^0.8.15",
       "safeRange": ">=0.8.15 <0.9",
