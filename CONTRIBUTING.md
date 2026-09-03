@@ -13,15 +13,20 @@ a week of the next merge.
 
 ## Before you push
 
-All three of these run in CI on every pull request and every push to `main`:
+These run in CI on every pull request and every push to `main`:
 
 ```bash
+npm run audit:check
 npm run typecheck
 npm run lint
 npm test
 ```
 
 Run them locally first — CI is not a faster way to find out.
+
+The audit check compares advisory identities and material details against a
+reviewed baseline. See the [npm audit guide](docs/guides/npm-audit.md) before
+changing that baseline; never use `npm audit fix --force` as a shortcut.
 
 ## Getting set up
 

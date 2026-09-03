@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 2,
+  "acceptedAdvisories": [
+    {
+      "id": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "title": "image-size: ICNS parser allows denial of service through an infinite loop",
+      "severity": "high",
+      "vulnerableVersions": "<=2.0.2",
+      "cwes": ["CWE-835"],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "nodes": ["node_modules/image-size"],
+      "effects": ["metro"],
+      "rationale": "Metro uses image-size only while building repo-controlled assets; no patched release is available in the Expo 56 dependency tree.",
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/43"
+    },
+    {
+      "id": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "title": "image-size: JXL and HEIF parsers allow denial of service through infinite loops",
+      "severity": "high",
+      "vulnerableVersions": "<=2.0.2",
+      "cwes": ["CWE-835"],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+      },
+      "nodes": ["node_modules/image-size"],
+      "effects": ["metro"],
+      "rationale": "Metro uses image-size only while building repo-controlled assets; no patched release is available in the Expo 56 dependency tree.",
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/43"
+    },
+    {
+      "id": "GHSA-w5hq-g745-h8pq",
+      "package": "uuid",
+      "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+      "severity": "moderate",
+      "vulnerableVersions": "<11.1.1",
+      "cwes": ["CWE-1285", "CWE-787"],
+      "cvss": {
+        "score": 7.5,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+      },
+      "nodes": ["node_modules/xcode/node_modules/uuid"],
+      "effects": ["xcode"],
+      "rationale": "The affected uuid 7 copy is pinned by xcode and is used only by the iOS prebuild toolchain; overriding across four major versions is not justified.",
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/43"
+    },
+    {
+      "id": "GHSA-vcc3-ghjq-m6fr",
+      "package": "decode-uri-component",
+      "title": "decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input",
+      "severity": "moderate",
+      "vulnerableVersions": "<=0.4.2",
+      "cwes": ["CWE-1176", "CWE-400", "CWE-405", "CWE-407"],
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "nodes": ["node_modules/decode-uri-component"],
+      "effects": ["query-string"],
+      "rationale": "Expo Router's query-string dependency requires the vulnerable 0.2 line; crossing the pre-1.0 boundary needs a compatibility proof because route parsing is runtime-reachable.",
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/69"
+    }
+  ],
+  "protectedOverrides": [
+    {
+      "overrideSelector": "minimatch@10",
+      "ancestor": "minimatch",
+      "package": "brace-expansion",
+      "expectedOverride": "^5.0.9",
+      "safeRange": ">=5.0.9 <6",
+      "rationale": "The version-scoped override keeps minimatch 10 on brace-expansion's patched 5.0 line without forcing incompatible versions into older minimatch majors.",
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/42"
+    },
+    {
+      "overrideSelector": "js-yaml@4",
+      "package": "js-yaml",
+      "expectedOverride": "^4.3.1",
+      "safeRange": ">=4.3.1 <5",
+      "rationale": "The version-selected override keeps js-yaml 4 above the patched floor without forcing its major version onto older consumers.",
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/42"
+    },
+    {
+      "overrideSelector": "@xmldom/xmldom@0.8",
+      "package": "@xmldom/xmldom",
+      "expectedOverride": "^0.8.15",
+      "safeRange": ">=0.8.15 <0.9",
+      "rationale": "The version-selected override keeps Expo's 0.8 consumers above the XML fragment-injection advisory's patched floor without crossing a pre-1.0 boundary.",
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/43"
+    }
+  ]
+}

@@ -28,6 +28,9 @@ across their own devices via Supabase; there is no multi-user sharing.
   live here usually should: it's the code that's cheap to test.
 - `src/types/` — shared types and ambient declarations
 - `**/__tests__/` — tests, co-located next to the code they cover
+- `scripts/` — repository automation and its tests (including the npm audit
+  baseline checker)
+- `security/` — reviewed machine-readable security baselines used by CI
 - `supabase/schema.sql` — the Postgres schema (RLS policies, indexes)
 - `docs/` — durable documentation (architecture, guides, notes, product)
 - `docs/archive/` — frozen MVP-era history (old planning/status docs). Read for
@@ -42,10 +45,11 @@ npm install
 npm run web       # or: npm run ios / npm run android
 ```
 
-All three of these run in CI on every PR and push to `main`. Run them before
+All four of these run in CI on every PR and push to `main`. Run them before
 declaring work finished:
 
 ```bash
+npm run audit:check
 npm run typecheck
 npm run lint
 npm test
@@ -87,7 +91,8 @@ CI-enforced. Currently covered: `syncCompare.ts`, `utils/scoring.ts`,
 `utils/guidedFirstLetter.ts`, `utils/testSession.ts`, `utils/textImport.ts`,
 `importValidation.ts`, and two narrow service/store contracts pinned with a
 shallow mock of their immediate boundary (`store/verseStore.ts`'s write actions,
-`verseService.addVerses`'s timestamps).
+`verseService.addVerses`'s timestamps). The repository automation suite also
+covers the npm audit baseline's advisory comparison and scoped-override checks.
 
 The sync engine's merge logic — the code that only runs with a database handle —
 is now covered too (issue #64). The tests open a real schema-migrated SQLite

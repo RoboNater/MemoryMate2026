@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Re-query the advisory service even when the lockfile has not changed.
+    - cron: '17 13 * * 1'
 
 jobs:
   checks:
@@ -24,3 +27,6 @@ jobs:
       - run: npm run lint
 
       - run: npm test
+
+      - name: Check npm audit against reviewed baseline
+        run: npm run audit:check
