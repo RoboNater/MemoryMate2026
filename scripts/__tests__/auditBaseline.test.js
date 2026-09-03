@@ -52,7 +52,7 @@ function fixtures() {
       },
     },
     baseline: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       acceptedAdvisories: [acceptedAdvisory],
       protectedOverrides: [protection],
     },
@@ -185,6 +185,8 @@ describe('version-selected override protection', () => {
     package: 'child',
     expectedOverride: '^4.3.1',
     safeRange: '>=4.3.1 <5',
+    rationale: 'Keep the selected package major on its patched release.',
+    trackingIssue: 'https://github.com/RoboNater/MemoryMate2026/issues/42',
   };
 
   test('accepts an installed selected version within the safe range', () => {
@@ -216,6 +218,30 @@ describe('version-selected override protection', () => {
     );
 
     expect(result.errors).toContainEqual(expect.stringContaining('override may be inert'));
+  });
+
+  test('rejects a protection that mixes the two supported shapes', () => {
+    const result = checkProtection(
+      { ...directProtection, ancestor: 'parent', ancestorRange: '>=10 <11' },
+      { overrides: { 'child@4': '^4.3.1' } },
+      { packages: { 'node_modules/child': { version: '4.3.1' } } },
+    );
+
+    expect(result.errors).toContainEqual(
+      expect.stringContaining('must not mix ancestorRange with selectedRange'),
+    );
+  });
+
+  test('rejects a selected-package protection without selectedRange', () => {
+    const invalidProtection = { ...directProtection };
+    delete invalidProtection.selectedRange;
+    const result = checkProtection(
+      invalidProtection,
+      { overrides: { 'child@4': '^4.3.1' } },
+      { packages: { 'node_modules/child': { version: '4.3.1' } } },
+    );
+
+    expect(result.errors).toContainEqual(expect.stringContaining('needs a non-empty selectedRange'));
   });
 });
 

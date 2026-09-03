@@ -14,6 +14,11 @@ nodes, and direct effects. A new identity, a change to any of those material or
 reachability fields, or the disappearance of an accepted advisory fails the
 check and requires another review.
 
+`effects` covers only the accepted package's immediate dependents as npm reports
+them. A change farther up that dependency chain does not fail the check. Keeping
+that boundary at one hop catches a new direct consumer without turning the
+baseline into a fragile snapshot of every derived path.
+
 The check deliberately does not compare npm's aggregate vulnerability counts.
 One root advisory can create many derived findings as npm walks dependency
 paths, so a harmless tree change can alter the count without changing the risk.
@@ -21,12 +26,20 @@ The command still prints the affected-package count for context alongside the
 root identities it actually evaluates.
 
 The baseline's `protectedOverrides` section separately verifies each
-version-scoped security override. It checks that:
+version-scoped security override. Schema version 2 supports two entry shapes. A
+selected-package entry uses `selectedRange` to check an override such as
+`js-yaml@4` directly. A selected-ancestor entry uses `ancestor` and
+`ancestorRange` to check a nested override such as `minimatch@10` →
+`brace-expansion`. Do not mix `selectedRange` with the ancestor fields in one
+entry.
+
+Together, the entries check that:
 
 - the expected override is still present in `package.json`;
-- an installed ancestor still matches the selector's version range; and
-- every matching ancestor resolves the protected dependency within its safe
-  range.
+- an installed package or ancestor still matches the selector's version range;
+  and
+- every match is itself safe or resolves the protected dependency within its
+  safe range, depending on the entry shape.
 
 This makes a dependency major-version move visible instead of letting an old
 selector become silently inert.
@@ -50,9 +63,9 @@ selector become silently inert.
 
 When an accepted advisory disappears, remove its baseline entry only after
 confirming the installed dependency is patched or gone. When a protected
-override has no matching ancestor, either update its selector and safe range for
-the new dependency tree or remove it if the vulnerable dependency is no longer
-reachable.
+override has no matching package or ancestor, either update its selector and
+safe range for the new dependency tree or remove it if the vulnerable
+dependency is no longer reachable.
 
 Upstream metadata can change without making the installed package more
 dangerous. For example, an advisory that was initially unscored may later gain a

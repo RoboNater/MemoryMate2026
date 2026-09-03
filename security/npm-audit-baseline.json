@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "acceptedAdvisories": [
     {
       "id": "GHSA-w3rx-r6r6-pgpr",
@@ -93,7 +93,7 @@
       "expectedOverride": "^0.8.15",
       "safeRange": ">=0.8.15 <0.9",
       "rationale": "The version-selected override keeps Expo's 0.8 consumers above the XML fragment-injection advisory's patched floor without crossing a pre-1.0 boundary.",
-      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/71"
+      "trackingIssue": "https://github.com/RoboNater/MemoryMate2026/issues/43"
     }
   ]
 }

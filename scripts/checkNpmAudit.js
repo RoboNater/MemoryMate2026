@@ -62,14 +62,16 @@ for (const advisory of result.accepted) {
   );
 }
 
-console.log('\nProtected scoped overrides:');
+console.log('\nProtected version-selected overrides:');
 for (const protection of result.protections) {
   const resolutions = protection.matches
     .map((match) => `${protection.package}@${match.dependencyVersion}`)
     .join(', ');
+  const label = Object.hasOwn(protection, 'ancestor')
+    ? `${protection.overrideSelector} -> ${protection.package}`
+    : protection.overrideSelector;
   console.log(
-    `- ${protection.overrideSelector} -> ${protection.package}: ` +
-      `${resolutions || 'no matching dependency path'} (safe: ${protection.safeRange})`,
+    `- ${label}: ${resolutions || 'no matching dependency path'} (safe: ${protection.safeRange})`,
   );
 }
 

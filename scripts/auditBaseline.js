@@ -81,12 +81,58 @@ function resolveDependency(packages, parentPath, dependencyName) {
 
 function getOverride(packageJson, protection) {
   const selectedOverride = packageJson.overrides?.[protection.overrideSelector];
-  return protection.ancestor ? selectedOverride?.[protection.package] : selectedOverride;
+  return Object.hasOwn(protection, 'ancestor')
+    ? selectedOverride?.[protection.package]
+    : selectedOverride;
+}
+
+function validateProtection(protection) {
+  const label = `${protection.overrideSelector ?? '<missing selector>'} -> ${protection.package ?? '<missing package>'}`;
+  const errors = [];
+
+  for (const field of ['overrideSelector', 'package', 'expectedOverride', 'safeRange']) {
+    if (typeof protection[field] !== 'string' || !protection[field].trim()) {
+      errors.push(`${label} needs a non-empty ${field}`);
+    }
+  }
+  if (typeof protection.rationale !== 'string' || !protection.rationale.trim()) {
+    errors.push(`${label} needs a rationale`);
+  }
+  if (!/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/.test(protection.trackingIssue ?? '')) {
+    errors.push(`${label} needs a full GitHub tracking issue URL`);
+  }
+
+  if (Object.hasOwn(protection, 'ancestor')) {
+    if (typeof protection.ancestor !== 'string' || !protection.ancestor.trim()) {
+      errors.push(`${label} needs a non-empty ancestor`);
+    }
+    if (typeof protection.ancestorRange !== 'string' || !protection.ancestorRange.trim()) {
+      errors.push(`${label} needs a non-empty ancestorRange`);
+    }
+    if (Object.hasOwn(protection, 'selectedRange')) {
+      errors.push(`${label} must not mix ancestorRange with selectedRange`);
+    }
+  } else if (typeof protection.selectedRange !== 'string' || !protection.selectedRange.trim()) {
+    errors.push(`${label} needs a non-empty selectedRange`);
+  }
+
+  const selectorRangeField = Object.hasOwn(protection, 'ancestor')
+    ? 'ancestorRange'
+    : 'selectedRange';
+  for (const field of ['safeRange', selectorRangeField]) {
+    if (typeof protection[field] === 'string' && semver.validRange(protection[field]) === null) {
+      errors.push(`${label} has an invalid ${field}: ${protection[field]}`);
+    }
+  }
+
+  return errors;
 }
 
 function checkProtection(protection, packageJson, packageLock) {
-  const errors = [];
+  const errors = validateProtection(protection);
   const matches = [];
+  if (errors.length > 0) return { errors, matches };
+
   const actualOverride = getOverride(packageJson, protection);
 
   if (actualOverride !== protection.expectedOverride) {
@@ -97,7 +143,7 @@ function checkProtection(protection, packageJson, packageLock) {
   }
 
   const packages = packageLock.packages ?? {};
-  if (!protection.ancestor) {
+  if (!Object.hasOwn(protection, 'ancestor')) {
     for (const [packagePath, pkg] of Object.entries(packages)) {
       if (!isPackagePath(packagePath, protection.package)) continue;
       if (!semver.satisfies(pkg.version, protection.selectedRange, { includePrerelease: true })) {
@@ -169,22 +215,29 @@ function validateBaseline(baseline) {
   const errors = [];
   const ids = new Set();
 
-  if (baseline.schemaVersion !== 1) errors.push('baseline schemaVersion must be 1');
+  if (baseline.schemaVersion !== 2) errors.push('baseline schemaVersion must be 2');
 
   for (const advisory of baseline.acceptedAdvisories ?? []) {
     if (ids.has(advisory.id)) errors.push(`duplicate accepted advisory ${advisory.id}`);
     ids.add(advisory.id);
-    if (!advisory.rationale?.trim()) errors.push(`${advisory.id} needs a rationale`);
+    for (const field of ['id', 'package', 'title', 'severity', 'vulnerableVersions']) {
+      if (typeof advisory[field] !== 'string' || !advisory[field].trim()) {
+        errors.push(`${advisory.id ?? '<missing advisory>'} needs a non-empty ${field}`);
+      }
+    }
+    for (const field of ['cwes', 'nodes', 'effects']) {
+      if (!Array.isArray(advisory[field])) {
+        errors.push(`${advisory.id ?? '<missing advisory>'} needs an array ${field}`);
+      }
+    }
+    if (advisory.cvss === null || typeof advisory.cvss !== 'object') {
+      errors.push(`${advisory.id ?? '<missing advisory>'} needs cvss metadata`);
+    }
+    if (typeof advisory.rationale !== 'string' || !advisory.rationale.trim()) {
+      errors.push(`${advisory.id} needs a rationale`);
+    }
     if (!/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/.test(advisory.trackingIssue ?? '')) {
       errors.push(`${advisory.id} needs a full GitHub tracking issue URL`);
-    }
-  }
-
-  for (const protection of baseline.protectedOverrides ?? []) {
-    const label = `${protection.overrideSelector} -> ${protection.package}`;
-    if (!protection.rationale?.trim()) errors.push(`${label} needs a rationale`);
-    if (!/^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+$/.test(protection.trackingIssue ?? '')) {
-      errors.push(`${label} needs a full GitHub tracking issue URL`);
     }
   }
 
